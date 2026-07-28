@@ -1,0 +1,11 @@
+{
+  "name": "powerbrowser-navigator",
+  "version": "3.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node tools/build.mjs",
+    "check": "node tools/build.mjs --check",
+    "extract": "node tools/extract-source.mjs"
+  }
+}

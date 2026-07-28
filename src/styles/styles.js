@@ -1,0 +1,2042 @@
+  GM_addStyle(`
+    .power-browser-action-playground-dialog-v2 {
+      top: 72px !important;
+      width: min(900px, calc(100vw - 48px)) !important;
+      max-width: min(900px, calc(100vw - 48px)) !important;
+      height: min(880px, calc(100vh - 88px)) !important;
+      min-height: min(720px, calc(100vh - 88px)) !important;
+      max-height: calc(100vh - 88px) !important;
+      grid-template-rows: auto minmax(0, 1fr) auto auto !important;
+      overflow: hidden !important;
+      transform: translateX(-50%) !important;
+    }
+
+    .power-browser-action-playground-dialog-v2
+      > .box-border.overflow-auto {
+      min-height: 0 !important;
+      overflow-x: hidden !important;
+      overflow-y: auto !important;
+      padding-right: 6px;
+    }
+
+    .power-browser-action-playground-dialog-v2
+      > .flex.flex-row.justify-between.gap-2 {
+      position: relative;
+      z-index: 1;
+      flex-shrink: 0;
+      background: white;
+    }
+
+    .power-browser-action-playground-dialog-v2
+      [data-power-browser-action-headers-v2] {
+      padding-bottom: 4px;
+    }
+
+    .power-browser-action-playground-dialog-v2
+      [data-power-browser-action-headers-v2]
+      textarea {
+      min-height: 112px;
+    }
+
+    .power-browser-action-playground-dialog-v2
+      textarea[data-power-browser-action-variables-v2] {
+      max-height: calc(12em + 16px) !important;
+    }
+
+    .power-browser-action-alert-v2 {
+      display: none;
+      margin: 4px 0 12px;
+      padding: 10px 12px;
+      color: #991b1b;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 6px;
+      font: 500 12px/1.4 Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .power-browser-action-alert-v2.open {
+      display: block;
+    }
+
+    .nav-container-1c7b2759-c793-4d17-b89b-1da6c5c5cf5b {
+      position: fixed;
+      margin: 0;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      text-align: center;
+      padding: 6px 2px 2px;
+      width: 30%;
+      min-width: 250px;
+      z-index: 2147483647;
+      background: transparent !important;
+      box-shadow: none !important;
+      font-family: Arial, sans-serif;
+    }
+
+    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex !important;
+      flex-direction: row;
+      align-items: stretch;
+      padding: 0;
+      opacity: 1;
+      white-space: nowrap;
+      background: white;
+      border-radius: 5px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > a,
+    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > button,
+    .power-browser-state-toggle-v2 {
+      box-sizing: border-box;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      min-height: 38px;
+      padding: 10px 20px;
+      border: 0;
+      border-radius: 0;
+      color: black;
+      background: white;
+      font: 14px Arial, sans-serif;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > a:hover,
+    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > button:hover,
+    .power-browser-state-toggle-v2:hover {
+      background: #f0f0f0;
+    }
+
+    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > :first-child {
+      border-radius: 5px 0 0 5px;
+    }
+
+    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > :last-child {
+      border-radius: 0 5px 5px 0;
+    }
+
+    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 svg {
+      width: 16px;
+      height: 16px;
+      flex: 0 0 16px;
+      margin-bottom: 2px;
+      vertical-align: middle;
+      fill: currentColor;
+    }
+
+    .button-disabled-6b6a60d4-9e38-4279-84a5-5ef466dde62f {
+      color: #777 !important;
+      background-color: rgb(220, 220, 220) !important;
+      cursor: not-allowed !important;
+      pointer-events: none;
+    }
+
+    #buttonCopyBearer.button-disabled-6b6a60d4-9e38-4279-84a5-5ef466dde62f {
+      pointer-events: auto;
+    }
+
+    .power-browser-hidden-v2 {
+      display: none !important;
+    }
+
+    .power-browser-state-switcher-v2 {
+      position: relative;
+      display: inline-flex;
+    }
+
+    .power-browser-state-toggle-v2 {
+      max-width: 210px;
+    }
+
+    .power-browser-state-toggle-label-v2 {
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .power-browser-state-menu-v2 {
+      position: absolute;
+      top: calc(100% + 5px);
+      left: 0;
+      display: none;
+      min-width: 240px;
+      padding: 5px;
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+      z-index: 1;
+    }
+
+    .power-browser-state-switcher-v2.open .power-browser-state-menu-v2 {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .power-browser-state-option-v2 {
+      display: flex;
+      align-items: center;
+      width: 100%;
+      padding: 9px 12px;
+      padding-left: calc(12px + var(--power-browser-depth, 0) * 16px);
+      border: 0;
+      border-radius: 3px;
+      color: #222;
+      background: white;
+      font: 14px Arial, sans-serif;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .power-browser-state-option-v2:hover {
+      background: #f0f0f0;
+    }
+
+    .power-browser-state-option-v2.current {
+      color: #e9004c;
+      font-weight: 600;
+      cursor: default;
+    }
+
+    .power-browser-state-option-v2.no-access {
+      color: #888;
+      background: #e7e7e7;
+      cursor: not-allowed;
+      opacity: 0.7;
+    }
+
+    .power-browser-state-option-v2.no-access:hover {
+      background: #e7e7e7;
+    }
+
+    .power-browser-state-option-v2 small {
+      margin-left: auto;
+      padding-left: 12px;
+      color: #777;
+      font-size: 11px;
+    }
+
+    .power-browser-bearer-copied-v2 {
+      background: rgba(202, 240, 181, 0.95) !important;
+    }
+
+    .power-browser-bearer-error-v2 {
+      background: rgba(255, 190, 190, 0.95) !important;
+    }
+
+    .power-browser-model-search-overlay-v2 {
+      position: fixed;
+      inset: 0;
+      display: none;
+      background: rgba(20, 24, 35, 0.45);
+      backdrop-filter: blur(2px);
+      z-index: 2147483646;
+    }
+
+    .power-browser-model-search-overlay-v2.open {
+      display: block;
+    }
+
+    .power-browser-model-search-dialog-v2 {
+      position: fixed;
+      top: clamp(55px, 10vh, 120px);
+      left: 50%;
+      display: none;
+      width: min(720px, calc(100vw - 32px));
+      max-height: min(720px, 80vh);
+      overflow: hidden;
+      transform: translateX(-50%);
+      color: #262a3a;
+      background: #fff;
+      border: 1px solid rgba(233, 0, 76, 0.2);
+      border-radius: 14px;
+      box-shadow: 0 28px 80px rgba(20, 24, 35, 0.28);
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      z-index: 2147483647;
+    }
+
+    .power-browser-model-search-dialog-v2.open {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .power-browser-model-search-header-v2 {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 18px;
+      border-bottom: 1px solid #e6e7eb;
+    }
+
+    .power-browser-model-search-header-v2 svg {
+      width: 20px;
+      height: 20px;
+      fill: #e9004c;
+    }
+
+    .power-browser-model-search-input-v2 {
+      flex: 1;
+      min-width: 0;
+      padding: 0;
+      border: 0;
+      outline: 0;
+      color: #262a3a;
+      background: transparent;
+      font: 500 17px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .power-browser-model-search-shortcut-v2,
+    .power-browser-model-search-count-v2 {
+      color: #777d8c;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .power-browser-model-search-results-v2 {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin: 0;
+      padding: 8px;
+      overflow-y: auto;
+      list-style: none;
+    }
+
+    .power-browser-model-search-result-row-v2 {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: stretch;
+      gap: 4px;
+    }
+
+    .power-browser-model-search-result-v2 {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+      padding: 11px 12px;
+      border: 0;
+      border-radius: 8px;
+      color: #262a3a;
+      background: transparent;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .power-browser-model-search-result-v2:hover,
+    .power-browser-model-search-result-v2.active {
+      background: #fff0f5;
+    }
+
+    .power-browser-model-search-chip-v2 {
+      min-width: 58px;
+      padding: 4px 7px;
+      border-radius: 999px;
+      color: #6b2541;
+      background: #ffdbe8;
+      font-size: 10px;
+      font-weight: 700;
+      text-align: center;
+      text-transform: uppercase;
+    }
+
+    .power-browser-model-search-chip-v2.property {
+      color: #24546c;
+      background: #dceff8;
+    }
+
+    .power-browser-model-search-chip-v2.relation {
+      color: #614e13;
+      background: #fff0b8;
+    }
+
+    .power-browser-model-search-copy-v2 {
+      min-width: 0;
+    }
+
+    .power-browser-model-search-title-v2 {
+      display: block;
+      overflow: hidden;
+      color: #262a3a;
+      font-size: 14px;
+      font-weight: 650;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .power-browser-model-search-meta-v2 {
+      display: block;
+      margin-top: 3px;
+      overflow: hidden;
+      color: #777d8c;
+      font-size: 11px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .power-browser-model-search-open-v2 {
+      padding: 5px 8px;
+      border: 1px solid #d9dbe2;
+      border-radius: 6px;
+      color: #4e5360;
+      background: #fff;
+      font-size: 11px;
+    }
+
+    .power-browser-model-search-backoffice-v2 {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 42px;
+      padding: 0;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      color: #4e5360;
+      background: transparent;
+      cursor: pointer;
+    }
+
+    .power-browser-model-search-backoffice-v2:hover,
+    .power-browser-model-search-backoffice-v2:focus-visible {
+      color: #e9004c;
+      background: #fff0f5;
+      border-color: #ffd0df;
+      outline: none;
+    }
+
+    .power-browser-model-search-backoffice-v2 svg {
+      width: 18px;
+      height: 18px;
+      fill: currentColor;
+    }
+
+    .power-browser-model-search-empty-v2 {
+      padding: 32px 20px;
+      color: #777d8c;
+      font-size: 13px;
+      text-align: center;
+    }
+
+    .power-browser-model-search-footer-v2 {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 9px 16px;
+      color: #777d8c;
+      background: #f7f7f9;
+      border-top: 1px solid #e6e7eb;
+      font-size: 11px;
+    }
+
+    .power-browser-settings-overlay-v2 {
+      position: fixed;
+      inset: 0;
+      display: none;
+      background: rgba(19, 23, 34, 0.48);
+      backdrop-filter: blur(4px);
+      z-index: 2147483646;
+    }
+
+    .power-browser-settings-overlay-v2.open {
+      display: block;
+    }
+
+    .power-browser-settings-dialog-v2 {
+      --power-browser-settings-flash-rgb: 233, 0, 76;
+      --pb-settings-font-micro: 9px;
+      --pb-settings-font-small: 11px;
+      --pb-settings-font-body: 13px;
+      --pb-settings-font-input: 12px;
+      --pb-settings-font-title: 20px;
+      --pb-settings-font-large: 15px;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      display: none;
+      grid-template-columns: 220px minmax(0, 1fr);
+      width: min(1000px, calc(100vw - 32px));
+      height: min(740px, calc(100vh - 32px));
+      overflow: hidden;
+      transform: translate(-50%, -50%);
+      color: #282c3a;
+      background: #fff;
+      border: 1px solid rgba(233, 0, 76, 0.18);
+      border-radius: 18px;
+      box-shadow: 0 32px 100px rgba(15, 18, 28, 0.32);
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      z-index: 2147483647;
+    }
+
+    .power-browser-settings-dialog-v2.open {
+      display: grid;
+    }
+
+    .power-browser-settings-sidebar-v2 {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      min-height: 0;
+      overflow: hidden;
+      padding: 24px 14px 14px;
+      color: #fff;
+      background: linear-gradient(165deg, #262a3a 0%, #171a25 100%);
+    }
+
+    .power-browser-settings-brand-v2 {
+      padding: 0 10px 22px;
+    }
+
+    .power-browser-settings-brand-v2 strong {
+      display: block;
+      font-size: 17px;
+      letter-spacing: -0.02em;
+    }
+
+    .power-browser-settings-brand-v2 span {
+      display: block;
+      margin-top: 4px;
+      color: #aeb3c2;
+      font-size: 11px;
+    }
+
+    .power-browser-settings-tabs-v2 {
+      display: flex;
+      height: 0;
+      flex: 1 1 0;
+      flex-direction: column;
+      gap: 4px;
+      min-height: 0;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-width: none;
+      touch-action: pan-y;
+    }
+
+    .power-browser-settings-tabs-v2::-webkit-scrollbar {
+      display: none;
+      width: 0;
+      height: 0;
+    }
+
+    .power-browser-settings-tabs-v2
+      > .power-browser-settings-tab-v2,
+    .power-browser-settings-tabs-v2
+      > .power-browser-settings-section-links-v2 {
+      flex: 0 0 auto;
+    }
+
+    .power-browser-settings-tab-v2 {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      width: 100%;
+      padding: 10px 12px;
+      border: 0;
+      border-radius: 8px;
+      color: #c7cad4;
+      background: transparent;
+      font: 500 13px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .power-browser-settings-tab-v2.has-sections::after {
+      content: "›";
+      font-size: 17px;
+      line-height: 1;
+      transform: rotate(0deg);
+      transition: transform 120ms ease;
+    }
+
+    .power-browser-settings-tab-v2.has-sections[aria-expanded="true"]::after {
+      transform: rotate(90deg);
+    }
+
+    .power-browser-settings-tab-v2:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.07);
+    }
+
+    .power-browser-settings-tab-v2.active {
+      color: #fff;
+      background: #e9004c;
+      box-shadow: 0 6px 18px rgba(233, 0, 76, 0.28);
+    }
+
+    .power-browser-settings-section-links-v2 {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding: 2px 0 4px 13px;
+    }
+
+    .power-browser-settings-section-link-v2 {
+      padding: 6px 10px;
+      border: 0;
+      border-left: 1px solid rgba(255, 255, 255, 0.16);
+      color: #969cac;
+      background: transparent;
+      font: 500 11px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .power-browser-settings-section-link-v2:hover,
+    .power-browser-settings-section-link-v2.active {
+      color: #fff;
+      border-left-color: #e9004c;
+    }
+
+    .power-browser-settings-version-v2 {
+      padding: 12px 10px 2px;
+      color: #777d8c;
+      font-size: 10px;
+    }
+
+    .power-browser-settings-main-v2 {
+      display: flex;
+      min-width: 0;
+      flex-direction: column;
+      overflow: hidden;
+      background: #f7f7f9;
+    }
+
+    .power-browser-settings-header-v2 {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 22px 26px 18px;
+      background: #fff;
+      border-bottom: 1px solid #e8e9ed;
+    }
+
+    .power-browser-settings-heading-v2 h2 {
+      margin: 0;
+      color: #262a3a;
+      font-size: 20px;
+      letter-spacing: -0.02em;
+    }
+
+    .power-browser-settings-heading-v2 p {
+      margin: 5px 0 0;
+      color: #777d8c;
+      font-size: 12px;
+    }
+
+    .power-browser-settings-close-v2 {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 34px;
+      height: 34px;
+      border: 0;
+      border-radius: 8px;
+      color: #646977;
+      background: #f1f2f5;
+      font-size: 21px;
+      cursor: pointer;
+    }
+
+    .power-browser-settings-close-v2:hover {
+      color: #e9004c;
+      background: #fff0f5;
+    }
+
+    .power-browser-settings-alert-v2 {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 12px 26px;
+      color: #6e1836;
+      background: #ffe4ed;
+      border-bottom: 1px solid #ffc1d5;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .power-browser-settings-alert-v2.open {
+      display: flex;
+    }
+
+    .power-browser-settings-search-v2 {
+      padding: 12px 26px;
+      background: #fff;
+      border-bottom: 1px solid #e8e9ed;
+    }
+
+    .power-browser-settings-search-v2 input {
+      box-sizing: border-box;
+      width: 100%;
+      padding: 9px 12px;
+      color: #303442;
+      background: #f7f7f9;
+      border: 1px solid #d9dbe1;
+      border-radius: 8px;
+      font-size: 12px;
+      outline: none;
+    }
+
+    .power-browser-settings-search-v2 input:focus {
+      background: #fff;
+      border-color: #e9004c;
+      box-shadow: 0 0 0 3px rgba(233, 0, 76, 0.1);
+    }
+
+    .power-browser-settings-search-result-v2 {
+      width: 100%;
+      color: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .power-browser-settings-search-result-v2
+      .power-browser-settings-info-status-v2 {
+      color: #344bc1;
+      background: #edf1ff;
+      border-color: #ccd5ff;
+    }
+
+    .power-browser-settings-alert-v2 strong {
+      display: block;
+      margin-bottom: 2px;
+      color: #4f1027;
+      font-size: 12px;
+    }
+
+    .power-browser-settings-reload-v2 {
+      flex: 0 0 auto;
+      padding: 8px 12px;
+      border: 0;
+      border-radius: 7px;
+      color: #fff;
+      background: #e9004c;
+      font-size: 11px;
+      font-weight: 650;
+      cursor: pointer;
+    }
+
+    .power-browser-settings-reload-v2:hover {
+      background: #c90042;
+    }
+
+    .power-browser-settings-content-v2 {
+      flex: 1;
+      padding: 20px 26px 28px;
+      overflow-y: auto;
+    }
+
+    .power-browser-settings-list-v2 {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .power-browser-settings-section-v2 {
+      margin: 12px 4px 0;
+      color: #656b79;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .power-browser-settings-section-v2:first-child {
+      margin-top: 0;
+    }
+
+    .power-browser-settings-card-v2 {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 18px;
+      padding: 16px 18px;
+      background: #fff;
+      border: 1px solid #e4e5ea;
+      border-radius: 11px;
+      box-shadow: 0 2px 7px rgba(25, 29, 42, 0.03);
+    }
+
+    .power-browser-settings-card-v2:hover {
+      border-color: #d4d6dd;
+    }
+
+    .power-browser-settings-card-v2.setting-flash {
+      animation: power-browser-settings-flash-v2 1.65s ease;
+    }
+
+    @keyframes power-browser-settings-flash-v2 {
+      0%,
+      100% {
+        box-shadow: 0 2px 7px rgba(25, 29, 42, 0.03);
+        transform: translateY(0);
+      }
+
+      18%,
+      55% {
+        border-color: rgb(var(--power-browser-settings-flash-rgb));
+        box-shadow:
+          0 0 0 4px
+            rgba(var(--power-browser-settings-flash-rgb), 0.22),
+          0 8px 22px rgba(25, 29, 42, 0.12);
+        transform: translateY(-1px);
+      }
+    }
+
+    .power-browser-settings-card-v2.setting-disabled {
+      opacity: 0.55;
+    }
+
+    .power-browser-settings-info-card-v2 {
+      display: block;
+    }
+
+    .power-browser-settings-data-v2
+      .power-browser-settings-info-title-v2 {
+      margin-bottom: 0;
+    }
+
+    .power-browser-settings-data-v2
+      .power-browser-settings-actions-v2 {
+      margin-top: 14px;
+    }
+
+    .power-browser-settings-info-title-v2 {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+      color: #303442;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .power-browser-settings-info-status-v2 {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 7px;
+      color: #23603e;
+      background: #e8f7ef;
+      border: 1px solid #bde8cf;
+      border-radius: 999px;
+      font-size: 9px;
+      font-weight: 750;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .power-browser-settings-info-grid-v2 {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px 20px;
+      margin: 0;
+    }
+
+    .power-browser-settings-info-item-v2 {
+      min-width: 0;
+    }
+
+    .power-browser-settings-info-item-v2 dt {
+      margin: 0 0 3px;
+      color: #8a8f9d;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .power-browser-settings-info-item-v2 dd {
+      margin: 0;
+      overflow-wrap: anywhere;
+      color: #303442;
+      font: 11px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace;
+    }
+
+    .power-browser-settings-info-value-v2 {
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+    }
+
+    .power-browser-settings-info-value-v2 dd {
+      min-width: 0;
+      flex: 1;
+    }
+
+    .power-browser-settings-copy-value-v2 {
+      flex: 0 0 auto;
+      padding: 2px 5px;
+      color: #656b79;
+      background: #f3f4f7;
+      border: 1px solid #dfe1e7;
+      border-radius: 5px;
+      font-size: 8px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .power-browser-settings-copy-value-v2:hover {
+      color: #e9004c;
+      background: #fff;
+      border-color: #ef9db9;
+    }
+
+    .power-browser-settings-diagnostics-v2 {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .power-browser-settings-diagnostic-v2 {
+      padding: 13px 14px;
+      background: #fff;
+      border: 1px solid #e4e5ea;
+      border-left: 4px solid #8a8f9d;
+      border-radius: 9px;
+    }
+
+    .power-browser-settings-diagnostic-v2[data-status="loading"] {
+      border-left-color: #395afc;
+    }
+
+    .power-browser-settings-diagnostic-v2[data-status="success"] {
+      border-left-color: #22935c;
+    }
+
+    .power-browser-settings-diagnostic-v2[data-status="warning"] {
+      border-left-color: #d78b14;
+    }
+
+    .power-browser-settings-diagnostic-v2[data-status="error"] {
+      border-left-color: #d02d3d;
+    }
+
+    .power-browser-settings-diagnostic-v2 strong {
+      display: block;
+      margin-bottom: 4px;
+      color: #303442;
+      font-size: 11px;
+    }
+
+    .power-browser-settings-diagnostic-v2 span {
+      display: block;
+      color: #777d8c;
+      font-size: 10px;
+      line-height: 1.45;
+    }
+
+    .power-browser-settings-actions-v2 {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .power-browser-settings-action-v2 {
+      padding: 8px 11px;
+      color: #3f4554;
+      background: #fff;
+      border: 1px solid #d4d6dd;
+      border-radius: 7px;
+      font-size: 10px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .power-browser-settings-action-v2:hover {
+      color: #e9004c;
+      border-color: #ef9db9;
+    }
+
+    .power-browser-settings-action-v2:disabled {
+      color: #989dab;
+      background: #f1f2f5;
+      cursor: wait;
+    }
+
+    .power-browser-settings-operation-status-v2 {
+      color: #656b79;
+      font-size: 10px;
+    }
+
+    .power-browser-settings-operation-status-v2[data-status="success"] {
+      color: #167346;
+    }
+
+    .power-browser-settings-operation-status-v2[data-status="error"] {
+      color: #c52a3a;
+    }
+
+    .power-browser-settings-info-empty-v2 {
+      padding: 22px;
+      color: #777d8c;
+      background: #fff;
+      border: 1px dashed #d5d7de;
+      border-radius: 11px;
+      font-size: 12px;
+      line-height: 1.5;
+      text-align: center;
+    }
+
+    .power-browser-settings-danger-v2 {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 18px;
+      background: #fff7f7;
+      border: 1px solid #f3b8b8;
+      border-radius: 11px;
+    }
+
+    .power-browser-settings-danger-v2 strong {
+      display: block;
+      margin-bottom: 4px;
+      color: #8f1d1d;
+      font-size: 13px;
+    }
+
+    .power-browser-settings-danger-v2 span {
+      display: block;
+      color: #9b4a4a;
+      font-size: 11px;
+      line-height: 1.45;
+    }
+
+    .power-browser-settings-danger-button-v2 {
+      flex: 0 0 auto;
+      padding: 9px 12px;
+      color: #fff;
+      background: #c62828;
+      border: 1px solid #a91f1f;
+      border-radius: 7px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .power-browser-settings-danger-button-v2:hover {
+      background: #a91f1f;
+    }
+
+    .power-browser-settings-copy-v2 strong {
+      display: block;
+      color: #303442;
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    .power-browser-settings-label-row-v2 {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 7px;
+    }
+
+    .power-browser-settings-badge-v2 {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 6px;
+      color: #6d3bd1;
+      background: #f0eaff;
+      border: 1px solid #ded0ff;
+      border-radius: 999px;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      line-height: 1.2;
+      text-transform: uppercase;
+    }
+
+    .power-browser-settings-description-v2 {
+      display: block;
+      margin-top: 4px;
+      color: #777d8c;
+      font-size: 11px;
+      line-height: 1.45;
+    }
+
+    .power-browser-settings-theme-picker-v2 {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(76px, 1fr));
+      gap: 8px;
+      width: min(310px, 100%);
+    }
+
+    .power-browser-settings-theme-option-v2 {
+      display: flex;
+      min-width: 0;
+      flex-direction: column;
+      gap: 7px;
+      padding: 7px;
+      color: #555a68;
+      background: #fff;
+      border: 1px solid #d9dbe1;
+      border-radius: 9px;
+      font: 650 10px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .power-browser-settings-theme-option-v2:hover {
+      border-color: #aeb2bf;
+    }
+
+    .power-browser-settings-theme-option-v2.active {
+      color: #262a3a;
+      border-color: #e9004c;
+      box-shadow: 0 0 0 2px rgba(233, 0, 76, 0.12);
+    }
+
+    .power-browser-settings-size-picker-v2 {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(52px, 1fr));
+      gap: 6px;
+      width: min(430px, 100%);
+    }
+
+    .power-browser-settings-size-option-v2 {
+      display: flex;
+      min-width: 0;
+      flex-direction: column;
+      gap: 6px;
+      padding: 6px;
+      color: #555a68;
+      background: #fff;
+      border: 1px solid #d9dbe1;
+      border-radius: 9px;
+      font: 650 10px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      text-align: center;
+      cursor: pointer;
+    }
+
+    .power-browser-settings-size-option-v2:hover {
+      border-color: #aeb2bf;
+    }
+
+    .power-browser-settings-size-option-v2.active {
+      color: #262a3a;
+      border-color: #e9004c;
+      box-shadow: 0 0 0 2px rgba(233, 0, 76, 0.12);
+    }
+
+    .power-browser-settings-size-preview-v2 {
+      position: relative;
+      display: grid;
+      height: 38px;
+      place-items: center;
+      overflow: hidden;
+      color: #444957;
+      background: #f4f5f8;
+      border: 1px solid rgba(31, 35, 48, 0.12);
+      border-radius: 6px;
+    }
+
+    .power-browser-settings-size-option-v2[data-size-kind="dialog"]
+      .power-browser-settings-size-preview-v2::before {
+      width: 68%;
+      height: 62%;
+      content: "";
+      background: #fff;
+      border: 1px solid #b9bdc8;
+      border-radius: 3px;
+      box-shadow: inset 7px 0 0 #333847;
+    }
+
+    .power-browser-settings-size-option-v2[data-size-kind="dialog"][data-size="xs"]
+      .power-browser-settings-size-preview-v2::before {
+      width: 42%;
+      height: 42%;
+    }
+
+    .power-browser-settings-size-option-v2[data-size-kind="dialog"][data-size="sm"]
+      .power-browser-settings-size-preview-v2::before {
+      width: 55%;
+      height: 52%;
+    }
+
+    .power-browser-settings-size-option-v2[data-size-kind="dialog"][data-size="lg"]
+      .power-browser-settings-size-preview-v2::before {
+      width: 82%;
+      height: 72%;
+    }
+
+    .power-browser-settings-size-option-v2[data-size-kind="dialog"][data-size="xl"]
+      .power-browser-settings-size-preview-v2::before {
+      width: 94%;
+      height: 82%;
+    }
+
+    .power-browser-settings-size-option-v2[data-size-kind="text"]
+      .power-browser-settings-size-preview-v2::before {
+      content: "Aa";
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .power-browser-settings-size-option-v2[data-size-kind="text"][data-size="xs"]
+      .power-browser-settings-size-preview-v2::before {
+      font-size: 9px;
+    }
+
+    .power-browser-settings-size-option-v2[data-size-kind="text"][data-size="sm"]
+      .power-browser-settings-size-preview-v2::before {
+      font-size: 11px;
+    }
+
+    .power-browser-settings-size-option-v2[data-size-kind="text"][data-size="lg"]
+      .power-browser-settings-size-preview-v2::before {
+      font-size: 17px;
+    }
+
+    .power-browser-settings-size-option-v2[data-size-kind="text"][data-size="xl"]
+      .power-browser-settings-size-preview-v2::before {
+      font-size: 20px;
+    }
+
+    .power-browser-settings-theme-preview-v2 {
+      position: relative;
+      display: block;
+      height: 34px;
+      overflow: hidden;
+      background: #f7f7f9;
+      border: 1px solid rgba(31, 35, 48, 0.12);
+      border-radius: 6px;
+    }
+
+    .power-browser-settings-theme-preview-v2::before {
+      position: absolute;
+      top: 7px;
+      right: 7px;
+      left: 7px;
+      height: 7px;
+      content: "";
+      background: #fff;
+      border-radius: 4px;
+      box-shadow:
+        0 9px 0 #e4e5ea,
+        0 18px 0 #f0f1f4;
+    }
+
+    .power-browser-settings-theme-option-v2[data-theme="dark"]
+      .power-browser-settings-theme-preview-v2 {
+      background: #1f2330;
+      border-color: #494f60;
+    }
+
+    .power-browser-settings-theme-option-v2[data-theme="dark"]
+      .power-browser-settings-theme-preview-v2::before {
+      background: #343949;
+      box-shadow:
+        0 9px 0 #282d3b,
+        0 18px 0 #404657;
+    }
+
+    .power-browser-settings-theme-option-v2[data-theme="betty"]
+      .power-browser-settings-theme-preview-v2 {
+      background:
+        linear-gradient(
+          259deg,
+          rgb(233, 0, 76) 0%,
+          rgb(57, 90, 252) 51.9162%,
+          rgb(17, 171, 209) 100%
+        );
+      border-color: transparent;
+    }
+
+    .power-browser-settings-theme-option-v2[data-theme="betty"]
+      .power-browser-settings-theme-preview-v2::before {
+      background: rgba(255, 255, 255, 0.94);
+      box-shadow:
+        0 9px 0 rgba(255, 255, 255, 0.68),
+        0 18px 0 rgba(255, 255, 255, 0.4);
+    }
+
+    .power-browser-settings-toggle-v2 {
+      position: relative;
+      display: inline-flex;
+      width: 42px;
+      height: 24px;
+      flex: 0 0 42px;
+    }
+
+    .power-browser-settings-toggle-v2 input {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .power-browser-settings-toggle-track-v2 {
+      width: 100%;
+      border-radius: 999px;
+      background: #c8cbd3;
+      cursor: pointer;
+      transition: background 0.18s ease;
+    }
+
+    .power-browser-settings-toggle-track-v2::after {
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 18px;
+      height: 18px;
+      content: "";
+      background: #fff;
+      border-radius: 50%;
+      box-shadow: 0 2px 5px rgba(20, 24, 35, 0.22);
+      transition: transform 0.18s ease;
+    }
+
+    .power-browser-settings-toggle-v2 input:checked + .power-browser-settings-toggle-track-v2 {
+      background: #e9004c;
+    }
+
+    .power-browser-settings-toggle-v2 input:checked + .power-browser-settings-toggle-track-v2::after {
+      transform: translateX(18px);
+    }
+
+    .power-browser-settings-toggle-v2 input:focus-visible + .power-browser-settings-toggle-track-v2 {
+      outline: 3px solid rgba(233, 0, 76, 0.22);
+      outline-offset: 2px;
+    }
+
+    .power-browser-settings-toggle-v2
+      input:disabled
+      + .power-browser-settings-toggle-track-v2 {
+      cursor: not-allowed;
+    }
+
+    .power-browser-settings-shortcut-v2 {
+      width: 170px;
+      padding: 8px 10px;
+      border: 1px solid #d4d6dd;
+      border-radius: 7px;
+      color: #303442;
+      background: #fbfbfc;
+      font: 12px ui-monospace, SFMono-Regular, Consolas, monospace;
+    }
+
+    .power-browser-settings-shortcut-v2:focus {
+      border-color: #e9004c;
+      outline: 3px solid rgba(233, 0, 76, 0.12);
+    }
+
+    .power-browser-settings-footer-v2 {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 26px;
+      color: #777d8c;
+      background: #fff;
+      border-top: 1px solid #e8e9ed;
+      font-size: 11px;
+    }
+
+    .power-browser-settings-reset-v2 {
+      padding: 7px 10px;
+      border: 1px solid #d9dbe1;
+      border-radius: 7px;
+      color: #555a68;
+      background: #fff;
+      font-size: 11px;
+      cursor: pointer;
+    }
+
+    .power-browser-settings-reset-v2:hover {
+      color: #e9004c;
+      border-color: #f0a0ba;
+      background: #fff5f8;
+    }
+
+    .power-browser-icon-only-v2 #dropdownMenu > a span,
+    .power-browser-icon-only-v2 #dropdownMenu > button span,
+    .power-browser-icon-only-v2 .power-browser-state-toggle-label-v2 {
+      display: none;
+    }
+
+    .power-browser-icon-only-v2.power-browser-show-sandbox-name-v2
+      .power-browser-state-toggle-label-v2 {
+      display: inline;
+    }
+
+    .power-browser-setting-hidden-v2 {
+      display: none !important;
+    }
+
+    .power-browser-dark-v2 .dropdown-1aaab757-b16d-413a-9499-a72197bb1732,
+    .power-browser-dark-v2 .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > a,
+    .power-browser-dark-v2 .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > button,
+    .power-browser-dark-v2 .power-browser-state-toggle-v2 {
+      color: #f4f5f7;
+      background: #262a3a;
+    }
+
+    .power-browser-dark-v2 .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > a:hover,
+    .power-browser-dark-v2 .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > button:hover,
+    .power-browser-dark-v2 .power-browser-state-toggle-v2:hover {
+      background: #343949;
+    }
+
+    .power-browser-dark-v2 .button-disabled-6b6a60d4-9e38-4279-84a5-5ef466dde62f,
+    .power-browser-dark-v2 .button-disabled-6b6a60d4-9e38-4279-84a5-5ef466dde62f:hover {
+      color: #858b9b !important;
+      background: #343947 !important;
+    }
+
+    .power-browser-dark-v2 .power-browser-state-menu-v2,
+    .power-browser-dark-v2 .power-browser-state-option-v2 {
+      color: #f4f5f7;
+      background: #262a3a;
+      border-color: #444a5b;
+    }
+
+    .power-browser-dark-v2 .power-browser-state-option-v2:hover {
+      background: #343949;
+    }
+
+    .power-browser-dark-v2 .power-browser-state-option-v2.no-access,
+    .power-browser-dark-v2 .power-browser-state-option-v2.no-access:hover {
+      color: #858b9b;
+      background: #343947;
+    }
+
+    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732.power-browser-hotfix-active-v2,
+    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732.power-browser-hotfix-active-v2 > a,
+    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732.power-browser-hotfix-active-v2 > button,
+    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732.power-browser-hotfix-active-v2 > .power-browser-state-switcher-v2 > .power-browser-state-toggle-v2 {
+      color: #4a111b !important;
+      background: #ff9c9c !important;
+    }
+
+    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732.power-browser-hotfix-active-v2 > a:hover,
+    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732.power-browser-hotfix-active-v2 > button:hover,
+    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732.power-browser-hotfix-active-v2 > .power-browser-state-switcher-v2 > .power-browser-state-toggle-v2:hover {
+      background: #ffd1d1 !important;
+    }
+
+    .power-browser-shift-hidden-v2 {
+      visibility: hidden !important;
+      pointer-events: none !important;
+    }
+
+    .power-browser-b5-highlighting-v2 .pane .body .action_diagram .event.active .symbol {
+      box-shadow: 0 0 15px 2px rgba(255, 126, 117, 1);
+    }
+
+    .power-browser-b5-password-v2 {
+      filter: blur(3px);
+      transition: filter 0.25s ease;
+    }
+
+    .power-browser-b5-password-v2:hover,
+    .power-browser-b5-password-v2:focus {
+      filter: blur(0);
+    }
+
+    .power-browser-dark-v2.power-browser-model-search-dialog-v2 {
+      color: #f4f5f7;
+      background: #242836;
+      border-color: #494f60;
+    }
+
+    .power-browser-dark-v2 .power-browser-model-search-header-v2,
+    .power-browser-dark-v2 .power-browser-model-search-footer-v2 {
+      background: #242836;
+      border-color: #444a5b;
+    }
+
+    .power-browser-dark-v2 .power-browser-model-search-input-v2,
+    .power-browser-dark-v2 .power-browser-model-search-title-v2 {
+      color: #f4f5f7;
+    }
+
+    .power-browser-dark-v2 .power-browser-model-search-result-v2:hover,
+    .power-browser-dark-v2 .power-browser-model-search-result-v2.active,
+    .power-browser-dark-v2 .power-browser-model-search-backoffice-v2:hover {
+      background: #343949;
+    }
+
+    .power-browser-dark-v2.power-browser-settings-dialog-v2 .power-browser-settings-main-v2,
+    .power-browser-dark-v2.power-browser-settings-dialog-v2 .power-browser-settings-content-v2 {
+      background: #1f2330;
+    }
+
+    .power-browser-dark-v2.power-browser-settings-dialog-v2 {
+      --power-browser-settings-flash-rgb: 255, 92, 145;
+    }
+
+    .power-browser-dark-v2 .power-browser-settings-header-v2,
+    .power-browser-dark-v2 .power-browser-settings-search-v2,
+    .power-browser-dark-v2 .power-browser-settings-footer-v2,
+    .power-browser-dark-v2 .power-browser-settings-card-v2 {
+      background: #282d3b;
+      border-color: #404657;
+    }
+
+    .power-browser-dark-v2
+      .power-browser-settings-search-v2 input {
+      color: #f4f5f7;
+      background: #202431;
+      border-color: #4a5061;
+    }
+
+    .power-browser-dark-v2 .power-browser-settings-heading-v2 h2,
+    .power-browser-dark-v2 .power-browser-settings-copy-v2 strong,
+    .power-browser-dark-v2 .power-browser-settings-info-title-v2,
+    .power-browser-dark-v2 .power-browser-settings-info-item-v2 dd {
+      color: #f4f5f7;
+    }
+
+    .power-browser-dark-v2 .power-browser-settings-info-empty-v2 {
+      color: #aeb4c2;
+      background: #282d3b;
+      border-color: #4a5061;
+    }
+
+    .power-browser-dark-v2
+      .power-browser-settings-diagnostic-v2,
+    .power-browser-dark-v2
+      .power-browser-settings-action-v2 {
+      color: #d5d8e0;
+      background: #282d3b;
+      border-color: #4a5061;
+    }
+
+    .power-browser-dark-v2
+      .power-browser-settings-diagnostic-v2 strong {
+      color: #f4f5f7;
+    }
+
+    .power-browser-dark-v2
+      .power-browser-settings-copy-value-v2 {
+      color: #c8ccd6;
+      background: #343949;
+      border-color: #4a5061;
+    }
+
+    .power-browser-dark-v2 .power-browser-settings-danger-v2 {
+      background: #421f25;
+      border-color: #75404a;
+    }
+
+    .power-browser-dark-v2 .power-browser-settings-danger-v2 strong {
+      color: #ffccd3;
+    }
+
+    .power-browser-dark-v2 .power-browser-settings-danger-v2 span {
+      color: #e7aab4;
+    }
+
+    .power-browser-dark-v2 .power-browser-settings-close-v2 {
+      color: #c8ccd6;
+      background: #363b4b;
+    }
+
+    .power-browser-dark-v2 .power-browser-settings-close-v2:hover {
+      color: #ff8eb3;
+      background: #472938;
+    }
+
+    .power-browser-dark-v2 .power-browser-settings-reset-v2 {
+      color: #d5d8e0;
+      background: #282d3b;
+      border-color: #4a5061;
+    }
+
+    .power-browser-dark-v2 .power-browser-settings-reset-v2:hover {
+      color: #ff9cbd;
+      background: #3d2834;
+      border-color: #8d5268;
+    }
+
+    .power-browser-dark-v2 .power-browser-settings-section-v2 {
+      color: #aeb4c2;
+    }
+
+    .power-browser-dark-v2 .power-browser-settings-badge-v2 {
+      color: #d8c7ff;
+      background: #3b3155;
+      border-color: #574876;
+    }
+
+    .power-browser-dark-v2 .power-browser-settings-shortcut-v2 {
+      color: #f4f5f7;
+      background: #202431;
+      border-color: #4a5061;
+    }
+
+    .power-browser-dark-v2
+      .power-browser-settings-theme-option-v2 {
+      color: #c8ccd6;
+      background: #202431;
+      border-color: #4a5061;
+    }
+
+    .power-browser-dark-v2
+      .power-browser-settings-size-option-v2 {
+      color: #c8ccd6;
+      background: #202431;
+      border-color: #4a5061;
+    }
+
+    .power-browser-dark-v2
+      .power-browser-settings-size-preview-v2 {
+      color: #e5e8ef;
+      background: #292e3c;
+      border-color: #4a5061;
+    }
+
+    .power-browser-dark-v2
+      .power-browser-settings-size-option-v2[data-size-kind="dialog"]
+      .power-browser-settings-size-preview-v2::before {
+      background: #343949;
+      border-color: #737b91;
+      box-shadow: inset 7px 0 0 #171a24;
+    }
+
+    .power-browser-dark-v2
+      .power-browser-settings-theme-option-v2:hover {
+      border-color: #737b91;
+    }
+
+    .power-browser-dark-v2
+      .power-browser-settings-size-option-v2:hover {
+      border-color: #737b91;
+    }
+
+    .power-browser-dark-v2
+      .power-browser-settings-theme-option-v2.active {
+      color: #fff;
+      border-color: #ff5c91;
+      box-shadow: 0 0 0 2px rgba(255, 92, 145, 0.14);
+    }
+
+    .power-browser-dark-v2
+      .power-browser-settings-size-option-v2.active {
+      color: #fff;
+      border-color: #ff5c91;
+      box-shadow: 0 0 0 2px rgba(255, 92, 145, 0.14);
+    }
+
+    .power-browser-dark-v2 .power-browser-settings-alert-v2 {
+      color: #ffc4d7;
+      background: #552134;
+      border-color: #733047;
+    }
+
+    .power-browser-dark-v2 .power-browser-settings-alert-v2 strong {
+      color: #ffe4ed;
+    }
+
+    .power-browser-betty-theme-v2
+      .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 {
+      overflow: visible;
+      background:
+        linear-gradient(
+          259deg,
+          rgb(233, 0, 76) 0%,
+          rgb(57, 90, 252) 51.9162%,
+          rgb(17, 171, 209) 100%
+        )
+        transparent;
+      border-radius: 12px;
+      box-shadow: none;
+    }
+
+    .power-browser-betty-theme-v2
+      .dropdown-1aaab757-b16d-413a-9499-a72197bb1732
+      > a,
+    .power-browser-betty-theme-v2
+      .dropdown-1aaab757-b16d-413a-9499-a72197bb1732
+      > button,
+    .power-browser-betty-theme-v2 .power-browser-state-toggle-v2 {
+      color: #fff;
+      background: transparent;
+    }
+
+    .power-browser-betty-theme-v2
+      .dropdown-1aaab757-b16d-413a-9499-a72197bb1732
+      > a:hover,
+    .power-browser-betty-theme-v2
+      .dropdown-1aaab757-b16d-413a-9499-a72197bb1732
+      > button:hover,
+    .power-browser-betty-theme-v2
+      .power-browser-state-toggle-v2:hover {
+      background: rgba(255, 255, 255, 0.16);
+    }
+
+    .power-browser-betty-theme-v2
+      .button-disabled-6b6a60d4-9e38-4279-84a5-5ef466dde62f,
+    .power-browser-betty-theme-v2
+      .button-disabled-6b6a60d4-9e38-4279-84a5-5ef466dde62f:hover {
+      color: rgba(255, 255, 255, 0.56) !important;
+      background: rgba(25, 30, 72, 0.16) !important;
+    }
+
+    .power-browser-betty-theme-v2 .power-browser-state-menu-v2,
+    .power-browser-betty-theme-v2 .power-browser-state-option-v2 {
+      color: #29304a;
+      background: #fff;
+      border-color: #cad3ff;
+    }
+
+    .power-browser-betty-theme-v2
+      .power-browser-state-option-v2:hover {
+      color: #233fc4;
+      background: #eef2ff;
+    }
+
+    .power-browser-betty-theme-v2
+      .power-browser-state-option-v2.no-access,
+    .power-browser-betty-theme-v2
+      .power-browser-state-option-v2.no-access:hover {
+      color: #9499aa;
+      background: #f1f2f5;
+    }
+
+    .power-browser-betty-theme-v2.power-browser-model-search-dialog-v2 {
+      border-color: #7189ff;
+      box-shadow: 0 26px 80px rgba(57, 90, 252, 0.25);
+    }
+
+    .power-browser-betty-theme-v2
+      .power-browser-model-search-result-v2:hover,
+    .power-browser-betty-theme-v2
+      .power-browser-model-search-result-v2.active,
+    .power-browser-betty-theme-v2
+      .power-browser-model-search-backoffice-v2:hover {
+      background: linear-gradient(
+        90deg,
+        rgba(233, 0, 76, 0.08),
+        rgba(57, 90, 252, 0.12),
+        rgba(17, 171, 209, 0.1)
+      );
+    }
+
+    .power-browser-betty-theme-v2.power-browser-settings-dialog-v2 {
+      --power-browser-settings-flash-rgb: 57, 90, 252;
+      border-color: rgba(57, 90, 252, 0.35);
+      box-shadow: 0 32px 100px rgba(42, 61, 160, 0.32);
+    }
+
+    .power-browser-betty-theme-v2
+      .power-browser-settings-sidebar-v2 {
+      background:
+        linear-gradient(
+          259deg,
+          rgb(233, 0, 76) 0%,
+          rgb(57, 90, 252) 51.9162%,
+          rgb(17, 171, 209) 100%
+        )
+        transparent;
+    }
+
+    .power-browser-betty-theme-v2
+      .power-browser-settings-tab-v2,
+    .power-browser-betty-theme-v2
+      .power-browser-settings-section-link-v2 {
+      color: rgba(255, 255, 255, 0.8);
+    }
+
+    .power-browser-betty-theme-v2
+      .power-browser-settings-tab-v2:hover,
+    .power-browser-betty-theme-v2
+      .power-browser-settings-tab-v2.active {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.18);
+      box-shadow: none;
+    }
+
+    .power-browser-betty-theme-v2
+      .power-browser-settings-section-link-v2:hover,
+    .power-browser-betty-theme-v2
+      .power-browser-settings-section-link-v2.active {
+      color: #fff;
+      border-left-color: #fff;
+    }
+
+    .power-browser-betty-theme-v2
+      .power-browser-settings-main-v2,
+    .power-browser-betty-theme-v2
+      .power-browser-settings-content-v2 {
+      background: #f3f6ff;
+    }
+
+    .power-browser-betty-theme-v2
+      .power-browser-settings-header-v2,
+    .power-browser-betty-theme-v2
+      .power-browser-settings-search-v2,
+    .power-browser-betty-theme-v2
+      .power-browser-settings-footer-v2,
+    .power-browser-betty-theme-v2
+      .power-browser-settings-card-v2 {
+      background: #fff;
+      border-color: #dce2ff;
+    }
+
+    .power-browser-betty-theme-v2
+      .power-browser-settings-close-v2 {
+      color: #395afc;
+      background: #edf1ff;
+    }
+
+    .power-browser-betty-theme-v2
+      .power-browser-settings-close-v2:hover {
+      color: #e9004c;
+      background: #fff0f5;
+    }
+
+    .power-browser-betty-theme-v2
+      .power-browser-settings-reset-v2 {
+      color: #395afc;
+      background: #fff;
+      border-color: #aebcff;
+    }
+
+    .power-browser-betty-theme-v2
+      .power-browser-settings-reset-v2:hover {
+      color: #e9004c;
+      background: #fff4f8;
+      border-color: #ed8aad;
+    }
+
+    .power-browser-betty-theme-v2
+      .power-browser-settings-theme-option-v2.active {
+      border-color: #395afc;
+      box-shadow: 0 0 0 2px rgba(57, 90, 252, 0.14);
+    }
+
+    .power-browser-betty-theme-v2
+      .power-browser-settings-size-option-v2.active {
+      border-color: #395afc;
+      box-shadow: 0 0 0 2px rgba(57, 90, 252, 0.14);
+    }
+
+    .power-browser-betty-theme-v2
+      .power-browser-settings-version-v2 {
+      color: #fff;
+    }
+
+    .power-browser-settings-dialog-v2[data-dialog-size="xs"] {
+      grid-template-columns: 190px minmax(0, 1fr);
+      width: min(780px, calc(100vw - 32px));
+      height: min(580px, calc(100vh - 32px));
+    }
+
+    .power-browser-settings-dialog-v2[data-dialog-size="sm"] {
+      grid-template-columns: 205px minmax(0, 1fr);
+      width: min(900px, calc(100vw - 32px));
+      height: min(660px, calc(100vh - 32px));
+    }
+
+    .power-browser-settings-dialog-v2[data-dialog-size="md"] {
+      grid-template-columns: 220px minmax(0, 1fr);
+      width: min(1000px, calc(100vw - 32px));
+      height: min(740px, calc(100vh - 32px));
+    }
+
+    .power-browser-settings-dialog-v2[data-dialog-size="lg"] {
+      grid-template-columns: 235px minmax(0, 1fr);
+      width: min(1100px, calc(100vw - 24px));
+      height: min(790px, calc(100vh - 24px));
+    }
+
+    .power-browser-settings-dialog-v2[data-dialog-size="xl"] {
+      grid-template-columns: 250px minmax(0, 1fr);
+      width: min(1200px, calc(100vw - 20px));
+      height: min(860px, calc(100vh - 20px));
+    }
+
+    .power-browser-settings-dialog-v2[data-text-size="xs"] {
+      --pb-settings-font-micro: 7.5px;
+      --pb-settings-font-small: 9px;
+      --pb-settings-font-body: 11px;
+      --pb-settings-font-input: 10px;
+      --pb-settings-font-title: 17px;
+      --pb-settings-font-large: 12px;
+    }
+
+    .power-browser-settings-dialog-v2[data-text-size="sm"] {
+      --pb-settings-font-micro: 8px;
+      --pb-settings-font-small: 10px;
+      --pb-settings-font-body: 12px;
+      --pb-settings-font-input: 11px;
+      --pb-settings-font-title: 18px;
+      --pb-settings-font-large: 13.5px;
+    }
+
+    .power-browser-settings-dialog-v2[data-text-size="lg"] {
+      --pb-settings-font-micro: 10px;
+      --pb-settings-font-small: 12.5px;
+      --pb-settings-font-body: 15px;
+      --pb-settings-font-input: 14px;
+      --pb-settings-font-title: 23px;
+      --pb-settings-font-large: 17px;
+    }
+
+    .power-browser-settings-dialog-v2[data-text-size="xl"] {
+      --pb-settings-font-micro: 11px;
+      --pb-settings-font-small: 14px;
+      --pb-settings-font-body: 17px;
+      --pb-settings-font-input: 16px;
+      --pb-settings-font-title: 26px;
+      --pb-settings-font-large: 19px;
+    }
+
+    .power-browser-settings-dialog-v2 .power-browser-settings-tab-v2,
+    .power-browser-settings-dialog-v2 .power-browser-settings-footer-v2,
+    .power-browser-settings-dialog-v2
+      .power-browser-settings-diagnostic-v2 strong {
+      font-size: var(--pb-settings-font-body);
+    }
+
+    .power-browser-settings-dialog-v2
+      .power-browser-settings-brand-v2 strong {
+      font-size: var(--pb-settings-font-large);
+    }
+
+    .power-browser-settings-dialog-v2
+      .power-browser-settings-heading-v2 h2 {
+      font-size: var(--pb-settings-font-title);
+    }
+
+    .power-browser-settings-dialog-v2
+      .power-browser-settings-copy-v2 strong,
+    .power-browser-settings-dialog-v2
+      .power-browser-settings-info-title-v2 {
+      font-size: var(--pb-settings-font-large);
+    }
+
+    .power-browser-settings-dialog-v2
+      .power-browser-settings-section-link-v2,
+    .power-browser-settings-dialog-v2
+      .power-browser-settings-description-v2,
+    .power-browser-settings-dialog-v2
+      .power-browser-settings-info-item-v2 dd,
+    .power-browser-settings-dialog-v2
+      .power-browser-settings-diagnostic-v2 span,
+    .power-browser-settings-dialog-v2
+      .power-browser-settings-operation-status-v2,
+    .power-browser-settings-dialog-v2
+      .power-browser-settings-brand-v2 span,
+    .power-browser-settings-dialog-v2
+      .power-browser-settings-version-v2,
+    .power-browser-settings-dialog-v2
+      .power-browser-settings-theme-option-v2,
+    .power-browser-settings-dialog-v2
+      .power-browser-settings-size-option-v2 {
+      font-size: var(--pb-settings-font-small);
+    }
+
+    .power-browser-settings-dialog-v2
+      .power-browser-settings-heading-v2 p,
+    .power-browser-settings-dialog-v2
+      .power-browser-settings-search-v2 input,
+    .power-browser-settings-dialog-v2
+      .power-browser-settings-section-v2,
+    .power-browser-settings-dialog-v2
+      .power-browser-settings-shortcut-v2,
+    .power-browser-settings-dialog-v2
+      .power-browser-settings-action-v2,
+    .power-browser-settings-dialog-v2
+      .power-browser-settings-reset-v2,
+    .power-browser-settings-dialog-v2
+      .power-browser-settings-danger-button-v2 {
+      font-size: var(--pb-settings-font-input);
+    }
+
+    .power-browser-settings-dialog-v2
+      .power-browser-settings-info-item-v2 dt {
+      font-size: var(--pb-settings-font-micro);
+    }
+
+    .power-browser-settings-dialog-v2
+      .power-browser-settings-badge-v2 {
+      font-size: var(--pb-settings-font-micro);
+    }
+
+    @media (max-width: 720px) {
+      .power-browser-settings-dialog-v2,
+      .power-browser-settings-dialog-v2.open {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto minmax(0, 1fr);
+      }
+
+      .power-browser-settings-sidebar-v2 {
+        padding: 14px;
+      }
+
+      .power-browser-settings-brand-v2,
+      .power-browser-settings-version-v2 {
+        display: none;
+      }
+
+      .power-browser-settings-tabs-v2 {
+        height: auto;
+        flex: none;
+        flex-direction: row;
+        overflow-x: auto;
+        overflow-y: hidden;
+        touch-action: pan-x;
+      }
+
+      .power-browser-settings-tab-v2 {
+        width: auto;
+        white-space: nowrap;
+      }
+
+      .power-browser-settings-section-links-v2 {
+        flex: none;
+        flex-direction: row;
+        padding: 0;
+      }
+
+      .power-browser-settings-section-link-v2 {
+        border-left: 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+        white-space: nowrap;
+      }
+
+      .power-browser-settings-card-v2 {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .power-browser-settings-shortcut-v2 {
+        width: 100%;
+        box-sizing: border-box;
+      }
+
+      .power-browser-settings-info-grid-v2 {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .power-browser-settings-diagnostics-v2 {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .power-browser-settings-danger-v2 {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .power-browser-settings-theme-picker-v2 {
+        width: 100%;
+      }
+
+      .power-browser-settings-size-picker-v2 {
+        width: 100%;
+      }
+    }
+  `);
+
