@@ -6,18 +6,20 @@ built into one userscript for installation.
 ## Commands
 
 ```sh
+npm install
 npm run build
+npm test
 npm run check
 ```
 
-`npm run build` concatenates the files listed in `tools/source-layout.mjs` into
-`dist/bb-powerbrowser.user.js`. The files intentionally share one userscript closure:
-this preserves access to userscript-manager APIs and avoids introducing module
-loading at runtime.
+`npm run build` bundles the reusable core ES modules with esbuild, injects the
+feature-owned CSS, and composes the ordered browser feature files into
+`dist/bb-powerbrowser.user.js`. Userscript managers still receive one self-contained
+file with no runtime package dependencies.
 
 ## Source layout
 
-- `src/core`: startup state, diagnostics, caching, and SPA navigation
+- `src/core`: testable ES modules for context, lifecycle, logging, selectors, and utilities
 - `src/config`: icons, navigator items, and settings definitions
 - `src/styles`: userscript styles
 - `src/api`: GraphQL, authentication, artifact, and application-family data
@@ -26,3 +28,20 @@ loading at runtime.
 - `src/main.js`: route synchronization and application composition
 
 The generated `dist/bb-powerbrowser.user.js` is the distributable artifact.
+
+## Feature lifecycle
+
+Long-running features are registered with `start`, `sync`, and `stop` hooks.
+Route changes call `sync`, while `stop` provides one cleanup path for timers,
+observers, patched APIs, and event listeners.
+
+## Diagnostics
+
+Set the stored `powerBrowserLogLevel` value to `debug`, `info`, `warn`, `error`,
+or `silent`. Production defaults to `warn`.
+
+## Releases
+
+Pull requests and pushes to `main` run linting, formatting checks, unit tests,
+and bundle verification. Pushing a tag such as `v3.1.0` creates a GitHub release
+containing the built userscript.

@@ -44,3 +44,7 @@
 // @grant        GM_info
 // @grant        unsafeWindow
 // @grant        window.onurlchange
+// @connect      *
+// @noframes
+// @run-at       document-start
+// ==/UserScript==

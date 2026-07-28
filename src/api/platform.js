@@ -66,7 +66,7 @@
    */
   function getCsrfToken() {
     return (
-      document.querySelector('meta[name="csrf-token"]')?.content ||
+      document.querySelector(PowerBrowserSelectors.csrfMeta)?.content ||
       getCookieValue("x-csrf-token") ||
       getCookieValue("ide_csrf_token") ||
       getCookieValue("csrf_token") ||

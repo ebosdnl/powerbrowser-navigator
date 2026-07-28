@@ -1,8 +1,3 @@
-// @connect      *
-// @noframes
-// @run-at       document-start
-// ==/UserScript==
-
 /*
   Credits:
   PageUI remove uneditable layer: Sven Truschel
@@ -27,6 +22,16 @@
 
 (async function () {
   "use strict";
+
+  const {
+    createApplicationContext,
+    createFeatureRegistry,
+    createLogger,
+    csvCell: powerBrowserCsvCell,
+    normalizeEndpoints: normalizePowerBrowserEndpoints,
+    selectors: PowerBrowserSelectors,
+  } = globalThis.PowerBrowserCore;
+  const logger = createLogger("runtime");
 
   if (location.hostname === "my.bettyblocks.com") {
     return;

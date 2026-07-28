@@ -273,8 +273,7 @@
    * @returns {string}
    */
   function nextgenLogCsvCell(value) {
-    const text = value == null ? "" : String(value);
-    return `"${text.replace(/"/g, '""')}"`;
+    return powerBrowserCsvCell(value);
   }
 
   /**

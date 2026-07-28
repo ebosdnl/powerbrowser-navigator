@@ -1,4 +1,4 @@
-  GM_addStyle(`
+
     .power-browser-action-playground-dialog-v2 {
       top: 72px !important;
       width: min(900px, calc(100vw - 48px)) !important;
@@ -2038,5 +2038,4 @@
         width: 100%;
       }
     }
-  `);
-
+  

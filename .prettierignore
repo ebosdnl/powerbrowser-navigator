@@ -1,0 +1,9 @@
+dist/
+src/styles/power-browser.css
+src/api/
+src/config/
+src/features/
+src/ui/
+src/core/bootstrap.js
+src/main.js
+src/metadata.user.js

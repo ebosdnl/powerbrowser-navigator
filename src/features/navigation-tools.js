@@ -27,13 +27,7 @@
   }
 
   function normalizeEndpoints(endpoints) {
-    if (Array.isArray(endpoints)) {
-      return endpoints;
-    }
-
-    return endpoints && typeof endpoints === "object"
-      ? Object.values(endpoints)
-      : [];
+    return normalizePowerBrowserEndpoints(endpoints);
   }
 
   function getCurrentEndpoint(artifactData) {

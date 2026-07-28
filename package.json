@@ -5,7 +5,17 @@
   "type": "module",
   "scripts": {
     "build": "node tools/build.mjs",
-    "check": "node tools/build.mjs --check",
-    "extract": "node tools/extract-source.mjs"
+    "check:bundle": "node tools/build.mjs --check",
+    "lint": "biome lint src/core/context.js src/core/domain-utils.js src/core/feature-registry.js src/core/index.js src/core/logger.js src/core/selectors.js tests tools",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "check": "npm run lint && npm run format:check && npm test && npm run build && npm run check:bundle"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.6",
+    "esbuild": "^0.25.8",
+    "prettier": "^3.6.2",
+    "vitest": "^3.2.7"
   }
 }

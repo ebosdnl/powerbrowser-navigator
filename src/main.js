@@ -1,3 +1,67 @@
+  const applicationContext = createApplicationContext();
+  const featureRegistry = createFeatureRegistry(logger.child("features"));
+
+  featureRegistry.register({
+    name: "betty5-action-highlighting",
+    start: applyBetty5ActionHighlighting,
+    sync() {
+      clearTimeout(betty5HighlightRetry);
+      betty5HighlightRetry = setTimeout(applyBetty5ActionHighlighting, 200);
+    },
+    stop() {
+      clearTimeout(betty5HighlightRetry);
+    },
+  });
+  featureRegistry.register({
+    name: "betty5-password-revealer",
+    start: applyBetty5PasswordRevealer,
+    sync() {
+      remaskBetty5Passwords();
+      clearTimeout(betty5PasswordRetry);
+      betty5PasswordRetry = setTimeout(applyBetty5PasswordRevealer, 200);
+    },
+    stop() {
+      clearTimeout(betty5PasswordRetry);
+      betty5PasswordObserver?.disconnect();
+      betty5PasswordObserver = null;
+      remaskBetty5Passwords();
+    },
+  });
+  featureRegistry.register({
+    name: "betty5-variable-search",
+    start: applyBetty5VariableSearch,
+    sync: applyBetty5VariableSearch,
+    stop: cleanupBetty5VariableSearch,
+  });
+  featureRegistry.register({
+    name: "ui-builder-mask",
+    start: applyUiBuilderMaskSetting,
+    sync: applyUiBuilderMaskSetting,
+  });
+  featureRegistry.register({
+    name: "nextgen-action-playground",
+    start: applyNextgenActionPlaygroundSetting,
+    sync: applyNextgenActionPlaygroundSetting,
+    stop() {
+      clearTimeout(nextgenActionPlaygroundTimer);
+      clearTimeout(nextgenActionValidationTimer);
+      nextgenActionPlaygroundObserver?.disconnect();
+      nextgenActionPlaygroundObserver = null;
+      cleanupActionPlaygroundEnhancements();
+    },
+  });
+  featureRegistry.register({
+    name: "nextgen-log-downloader",
+    start: initializeNextgenLogDownloader,
+    sync: syncNextgenLogDownloader,
+    stop() {
+      nextgenLogDownloaderObserver?.disconnect();
+      nextgenLogDownloaderObserver = null;
+      document.getElementById("power-browser-log-downloader-v2")?.remove();
+      releaseNextgenLogGraphqlCapture();
+    },
+  });
+
   function synchronizePowerBrowserRoute(navigator) {
     if (!currentPowerBrowserContext) {
       return;
@@ -10,25 +74,15 @@
       resolveApplicationIdentifier(artifactData) ||
       currentPowerBrowserContext.identifier;
     const siteType = detectSiteType(artifactData);
-    currentPowerBrowserContext.identifier = identifier;
-    currentPowerBrowserContext.siteType = siteType;
+    currentPowerBrowserContext = applicationContext.update({
+      artifactData,
+      applicationFamily,
+      identifier,
+      siteType,
+    });
 
     applyFeatureFlagSettings(siteType);
-    clearTimeout(betty5HighlightRetry);
-    betty5HighlightRetry = setTimeout(
-      applyBetty5ActionHighlighting,
-      200,
-    );
-    remaskBetty5Passwords();
-    clearTimeout(betty5PasswordRetry);
-    betty5PasswordRetry = setTimeout(
-      applyBetty5PasswordRevealer,
-      200,
-    );
-    applyBetty5VariableSearch();
-    applyUiBuilderMaskSetting();
-    applyNextgenActionPlaygroundSetting();
-    syncNextgenLogDownloader();
+    void featureRegistry.sync(currentPowerBrowserContext);
     configureNavigator(navigator, {
       artifactData,
       siteType,
@@ -63,11 +117,11 @@
   let artifactData = await fetchArtifact();
   const siteType = detectSiteType(artifactData);
   const applicationIdentifier = resolveApplicationIdentifier(artifactData);
-  currentPowerBrowserContext = {
+  currentPowerBrowserContext = applicationContext.update({
     artifactData,
     siteType,
     identifier: applicationIdentifier,
-  };
+  });
   applyFeatureFlagSettings(siteType);
   applyBetty5Setting(
     "extraHotfix",
@@ -78,10 +132,14 @@
     getSettingValue("extraAdvancedMode"),
   );
   applyHotfixMenuState();
-  applyBetty5ActionHighlighting();
-  applyBetty5PasswordRevealer();
-  applyBetty5VariableSearch();
-  applyUiBuilderMaskSetting();
+  await featureRegistry.start(currentPowerBrowserContext);
+  window.addEventListener(
+    "pagehide",
+    () => {
+      void featureRegistry.stop(currentPowerBrowserContext);
+    },
+    { once: true },
+  );
   configureNavigator(navigator, {
     artifactData,
     siteType,
@@ -94,8 +152,10 @@
     artifactData,
     applicationFamily,
   );
-  currentPowerBrowserContext.artifactData = artifactData;
-  currentPowerBrowserContext.applicationFamily = applicationFamily;
+  currentPowerBrowserContext = applicationContext.update({
+    artifactData,
+    applicationFamily,
+  });
   if (settingsState?.activeTab === "info") {
     renderSettingsTab(navigator);
   }
@@ -122,6 +182,8 @@
 
   // Keep this result easy to inspect and reuse while v2 is being developed.
   const powerBrowser = Object.freeze({
+    context: applicationContext,
+    features: featureRegistry.names(),
     get artifact() {
       return currentPowerBrowserContext?.artifactData || null;
     },
@@ -136,5 +198,5 @@
   });
 
   window.powerBrowserV2 = powerBrowser;
-  console.info("[Power Browser v2] Initialized.", powerBrowser);
+  logger.info("Initialized.", powerBrowser);
 })();
