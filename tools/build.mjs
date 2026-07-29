@@ -4,8 +4,13 @@ import { build } from "esbuild";
 import { outputFile, sourceLayout } from "./source-layout.mjs";
 
 const checkOnly = process.argv.includes("--check");
-const metadata = await readFile("src/metadata.user.js", "utf8");
-const css = await readFile("src/styles/power-browser.css", "utf8");
+const normalizeLineEndings = (source) => source.replace(/\r\n?/g, "\n");
+const metadata = normalizeLineEndings(
+  await readFile("src/metadata.user.js", "utf8"),
+);
+const css = normalizeLineEndings(
+  await readFile("src/styles/power-browser.css", "utf8"),
+);
 const coreBuild = await build({
   entryPoints: ["src/core/index.js"],
   bundle: true,
@@ -22,22 +27,24 @@ const coreBuild = await build({
 const parts = await Promise.all(
   sourceLayout.map(async (file) => {
     try {
-      return await readFile(file, "utf8");
+      return normalizeLineEndings(await readFile(file, "utf8"));
     } catch (error) {
       throw new Error(`Unable to read build input ${file}`, { cause: error });
     }
   }),
 );
 const escapedCss = JSON.stringify(css);
-const bundle = [
-  metadata,
-  "\n",
-  coreBuild.outputFiles[0].text,
-  "\nGM_addStyle(",
-  escapedCss,
-  ");\n",
-  ...parts,
-].join("");
+const bundle = normalizeLineEndings(
+  [
+    metadata,
+    "\n",
+    coreBuild.outputFiles[0].text,
+    "\nGM_addStyle(",
+    escapedCss,
+    ");\n",
+    ...parts,
+  ].join(""),
+);
 
 if (checkOnly) {
   const current = await readFile(outputFile, "utf8");
