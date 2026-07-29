@@ -265,12 +265,12 @@
       applicationFamily,
     );
 
-    currentPowerBrowserContext = {
+    updateCurrentPowerBrowserContext({
       artifactData,
       siteType,
       identifier,
       applicationFamily,
-    };
+    });
     configureNavigator(navigator, {
       artifactData,
       siteType,

@@ -2,7 +2,7 @@
 // @name         Power Browser Navigator V2
 // @description  Easier navigation to the playground, page-builder and backoffice. Feature flag setter and extra productivity scripts.
 // @tag          Productivity
-// @version      3.0.0
+// @version      3.0.2
 // @author       Enrique Bos, Menno Weijling (OG grondlegger), Sven Truschel, Hacker
 // @match        https://*.betty.app/*
 // @match        https://*.betty.services/*
@@ -2860,9 +2860,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       artifactData,
       applicationFamily,
     );
-    if (currentPowerBrowserContext) {
-      currentPowerBrowserContext.artifactData = artifactData;
-    }
+    updateCurrentPowerBrowserContext({ artifactData });
     let applicationId = getApplicationId(
       artifactData,
       applicationFamily,
@@ -2871,17 +2869,14 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
 
     if (!applicationId && identifier) {
       applicationFamily = await fetchApplicationFamily(identifier);
-      if (currentPowerBrowserContext) {
-        currentPowerBrowserContext.applicationFamily =
-          applicationFamily;
-      }
       artifactData = await ensureArtifactFreshAfterFamilyMerge(
         artifactData,
         applicationFamily,
       );
-      if (currentPowerBrowserContext) {
-        currentPowerBrowserContext.artifactData = artifactData;
-      }
+      updateCurrentPowerBrowserContext({
+        applicationFamily,
+        artifactData,
+      });
       applicationId = getApplicationId(
         artifactData,
         applicationFamily,
@@ -2915,23 +2910,18 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
 
     if (!applicationFamily && identifier) {
       applicationFamily = await fetchApplicationFamily(identifier);
-      if (currentPowerBrowserContext) {
-        currentPowerBrowserContext.applicationFamily =
-          applicationFamily;
-      }
+      updateCurrentPowerBrowserContext({ applicationFamily });
     }
 
     if (!applicationFamily) {
       return [];
     }
 
-    if (currentPowerBrowserContext) {
-      currentPowerBrowserContext.artifactData =
-        await ensureArtifactFreshAfterFamilyMerge(
-          currentPowerBrowserContext.artifactData,
-          applicationFamily,
-        );
-    }
+    const artifactData = await ensureArtifactFreshAfterFamilyMerge(
+      currentPowerBrowserContext?.artifactData,
+      applicationFamily,
+    );
+    updateCurrentPowerBrowserContext({ artifactData });
 
     return Array.isArray(applicationFamily)
       ? applicationFamily
@@ -4818,12 +4808,12 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       applicationFamily,
     );
 
-    currentPowerBrowserContext = {
+    updateCurrentPowerBrowserContext({
       artifactData,
       siteType,
       identifier,
       applicationFamily,
-    };
+    });
     configureNavigator(navigator, {
       artifactData,
       siteType,
@@ -7513,6 +7503,11 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
   const applicationContext = createApplicationContext();
   const featureRegistry = createFeatureRegistry(logger.child("features"));
 
+  function updateCurrentPowerBrowserContext(patch) {
+    currentPowerBrowserContext = applicationContext.update(patch);
+    return currentPowerBrowserContext;
+  }
+
   featureRegistry.register({
     name: "betty5-action-highlighting",
     start: applyBetty5ActionHighlighting,
@@ -7586,7 +7581,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       resolveApplicationIdentifier(artifactData) ||
       currentPowerBrowserContext.identifier;
     const siteType = detectSiteType(artifactData);
-    currentPowerBrowserContext = applicationContext.update({
+    updateCurrentPowerBrowserContext({
       artifactData,
       applicationFamily,
       identifier,
@@ -7629,7 +7624,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
   let artifactData = await fetchArtifact();
   const siteType = detectSiteType(artifactData);
   const applicationIdentifier = resolveApplicationIdentifier(artifactData);
-  currentPowerBrowserContext = applicationContext.update({
+  updateCurrentPowerBrowserContext({
     artifactData,
     siteType,
     identifier: applicationIdentifier,
@@ -7664,7 +7659,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     artifactData,
     applicationFamily,
   );
-  currentPowerBrowserContext = applicationContext.update({
+  updateCurrentPowerBrowserContext({
     artifactData,
     applicationFamily,
   });

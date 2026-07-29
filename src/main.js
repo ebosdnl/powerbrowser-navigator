@@ -1,6 +1,11 @@
   const applicationContext = createApplicationContext();
   const featureRegistry = createFeatureRegistry(logger.child("features"));
 
+  function updateCurrentPowerBrowserContext(patch) {
+    currentPowerBrowserContext = applicationContext.update(patch);
+    return currentPowerBrowserContext;
+  }
+
   featureRegistry.register({
     name: "betty5-action-highlighting",
     start: applyBetty5ActionHighlighting,
@@ -74,7 +79,7 @@
       resolveApplicationIdentifier(artifactData) ||
       currentPowerBrowserContext.identifier;
     const siteType = detectSiteType(artifactData);
-    currentPowerBrowserContext = applicationContext.update({
+    updateCurrentPowerBrowserContext({
       artifactData,
       applicationFamily,
       identifier,
@@ -117,7 +122,7 @@
   let artifactData = await fetchArtifact();
   const siteType = detectSiteType(artifactData);
   const applicationIdentifier = resolveApplicationIdentifier(artifactData);
-  currentPowerBrowserContext = applicationContext.update({
+  updateCurrentPowerBrowserContext({
     artifactData,
     siteType,
     identifier: applicationIdentifier,
@@ -152,7 +157,7 @@
     artifactData,
     applicationFamily,
   );
-  currentPowerBrowserContext = applicationContext.update({
+  updateCurrentPowerBrowserContext({
     artifactData,
     applicationFamily,
   });

@@ -205,9 +205,7 @@
       artifactData,
       applicationFamily,
     );
-    if (currentPowerBrowserContext) {
-      currentPowerBrowserContext.artifactData = artifactData;
-    }
+    updateCurrentPowerBrowserContext({ artifactData });
     let applicationId = getApplicationId(
       artifactData,
       applicationFamily,
@@ -216,17 +214,14 @@
 
     if (!applicationId && identifier) {
       applicationFamily = await fetchApplicationFamily(identifier);
-      if (currentPowerBrowserContext) {
-        currentPowerBrowserContext.applicationFamily =
-          applicationFamily;
-      }
       artifactData = await ensureArtifactFreshAfterFamilyMerge(
         artifactData,
         applicationFamily,
       );
-      if (currentPowerBrowserContext) {
-        currentPowerBrowserContext.artifactData = artifactData;
-      }
+      updateCurrentPowerBrowserContext({
+        applicationFamily,
+        artifactData,
+      });
       applicationId = getApplicationId(
         artifactData,
         applicationFamily,
@@ -260,23 +255,18 @@
 
     if (!applicationFamily && identifier) {
       applicationFamily = await fetchApplicationFamily(identifier);
-      if (currentPowerBrowserContext) {
-        currentPowerBrowserContext.applicationFamily =
-          applicationFamily;
-      }
+      updateCurrentPowerBrowserContext({ applicationFamily });
     }
 
     if (!applicationFamily) {
       return [];
     }
 
-    if (currentPowerBrowserContext) {
-      currentPowerBrowserContext.artifactData =
-        await ensureArtifactFreshAfterFamilyMerge(
-          currentPowerBrowserContext.artifactData,
-          applicationFamily,
-        );
-    }
+    const artifactData = await ensureArtifactFreshAfterFamilyMerge(
+      currentPowerBrowserContext?.artifactData,
+      applicationFamily,
+    );
+    updateCurrentPowerBrowserContext({ artifactData });
 
     return Array.isArray(applicationFamily)
       ? applicationFamily
