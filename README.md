@@ -38,7 +38,7 @@ observers, patched APIs, and event listeners.
 ## Diagnostics
 
 Set the stored `powerBrowserLogLevel` value to `debug`, `info`, `warn`, `error`,
-or `silent`. Production defaults to `warn`.
+or `silent`. Production defaults to `debug`.
 
 ## Releases
 
