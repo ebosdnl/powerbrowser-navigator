@@ -8,7 +8,7 @@ const LEVELS = Object.freeze({
 
 function resolveLevel() {
   try {
-    return globalThis.GM_getValue?.("powerBrowserLogLevel", "warn") ?? "warn";
+    return globalThis.GM_getValue?.("powerBrowserLogLevel", "debug") ?? "warn";
   } catch {
     return "warn";
   }

@@ -76,6 +76,7 @@ var PowerBrowserCore = (() => {
     createLogger: () => createLogger,
     csvCell: () => csvCell,
     decodeJwtPayload: () => decodeJwtPayload,
+    isAuthenticationError: () => isAuthenticationError,
     normalizeEndpoints: () => normalizeEndpoints,
     query: () => query,
     selectors: () => selectors
@@ -152,7 +153,7 @@ var PowerBrowserCore = (() => {
   });
   function resolveLevel() {
     try {
-      return globalThis.GM_getValue?.("powerBrowserLogLevel", "warn") ?? "warn";
+      return globalThis.GM_getValue?.("powerBrowserLogLevel", "debug") ?? "warn";
     } catch {
       return "warn";
     }
@@ -215,6 +216,17 @@ var PowerBrowserCore = (() => {
       return null;
     }
   }
+  function isAuthenticationError(errors) {
+    return (Array.isArray(errors) ? errors : [errors]).some((error) => {
+      const code = String(
+        error?.extensions?.code ?? error?.code ?? ""
+      ).toUpperCase();
+      const message = String(error?.message ?? error ?? "");
+      return ["UNAUTHENTICATED", "UNAUTHORIZED", "TOKEN_EXPIRED"].includes(code) || /(?:not authenticated|unauthenticated|authentication required|jwt expired|token (?:has )?expired|invalid (?:access )?token)/i.test(
+        message
+      );
+    });
+  }
   return __toCommonJS(index_exports);
 })();
 globalThis.PowerBrowserCore = PowerBrowserCore;
@@ -250,6 +262,7 @@ GM_addStyle("\r\n    .power-browser-action-playground-dialog-v2 {\r\n      top: 
     createFeatureRegistry,
     createLogger,
     csvCell: powerBrowserCsvCell,
+    isAuthenticationError: isPowerBrowserAuthenticationError,
     normalizeEndpoints: normalizePowerBrowserEndpoints,
     selectors: PowerBrowserSelectors,
   } = globalThis.PowerBrowserCore;
@@ -1096,11 +1109,14 @@ GM_addStyle("\r\n    .power-browser-action-playground-dialog-v2 {\r\n      top: 
             const payload = JSON.parse(response.responseText);
 
             if (payload.errors?.length) {
-              fail(
-                new Error(
-                  payload.errors.map((error) => error.message).join("; "),
-                ),
+              const graphqlError = new Error(
+                payload.errors.map((error) => error.message).join("; "),
               );
+              if (isPowerBrowserAuthenticationError(payload.errors)) {
+                graphqlError.status = 401;
+                graphqlError.authenticationError = true;
+              }
+              fail(graphqlError);
               return;
             }
 
@@ -1198,6 +1214,45 @@ GM_addStyle("\r\n    .power-browser-action-playground-dialog-v2 {\r\n      top: 
   }
 
   /**
+   * Refreshes the access token in the existing My Betty Blocks session.
+   * This mirrors the request made by the My Betty frontend before GraphQL.
+   *
+   * @param {string} cookieHeader
+   * @returns {Promise<void>}
+   */
+  function refreshMyBettySession(cookieHeader) {
+    return new Promise((resolve, reject) => {
+      GM_xmlhttpRequest({
+        method: "GET",
+        url: "https://my.bettyblocks.com/api/auth/refresh",
+        headers: {
+          Accept: "application/json",
+        },
+        timeout: 10000,
+        anonymous: false,
+        ...(cookieHeader ? { cookie: cookieHeader } : {}),
+        onload: (response) => {
+          if (response.status >= 200 && response.status < 300) {
+            logger.debug("My Betty session refreshed.");
+            resolve();
+            return;
+          }
+
+          const refreshError = new Error(
+            `My Betty session refresh failed with status ${response.status}.`,
+          );
+          refreshError.status = response.status;
+          reject(refreshError);
+        },
+        onerror: () =>
+          reject(new Error("Unable to refresh the My Betty session.")),
+        ontimeout: () =>
+          reject(new Error("My Betty session refresh timed out.")),
+      });
+    });
+  }
+
+  /**
    * Retrieve authentication data belonging to the My Betty Blocks session.
    * @param {string} identifier
    * @param {boolean} [forceRefresh]
@@ -1212,6 +1267,14 @@ GM_addStyle("\r\n    .power-browser-action-playground-dialog-v2 {\r\n      top: 
       initialContext.cookieHeader
     ) {
       return initialContext;
+    }
+
+    if (forceRefresh) {
+      await refreshMyBettySession(initialContext.cookieHeader);
+      const refreshedContext = await getMyBettyCookieContext();
+      if (refreshedContext.csrfToken && refreshedContext.cookieHeader) {
+        return refreshedContext;
+      }
     }
 
     return new Promise((resolve, reject) => {

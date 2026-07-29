@@ -5,5 +5,6 @@ export { query, selectors } from "./selectors.js";
 export {
   csvCell,
   decodeJwtPayload,
+  isAuthenticationError,
   normalizeEndpoints,
 } from "./domain-utils.js";

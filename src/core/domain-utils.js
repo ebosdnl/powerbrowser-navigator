@@ -23,3 +23,18 @@ export function decodeJwtPayload(token, decode = globalThis.atob) {
     return null;
   }
 }
+
+export function isAuthenticationError(errors) {
+  return (Array.isArray(errors) ? errors : [errors]).some((error) => {
+    const code = String(
+      error?.extensions?.code ?? error?.code ?? "",
+    ).toUpperCase();
+    const message = String(error?.message ?? error ?? "");
+    return (
+      ["UNAUTHENTICATED", "UNAUTHORIZED", "TOKEN_EXPIRED"].includes(code) ||
+      /(?:not authenticated|unauthenticated|authentication required|jwt expired|token (?:has )?expired|invalid (?:access )?token)/i.test(
+        message,
+      )
+    );
+  });
+}

@@ -1,4 +1,5 @@
 dist/
+*.har
 src/styles/power-browser.css
 src/api/
 src/config/

@@ -28,6 +28,7 @@
     createFeatureRegistry,
     createLogger,
     csvCell: powerBrowserCsvCell,
+    isAuthenticationError: isPowerBrowserAuthenticationError,
     normalizeEndpoints: normalizePowerBrowserEndpoints,
     selectors: PowerBrowserSelectors,
   } = globalThis.PowerBrowserCore;

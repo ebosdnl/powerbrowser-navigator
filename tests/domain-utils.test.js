@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   csvCell,
   decodeJwtPayload,
+  isAuthenticationError,
   normalizeEndpoints,
 } from "../src/core/domain-utils.js";
 
@@ -24,5 +25,19 @@ describe("domain utilities", () => {
     const decode = (value) => Buffer.from(value, "base64").toString("utf8");
     expect(decodeJwtPayload(`Bearer x.${encoded}.y`, decode)).toEqual(payload);
     expect(decodeJwtPayload("invalid", decode)).toBeNull();
+  });
+
+  it("recognizes HTTP-200 GraphQL authentication failures", () => {
+    expect(
+      isAuthenticationError([
+        {
+          message: "Access token has expired",
+          extensions: { code: "UNAUTHENTICATED" },
+        },
+      ]),
+    ).toBe(true);
+    expect(
+      isAuthenticationError([{ message: "You cannot edit this application" }]),
+    ).toBe(false);
   });
 });
