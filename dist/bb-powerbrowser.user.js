@@ -2,7 +2,7 @@
 // @name         Power Browser Navigator V2
 // @description  Easier navigation to the playground, page-builder and backoffice. Feature flag setter and extra productivity scripts.
 // @tag          Productivity
-// @version      3.5.0
+// @version      3.5.1
 // @updateURL    https://github.com/ebosdnl/powerbrowser-navigator/releases/latest/download/bb-powerbrowser.user.js
 // @downloadURL  https://github.com/ebosdnl/powerbrowser-navigator/releases/latest/download/bb-powerbrowser.user.js
 // @author       Enrique Bos, Menno Weijling (OG grondlegger), Sven Truschel, Hacker
@@ -1563,6 +1563,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     {
       key: "extraHotfix",
       tab: "betty5",
+      section: "Editor preferences",
       label: "Hotfix mode",
       description: "Set overrideSandbox and reload Betty 5 when changed.",
       type: "toggle",
@@ -1571,6 +1572,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     {
       key: "extraAdvancedMode",
       tab: "betty5",
+      section: "Editor preferences",
       label: "Always use advanced mode",
       description: "Set advancedOptions and reload Betty 5 when changed.",
       type: "toggle",
@@ -1579,6 +1581,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     {
       key: "extraB5Highlighting",
       tab: "betty5",
+      section: "Editor preferences",
       label: "Better highlighting actions",
       description: "Keep the selected Betty 5 action clearly highlighted while navigating action stacks.",
       type: "toggle",
@@ -1587,6 +1590,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     {
       key: "extraB5PasswordRevealer",
       tab: "betty5",
+      section: "Editor preferences",
       label: "Reveal Passwords",
       description: "Reveal masked configuration passwords and blur them until hovered.",
       type: "toggle",
@@ -1595,6 +1599,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     {
       key: "extraB5VariableSearch",
       tab: "betty5",
+      section: "Editor preferences",
       label: "Enhanced variable search",
       description:
         "Add reliable search fields and a wider layout to Betty 5 variable and model browsers.",
@@ -10596,27 +10601,12 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
         : "Updated";
       state.title.textContent = "What’s new";
       state.description.textContent =
-        "Version 3.5 brings authentication and action logs directly into the Action Playground.";
+        "Version 3.5.1 brings authentication and action logs directly into the Action Playground.";
       [
         [
-          "⎘",
-          "Automatic request headers",
-          "Open an action’s Playground with a valid Bearer headers object on your clipboard and Power Browser fills the Headers field automatically.",
-        ],
-        [
-          "✓",
-          "Bearer validation",
-          "Clipboard contents are accepted only when they contain a JSON Authorization header with a decodable Bearer JWT.",
-        ],
-        [
-          "☷",
-          "Action logs",
-          "A new Logs tab shows the current action’s grouped logs without leaving the test-values dialog.",
-        ],
-        [
           "↻",
-          "Refresh and pagination",
-          "Browse log pages, refresh results, and quickly scan levels, services, summaries, and timestamps.",
+          "Placed Betty 5 mods into different category ",
+          "Placed Betty 5 mods into different category to make it easier to find the right mod.",
         ],
       ].forEach((feature) =>
         state.body.appendChild(

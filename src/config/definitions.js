@@ -185,6 +185,7 @@
     {
       key: "extraHotfix",
       tab: "betty5",
+      section: "Editor preferences",
       label: "Hotfix mode",
       description: "Set overrideSandbox and reload Betty 5 when changed.",
       type: "toggle",
@@ -193,6 +194,7 @@
     {
       key: "extraAdvancedMode",
       tab: "betty5",
+      section: "Editor preferences",
       label: "Always use advanced mode",
       description: "Set advancedOptions and reload Betty 5 when changed.",
       type: "toggle",
@@ -201,6 +203,7 @@
     {
       key: "extraB5Highlighting",
       tab: "betty5",
+      section: "Editor preferences",
       label: "Better highlighting actions",
       description: "Keep the selected Betty 5 action clearly highlighted while navigating action stacks.",
       type: "toggle",
@@ -209,6 +212,7 @@
     {
       key: "extraB5PasswordRevealer",
       tab: "betty5",
+      section: "Editor preferences",
       label: "Reveal Passwords",
       description: "Reveal masked configuration passwords and blur them until hovered.",
       type: "toggle",
@@ -217,6 +221,7 @@
     {
       key: "extraB5VariableSearch",
       tab: "betty5",
+      section: "Editor preferences",
       label: "Enhanced variable search",
       description:
         "Add reliable search fields and a wider layout to Betty 5 variable and model browsers.",

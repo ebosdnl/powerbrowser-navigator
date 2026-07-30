@@ -136,27 +136,12 @@
         : "Updated";
       state.title.textContent = "What’s new";
       state.description.textContent =
-        "Version 3.5 brings authentication and action logs directly into the Action Playground.";
+        "Version 3.5.1 brings authentication and action logs directly into the Action Playground.";
       [
         [
-          "⎘",
-          "Automatic request headers",
-          "Open an action’s Playground with a valid Bearer headers object on your clipboard and Power Browser fills the Headers field automatically.",
-        ],
-        [
-          "✓",
-          "Bearer validation",
-          "Clipboard contents are accepted only when they contain a JSON Authorization header with a decodable Bearer JWT.",
-        ],
-        [
-          "☷",
-          "Action logs",
-          "A new Logs tab shows the current action’s grouped logs without leaving the test-values dialog.",
-        ],
-        [
           "↻",
-          "Refresh and pagination",
-          "Browse log pages, refresh results, and quickly scan levels, services, summaries, and timestamps.",
+          "Placed Betty 5 mods into different category ",
+          "Placed Betty 5 mods into different category to make it easier to find the right mod.",
         ],
       ].forEach((feature) =>
         state.body.appendChild(
