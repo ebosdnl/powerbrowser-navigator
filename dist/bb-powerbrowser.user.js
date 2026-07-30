@@ -2,7 +2,9 @@
 // @name         Power Browser Navigator V2
 // @description  Easier navigation to the playground, page-builder and backoffice. Feature flag setter and extra productivity scripts.
 // @tag          Productivity
-// @version      3.1.5
+// @version      3.2.6
+// @updateURL    https://github.com/ebosdnl/powerbrowser-navigator/releases/latest/download/bb-powerbrowser.user.js
+// @downloadURL  https://github.com/ebosdnl/powerbrowser-navigator/releases/latest/download/bb-powerbrowser.user.js
 // @author       Enrique Bos, Menno Weijling (OG grondlegger), Sven Truschel, Hacker
 // @match        https://*.betty.app/*
 // @match        https://*.betty.services/*
@@ -40,6 +42,7 @@
 // @grant        GM_deleteValue
 // @grant        GM_openInTab
 // @grant        GM_registerMenuCommand
+// @grant        GM_notification
 // @grant        GM_cookie
 // @grant        GM_info
 // @grant        unsafeWindow
@@ -73,6 +76,7 @@ var PowerBrowserCore = (() => {
   var index_exports = {};
   __export(index_exports, {
     AUTH_STATES: () => AUTH_STATES,
+    compareVersions: () => compareVersions,
     createApplicationContext: () => createApplicationContext,
     createAuthStateMachine: () => createAuthStateMachine,
     createDiagnosticTimeline: () => createDiagnosticTimeline,
@@ -80,11 +84,18 @@ var PowerBrowserCore = (() => {
     createLogger: () => createLogger,
     csvCell: () => csvCell,
     decodeJwtPayload: () => decodeJwtPayload,
+    hasApplicationOverride: () => hasApplicationOverride,
     isAuthenticationError: () => isAuthenticationError,
+    isVersionNewer: () => isVersionNewer,
     normalizeEndpoints: () => normalizeEndpoints,
     query: () => query,
     redactDiagnosticValue: () => redactDiagnosticValue,
+    removeApplicationOverride: () => removeApplicationOverride,
+    removeApplicationProfile: () => removeApplicationProfile,
+    resolveEditableSetting: () => resolveEditableSetting,
+    resolveEffectiveSetting: () => resolveEffectiveSetting,
     selectors: () => selectors,
+    setApplicationOverride: () => setApplicationOverride,
     validateSettingsDefinitions: () => validateSettingsDefinitions
   });
 
@@ -383,11 +394,91 @@ var PowerBrowserCore = (() => {
     }
     return errors;
   }
+
+  // src/core/settings-profiles.ts
+  function hasApplicationOverride(profiles, identifier, key) {
+    return Boolean(
+      identifier && profiles[identifier] && Object.hasOwn(profiles[identifier], key)
+    );
+  }
+  function resolveEffectiveSetting(globalValue, profiles, identifier, key) {
+    return hasApplicationOverride(profiles, identifier, key) ? profiles[identifier][key] : globalValue;
+  }
+  function resolveEditableSetting(scope, globalValue, profiles, identifier, key) {
+    return scope === "application" ? resolveEffectiveSetting(globalValue, profiles, identifier, key) : globalValue;
+  }
+  function setApplicationOverride(profiles, identifier, key, value) {
+    return {
+      ...profiles,
+      [identifier]: {
+        ...profiles[identifier] || {},
+        [key]: value
+      }
+    };
+  }
+  function removeApplicationOverride(profiles, identifier, key) {
+    if (!hasApplicationOverride(profiles, identifier, key)) return profiles;
+    const nextProfile = { ...profiles[identifier] };
+    delete nextProfile[key];
+    const nextProfiles = { ...profiles };
+    if (Object.keys(nextProfile).length) nextProfiles[identifier] = nextProfile;
+    else delete nextProfiles[identifier];
+    return nextProfiles;
+  }
+  function removeApplicationProfile(profiles, identifier) {
+    if (!Object.hasOwn(profiles, identifier)) {
+      return profiles;
+    }
+    const nextProfiles = { ...profiles };
+    delete nextProfiles[identifier];
+    return nextProfiles;
+  }
+
+  // src/core/version.ts
+  function parseVersion(version) {
+    const normalized = String(version || "").trim().replace(/^v/i, "").split("+", 1)[0];
+    const [numberPart, prereleasePart = ""] = normalized.split("-", 2);
+    return {
+      numbers: numberPart.split(".").map((part) => Number.parseInt(part, 10) || 0),
+      prerelease: prereleasePart ? prereleasePart.split(".") : []
+    };
+  }
+  function compareVersions(left, right) {
+    const a = parseVersion(left);
+    const b = parseVersion(right);
+    const length = Math.max(a.numbers.length, b.numbers.length);
+    for (let index = 0; index < length; index += 1) {
+      const difference = (a.numbers[index] || 0) - (b.numbers[index] || 0);
+      if (difference) return Math.sign(difference);
+    }
+    if (!a.prerelease.length && b.prerelease.length) return 1;
+    if (a.prerelease.length && !b.prerelease.length) return -1;
+    const prereleaseLength = Math.max(a.prerelease.length, b.prerelease.length);
+    for (let index = 0; index < prereleaseLength; index += 1) {
+      const leftPart = a.prerelease[index];
+      const rightPart = b.prerelease[index];
+      if (leftPart === void 0) return -1;
+      if (rightPart === void 0) return 1;
+      if (leftPart === rightPart) continue;
+      const leftNumber = /^\d+$/.test(leftPart) ? Number(leftPart) : null;
+      const rightNumber = /^\d+$/.test(rightPart) ? Number(rightPart) : null;
+      if (leftNumber !== null && rightNumber !== null) {
+        return Math.sign(leftNumber - rightNumber);
+      }
+      if (leftNumber !== null) return -1;
+      if (rightNumber !== null) return 1;
+      return leftPart.localeCompare(rightPart);
+    }
+    return 0;
+  }
+  function isVersionNewer(candidate, current) {
+    return compareVersions(candidate, current) > 0;
+  }
   return __toCommonJS(index_exports);
 })();
 globalThis.PowerBrowserCore = PowerBrowserCore;
 
-GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px !important;\n      width: min(900px, calc(100vw - 48px)) !important;\n      max-width: min(900px, calc(100vw - 48px)) !important;\n      height: min(880px, calc(100vh - 88px)) !important;\n      min-height: min(720px, calc(100vh - 88px)) !important;\n      max-height: calc(100vh - 88px) !important;\n      grid-template-rows: auto minmax(0, 1fr) auto auto !important;\n      overflow: hidden !important;\n      transform: translateX(-50%) !important;\n    }\n\n    .power-browser-action-playground-dialog-v2\n      > .box-border.overflow-auto {\n      min-height: 0 !important;\n      overflow-x: hidden !important;\n      overflow-y: auto !important;\n      padding-right: 6px;\n    }\n\n    .power-browser-action-playground-dialog-v2\n      > .flex.flex-row.justify-between.gap-2 {\n      position: relative;\n      z-index: 1;\n      flex-shrink: 0;\n      background: white;\n    }\n\n    .power-browser-action-playground-dialog-v2\n      [data-power-browser-action-headers-v2] {\n      padding-bottom: 4px;\n    }\n\n    .power-browser-action-playground-dialog-v2\n      [data-power-browser-action-headers-v2]\n      textarea {\n      min-height: 112px;\n    }\n\n    .power-browser-action-playground-dialog-v2\n      textarea[data-power-browser-action-variables-v2] {\n      max-height: calc(12em + 16px) !important;\n    }\n\n    .power-browser-action-alert-v2 {\n      display: none;\n      margin: 4px 0 12px;\n      padding: 10px 12px;\n      color: #991b1b;\n      background: #fef2f2;\n      border: 1px solid #fecaca;\n      border-radius: 6px;\n      font: 500 12px/1.4 Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n    }\n\n    .power-browser-action-alert-v2.open {\n      display: block;\n    }\n\n    .nav-container-1c7b2759-c793-4d17-b89b-1da6c5c5cf5b {\n      position: fixed;\n      margin: 0;\n      top: 0;\n      left: 50%;\n      transform: translateX(-50%);\n      text-align: center;\n      padding: 6px 2px 2px;\n      width: 30%;\n      min-width: 250px;\n      z-index: 2147483647;\n      background: transparent !important;\n      box-shadow: none !important;\n      font-family: Arial, sans-serif;\n    }\n\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 {\n      position: absolute;\n      top: 50%;\n      left: 50%;\n      transform: translateX(-50%);\n      display: flex !important;\n      flex-direction: row;\n      align-items: stretch;\n      padding: 0;\n      opacity: 1;\n      white-space: nowrap;\n      background: white;\n      border-radius: 5px;\n      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);\n    }\n\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > a,\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > button,\n    .power-browser-state-toggle-v2 {\n      box-sizing: border-box;\n      display: inline-flex;\n      align-items: center;\n      gap: 5px;\n      min-height: 38px;\n      padding: 10px 20px;\n      border: 0;\n      border-radius: 0;\n      color: black;\n      background: white;\n      font: 14px Arial, sans-serif;\n      text-decoration: none;\n      cursor: pointer;\n    }\n\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > a:hover,\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > button:hover,\n    .power-browser-state-toggle-v2:hover {\n      background: #f0f0f0;\n    }\n\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > :first-child {\n      border-radius: 5px 0 0 5px;\n    }\n\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > :last-child {\n      border-radius: 0 5px 5px 0;\n    }\n\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 svg {\n      width: 16px;\n      height: 16px;\n      flex: 0 0 16px;\n      margin-bottom: 2px;\n      vertical-align: middle;\n      fill: currentColor;\n    }\n\n    .button-disabled-6b6a60d4-9e38-4279-84a5-5ef466dde62f {\n      color: #777 !important;\n      background-color: rgb(220, 220, 220) !important;\n      cursor: not-allowed !important;\n      pointer-events: none;\n    }\n\n    #buttonCopyBearer.button-disabled-6b6a60d4-9e38-4279-84a5-5ef466dde62f {\n      pointer-events: auto;\n    }\n\n    .power-browser-hidden-v2 {\n      display: none !important;\n    }\n\n    .power-browser-state-switcher-v2 {\n      position: relative;\n      display: inline-flex;\n    }\n\n    .power-browser-state-status-v2 {\n      position: absolute;\n      top: calc(100% + 8px);\n      right: 0;\n      display: none;\n      flex-direction: column;\n      gap: 7px;\n      width: min(320px, calc(100vw - 24px));\n      padding: 12px;\n      color: #343844;\n      background: #fff;\n      border: 1px solid #d9dbe2;\n      border-radius: 8px;\n      box-shadow: 0 12px 30px rgba(20, 24, 35, 0.2);\n      font: 12px/1.45 Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n      text-align: left;\n      white-space: normal;\n      z-index: 3;\n    }\n\n    .power-browser-state-switcher-v2:not([data-status=\"ready\"]):hover\n      .power-browser-state-status-v2,\n    .power-browser-state-switcher-v2:not([data-status=\"ready\"]):focus-within\n      .power-browser-state-status-v2 {\n      display: flex;\n    }\n\n    .power-browser-state-status-v2 strong {\n      color: #252936;\n      font-size: 13px;\n    }\n\n    .power-browser-state-status-actions-v2 {\n      display: flex;\n      gap: 7px;\n    }\n\n    .power-browser-state-status-actions-v2 button {\n      padding: 6px 9px;\n      color: #343844;\n      background: #fff;\n      border: 1px solid #cfd2da;\n      border-radius: 5px;\n      font: 600 11px Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n      cursor: pointer;\n    }\n\n    .power-browser-state-status-actions-v2 button:hover {\n      color: #e9004c;\n      border-color: #e9004c;\n    }\n\n    .power-browser-state-status-actions-v2 button:disabled {\n      color: #8c909b;\n      background: #f0f1f3;\n      border-color: #dddfe4;\n      cursor: wait;\n    }\n\n    .power-browser-state-toggle-v2 {\n      max-width: 210px;\n    }\n\n    .power-browser-state-toggle-label-v2 {\n      overflow: hidden;\n      text-overflow: ellipsis;\n    }\n\n    .power-browser-state-menu-v2 {\n      position: absolute;\n      top: calc(100% + 5px);\n      left: 0;\n      display: none;\n      min-width: 240px;\n      padding: 5px;\n      background: white;\n      border: 1px solid #ddd;\n      border-radius: 5px;\n      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);\n      z-index: 1;\n    }\n\n    .power-browser-state-switcher-v2.open .power-browser-state-menu-v2 {\n      display: flex;\n      flex-direction: column;\n    }\n\n    .power-browser-state-option-v2 {\n      display: flex;\n      align-items: center;\n      width: 100%;\n      padding: 9px 12px;\n      padding-left: calc(12px + var(--power-browser-depth, 0) * 16px);\n      border: 0;\n      border-radius: 3px;\n      color: #222;\n      background: white;\n      font: 14px Arial, sans-serif;\n      text-align: left;\n      cursor: pointer;\n    }\n\n    .power-browser-state-option-v2:hover {\n      background: #f0f0f0;\n    }\n\n    .power-browser-state-option-v2.current {\n      color: #e9004c;\n      font-weight: 600;\n      cursor: default;\n    }\n\n    .power-browser-state-option-v2.no-access {\n      color: #888;\n      background: #e7e7e7;\n      cursor: not-allowed;\n      opacity: 0.7;\n    }\n\n    .power-browser-state-option-v2.no-access:hover {\n      background: #e7e7e7;\n    }\n\n    .power-browser-state-option-v2 small {\n      margin-left: auto;\n      padding-left: 12px;\n      color: #777;\n      font-size: 11px;\n    }\n\n    .power-browser-bearer-copied-v2 {\n      background: rgba(202, 240, 181, 0.95) !important;\n    }\n\n    .power-browser-bearer-error-v2 {\n      background: rgba(255, 190, 190, 0.95) !important;\n    }\n\n    .power-browser-model-search-overlay-v2 {\n      position: fixed;\n      inset: 0;\n      display: none;\n      background: rgba(20, 24, 35, 0.45);\n      backdrop-filter: blur(2px);\n      z-index: 2147483646;\n    }\n\n    .power-browser-model-search-overlay-v2.open {\n      display: block;\n    }\n\n    .power-browser-model-search-dialog-v2 {\n      position: fixed;\n      top: clamp(55px, 10vh, 120px);\n      left: 50%;\n      display: none;\n      width: min(720px, calc(100vw - 32px));\n      max-height: min(720px, 80vh);\n      overflow: hidden;\n      transform: translateX(-50%);\n      color: #262a3a;\n      background: #fff;\n      border: 1px solid rgba(233, 0, 76, 0.2);\n      border-radius: 14px;\n      box-shadow: 0 28px 80px rgba(20, 24, 35, 0.28);\n      font-family: Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n      z-index: 2147483647;\n    }\n\n    .power-browser-model-search-dialog-v2.open {\n      display: flex;\n      flex-direction: column;\n    }\n\n    .power-browser-model-search-header-v2 {\n      display: flex;\n      align-items: center;\n      gap: 12px;\n      padding: 16px 18px;\n      border-bottom: 1px solid #e6e7eb;\n    }\n\n    .power-browser-model-search-header-v2 svg {\n      width: 20px;\n      height: 20px;\n      fill: #e9004c;\n    }\n\n    .power-browser-model-search-input-v2 {\n      flex: 1;\n      min-width: 0;\n      padding: 0;\n      border: 0;\n      outline: 0;\n      color: #262a3a;\n      background: transparent;\n      font: 500 17px Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n    }\n\n    .power-browser-model-search-shortcut-v2,\n    .power-browser-model-search-count-v2 {\n      color: #777d8c;\n      font-size: 12px;\n      white-space: nowrap;\n    }\n\n    .power-browser-model-search-results-v2 {\n      display: flex;\n      flex-direction: column;\n      gap: 4px;\n      margin: 0;\n      padding: 8px;\n      overflow-y: auto;\n      list-style: none;\n    }\n\n    .power-browser-model-search-result-row-v2 {\n      display: grid;\n      grid-template-columns: minmax(0, 1fr) auto;\n      align-items: stretch;\n      gap: 4px;\n    }\n\n    .power-browser-model-search-result-v2 {\n      display: grid;\n      grid-template-columns: auto minmax(0, 1fr) auto;\n      align-items: center;\n      gap: 12px;\n      width: 100%;\n      padding: 11px 12px;\n      border: 0;\n      border-radius: 8px;\n      color: #262a3a;\n      background: transparent;\n      text-align: left;\n      cursor: pointer;\n    }\n\n    .power-browser-model-search-result-v2:hover,\n    .power-browser-model-search-result-v2.active {\n      background: #fff0f5;\n    }\n\n    .power-browser-model-search-chip-v2 {\n      min-width: 58px;\n      padding: 4px 7px;\n      border-radius: 999px;\n      color: #6b2541;\n      background: #ffdbe8;\n      font-size: 10px;\n      font-weight: 700;\n      text-align: center;\n      text-transform: uppercase;\n    }\n\n    .power-browser-model-search-chip-v2.property {\n      color: #24546c;\n      background: #dceff8;\n    }\n\n    .power-browser-model-search-chip-v2.relation {\n      color: #614e13;\n      background: #fff0b8;\n    }\n\n    .power-browser-model-search-copy-v2 {\n      min-width: 0;\n    }\n\n    .power-browser-model-search-title-v2 {\n      display: block;\n      overflow: hidden;\n      color: #262a3a;\n      font-size: 14px;\n      font-weight: 650;\n      text-overflow: ellipsis;\n      white-space: nowrap;\n    }\n\n    .power-browser-model-search-meta-v2 {\n      display: block;\n      margin-top: 3px;\n      overflow: hidden;\n      color: #777d8c;\n      font-size: 11px;\n      text-overflow: ellipsis;\n      white-space: nowrap;\n    }\n\n    .power-browser-model-search-open-v2 {\n      padding: 5px 8px;\n      border: 1px solid #d9dbe2;\n      border-radius: 6px;\n      color: #4e5360;\n      background: #fff;\n      font-size: 11px;\n    }\n\n    .power-browser-model-search-backoffice-v2 {\n      display: inline-flex;\n      align-items: center;\n      justify-content: center;\n      width: 42px;\n      padding: 0;\n      border: 1px solid transparent;\n      border-radius: 8px;\n      color: #4e5360;\n      background: transparent;\n      cursor: pointer;\n    }\n\n    .power-browser-model-search-backoffice-v2:hover,\n    .power-browser-model-search-backoffice-v2:focus-visible {\n      color: #e9004c;\n      background: #fff0f5;\n      border-color: #ffd0df;\n      outline: none;\n    }\n\n    .power-browser-model-search-backoffice-v2 svg {\n      width: 18px;\n      height: 18px;\n      fill: currentColor;\n    }\n\n    .power-browser-model-search-empty-v2 {\n      padding: 32px 20px;\n      color: #777d8c;\n      font-size: 13px;\n      text-align: center;\n    }\n\n    .power-browser-model-search-footer-v2 {\n      display: flex;\n      justify-content: space-between;\n      gap: 12px;\n      padding: 9px 16px;\n      color: #777d8c;\n      background: #f7f7f9;\n      border-top: 1px solid #e6e7eb;\n      font-size: 11px;\n    }\n\n    .power-browser-settings-overlay-v2 {\n      position: fixed;\n      inset: 0;\n      display: none;\n      background: rgba(19, 23, 34, 0.48);\n      backdrop-filter: blur(4px);\n      z-index: 2147483646;\n    }\n\n    .power-browser-settings-overlay-v2.open {\n      display: block;\n    }\n\n    .power-browser-settings-dialog-v2 {\n      --power-browser-settings-flash-rgb: 233, 0, 76;\n      --pb-settings-font-micro: 9px;\n      --pb-settings-font-small: 11px;\n      --pb-settings-font-body: 13px;\n      --pb-settings-font-input: 12px;\n      --pb-settings-font-title: 20px;\n      --pb-settings-font-large: 15px;\n      position: fixed;\n      top: 50%;\n      left: 50%;\n      display: none;\n      grid-template-columns: 220px minmax(0, 1fr);\n      width: min(1000px, calc(100vw - 32px));\n      height: min(740px, calc(100vh - 32px));\n      overflow: hidden;\n      transform: translate(-50%, -50%);\n      color: #282c3a;\n      background: #fff;\n      border: 1px solid rgba(233, 0, 76, 0.18);\n      border-radius: 18px;\n      box-shadow: 0 32px 100px rgba(15, 18, 28, 0.32);\n      font-family: Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n      z-index: 2147483647;\n    }\n\n    .power-browser-settings-dialog-v2.open {\n      display: grid;\n    }\n\n    .power-browser-settings-sidebar-v2 {\n      display: flex;\n      flex-direction: column;\n      min-width: 0;\n      min-height: 0;\n      overflow: hidden;\n      padding: 24px 14px 14px;\n      color: #fff;\n      background: linear-gradient(165deg, #262a3a 0%, #171a25 100%);\n    }\n\n    .power-browser-settings-brand-v2 {\n      padding: 0 10px 22px;\n    }\n\n    .power-browser-settings-brand-v2 strong {\n      display: block;\n      font-size: 17px;\n      letter-spacing: -0.02em;\n    }\n\n    .power-browser-settings-brand-v2 span {\n      display: block;\n      margin-top: 4px;\n      color: #aeb3c2;\n      font-size: 11px;\n    }\n\n    .power-browser-settings-tabs-v2 {\n      display: flex;\n      height: 0;\n      flex: 1 1 0;\n      flex-direction: column;\n      gap: 4px;\n      min-height: 0;\n      overflow-y: auto;\n      overscroll-behavior: contain;\n      scrollbar-width: none;\n      touch-action: pan-y;\n    }\n\n    .power-browser-settings-tabs-v2::-webkit-scrollbar {\n      display: none;\n      width: 0;\n      height: 0;\n    }\n\n    .power-browser-settings-tabs-v2\n      > .power-browser-settings-tab-v2,\n    .power-browser-settings-tabs-v2\n      > .power-browser-settings-section-links-v2 {\n      flex: 0 0 auto;\n    }\n\n    .power-browser-settings-tab-v2 {\n      display: flex;\n      align-items: center;\n      justify-content: space-between;\n      gap: 8px;\n      width: 100%;\n      padding: 10px 12px;\n      border: 0;\n      border-radius: 8px;\n      color: #c7cad4;\n      background: transparent;\n      font: 500 13px Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n      text-align: left;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-tab-v2.has-sections::after {\n      content: \"›\";\n      font-size: 17px;\n      line-height: 1;\n      transform: rotate(0deg);\n      transition: transform 120ms ease;\n    }\n\n    .power-browser-settings-tab-v2.has-sections[aria-expanded=\"true\"]::after {\n      transform: rotate(90deg);\n    }\n\n    .power-browser-settings-tab-v2:hover {\n      color: #fff;\n      background: rgba(255, 255, 255, 0.07);\n    }\n\n    .power-browser-settings-tab-v2.active {\n      color: #fff;\n      background: #e9004c;\n      box-shadow: 0 6px 18px rgba(233, 0, 76, 0.28);\n    }\n\n    .power-browser-settings-section-links-v2 {\n      display: flex;\n      flex-direction: column;\n      gap: 2px;\n      padding: 2px 0 4px 13px;\n    }\n\n    .power-browser-settings-section-link-v2 {\n      padding: 6px 10px;\n      border: 0;\n      border-left: 1px solid rgba(255, 255, 255, 0.16);\n      color: #969cac;\n      background: transparent;\n      font: 500 11px Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n      text-align: left;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-section-link-v2:hover,\n    .power-browser-settings-section-link-v2.active {\n      color: #fff;\n      border-left-color: #e9004c;\n    }\n\n    .power-browser-settings-version-v2 {\n      padding: 12px 10px 2px;\n      color: #777d8c;\n      font-size: 10px;\n    }\n\n    .power-browser-settings-main-v2 {\n      display: flex;\n      min-width: 0;\n      flex-direction: column;\n      overflow: hidden;\n      background: #f7f7f9;\n    }\n\n    .power-browser-settings-header-v2 {\n      display: flex;\n      align-items: center;\n      justify-content: space-between;\n      gap: 20px;\n      padding: 22px 26px 18px;\n      background: #fff;\n      border-bottom: 1px solid #e8e9ed;\n    }\n\n    .power-browser-settings-heading-v2 h2 {\n      margin: 0;\n      color: #262a3a;\n      font-size: 20px;\n      letter-spacing: -0.02em;\n    }\n\n    .power-browser-settings-heading-v2 p {\n      margin: 5px 0 0;\n      color: #777d8c;\n      font-size: 12px;\n    }\n\n    .power-browser-settings-close-v2 {\n      display: inline-flex;\n      align-items: center;\n      justify-content: center;\n      width: 34px;\n      height: 34px;\n      border: 0;\n      border-radius: 8px;\n      color: #646977;\n      background: #f1f2f5;\n      font-size: 21px;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-close-v2:hover {\n      color: #e9004c;\n      background: #fff0f5;\n    }\n\n    .power-browser-settings-alert-v2 {\n      display: none;\n      align-items: center;\n      justify-content: space-between;\n      gap: 18px;\n      padding: 12px 26px;\n      color: #6e1836;\n      background: #ffe4ed;\n      border-bottom: 1px solid #ffc1d5;\n      font-size: 12px;\n      line-height: 1.4;\n    }\n\n    .power-browser-settings-alert-v2.open {\n      display: flex;\n    }\n\n    .power-browser-settings-search-v2 {\n      padding: 12px 26px;\n      background: #fff;\n      border-bottom: 1px solid #e8e9ed;\n    }\n\n    .power-browser-settings-search-v2 input {\n      box-sizing: border-box;\n      width: 100%;\n      padding: 9px 12px;\n      color: #303442;\n      background: #f7f7f9;\n      border: 1px solid #d9dbe1;\n      border-radius: 8px;\n      font-size: 12px;\n      outline: none;\n    }\n\n    .power-browser-settings-search-v2 input:focus {\n      background: #fff;\n      border-color: #e9004c;\n      box-shadow: 0 0 0 3px rgba(233, 0, 76, 0.1);\n    }\n\n    .power-browser-settings-search-result-v2 {\n      width: 100%;\n      color: inherit;\n      text-align: left;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-search-result-v2\n      .power-browser-settings-info-status-v2 {\n      color: #344bc1;\n      background: #edf1ff;\n      border-color: #ccd5ff;\n    }\n\n    .power-browser-settings-alert-v2 strong {\n      display: block;\n      margin-bottom: 2px;\n      color: #4f1027;\n      font-size: 12px;\n    }\n\n    .power-browser-settings-reload-v2 {\n      flex: 0 0 auto;\n      padding: 8px 12px;\n      border: 0;\n      border-radius: 7px;\n      color: #fff;\n      background: #e9004c;\n      font-size: 11px;\n      font-weight: 650;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-reload-v2:hover {\n      background: #c90042;\n    }\n\n    .power-browser-settings-content-v2 {\n      flex: 1;\n      padding: 20px 26px 28px;\n      overflow-y: auto;\n    }\n\n    .power-browser-settings-list-v2 {\n      display: flex;\n      flex-direction: column;\n      gap: 10px;\n    }\n\n    .power-browser-settings-section-v2 {\n      margin: 12px 4px 0;\n      color: #656b79;\n      font-size: 11px;\n      font-weight: 700;\n      letter-spacing: 0.06em;\n      text-transform: uppercase;\n    }\n\n    .power-browser-settings-section-v2:first-child {\n      margin-top: 0;\n    }\n\n    .power-browser-settings-card-v2 {\n      display: grid;\n      grid-template-columns: minmax(0, 1fr) auto;\n      align-items: center;\n      gap: 18px;\n      padding: 16px 18px;\n      background: #fff;\n      border: 1px solid #e4e5ea;\n      border-radius: 11px;\n      box-shadow: 0 2px 7px rgba(25, 29, 42, 0.03);\n    }\n\n    .power-browser-settings-card-v2:hover {\n      border-color: #d4d6dd;\n    }\n\n    .power-browser-settings-card-v2.setting-flash {\n      animation: power-browser-settings-flash-v2 1.65s ease;\n    }\n\n    @keyframes power-browser-settings-flash-v2 {\n      0%,\n      100% {\n        box-shadow: 0 2px 7px rgba(25, 29, 42, 0.03);\n        transform: translateY(0);\n      }\n\n      18%,\n      55% {\n        border-color: rgb(var(--power-browser-settings-flash-rgb));\n        box-shadow:\n          0 0 0 4px\n            rgba(var(--power-browser-settings-flash-rgb), 0.22),\n          0 8px 22px rgba(25, 29, 42, 0.12);\n        transform: translateY(-1px);\n      }\n    }\n\n    .power-browser-settings-card-v2.setting-disabled {\n      opacity: 0.55;\n    }\n\n    .power-browser-settings-info-card-v2 {\n      display: block;\n    }\n\n    .power-browser-settings-data-v2\n      .power-browser-settings-info-title-v2 {\n      margin-bottom: 0;\n    }\n\n    .power-browser-settings-data-v2\n      .power-browser-settings-actions-v2 {\n      margin-top: 14px;\n    }\n\n    .power-browser-settings-file-input-v2 {\n      display: none !important;\n    }\n\n    .power-browser-settings-info-title-v2 {\n      display: flex;\n      align-items: center;\n      justify-content: space-between;\n      gap: 12px;\n      margin-bottom: 14px;\n      color: #303442;\n      font-size: 13px;\n      font-weight: 700;\n    }\n\n    .power-browser-settings-info-status-v2 {\n      display: inline-flex;\n      align-items: center;\n      padding: 3px 7px;\n      color: #23603e;\n      background: #e8f7ef;\n      border: 1px solid #bde8cf;\n      border-radius: 999px;\n      font-size: 9px;\n      font-weight: 750;\n      letter-spacing: 0.04em;\n      text-transform: uppercase;\n    }\n\n    .power-browser-settings-info-grid-v2 {\n      display: grid;\n      grid-template-columns: repeat(2, minmax(0, 1fr));\n      gap: 12px 20px;\n      margin: 0;\n    }\n\n    .power-browser-settings-info-item-v2 {\n      min-width: 0;\n    }\n\n    .power-browser-settings-info-item-v2 dt {\n      margin: 0 0 3px;\n      color: #8a8f9d;\n      font-size: 9px;\n      font-weight: 700;\n      letter-spacing: 0.05em;\n      text-transform: uppercase;\n    }\n\n    .power-browser-settings-info-item-v2 dd {\n      margin: 0;\n      overflow-wrap: anywhere;\n      color: #303442;\n      font: 11px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace;\n    }\n\n    .power-browser-settings-info-value-v2 {\n      display: flex;\n      align-items: flex-start;\n      gap: 6px;\n    }\n\n    .power-browser-settings-info-value-v2 dd {\n      min-width: 0;\n      flex: 1;\n    }\n\n    .power-browser-settings-copy-value-v2 {\n      flex: 0 0 auto;\n      padding: 2px 5px;\n      color: #656b79;\n      background: #f3f4f7;\n      border: 1px solid #dfe1e7;\n      border-radius: 5px;\n      font-size: 8px;\n      font-weight: 700;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-copy-value-v2:hover {\n      color: #e9004c;\n      background: #fff;\n      border-color: #ef9db9;\n    }\n\n    .power-browser-settings-diagnostics-v2 {\n      display: grid;\n      grid-template-columns: repeat(2, minmax(0, 1fr));\n      gap: 10px;\n    }\n\n    .power-browser-settings-timeline-v2 {\n      display: flex;\n      flex-direction: column;\n      gap: 6px;\n      margin: 0;\n      padding: 0;\n      list-style: none;\n    }\n\n    .power-browser-settings-timeline-v2 li {\n      display: flex;\n      flex-direction: column;\n      gap: 2px;\n      padding: 9px 11px;\n      color: #343844;\n      background: #fff;\n      border: 1px solid #e0e2e7;\n      border-left: 3px solid #9ca1ad;\n      border-radius: 7px;\n    }\n\n    .power-browser-settings-timeline-v2 li[data-status=\"success\"],\n    .power-browser-settings-timeline-v2 li[data-status=\"ready\"] {\n      border-left-color: #24945f;\n    }\n\n    .power-browser-settings-timeline-v2 li[data-status=\"error\"],\n    .power-browser-settings-timeline-v2\n      li[data-status=\"manual-login-required\"] {\n      border-left-color: #d14343;\n    }\n\n    .power-browser-settings-timeline-v2\n      li[data-status=\"loading\"],\n    .power-browser-settings-timeline-v2\n      li[data-status=\"reauthenticating\"] {\n      border-left-color: #395afc;\n    }\n\n    .power-browser-settings-timeline-v2 li span {\n      color: #777d8c;\n      font-size: 10px;\n    }\n\n    .power-browser-settings-timeline-v2 li strong {\n      font-size: 11px;\n      font-weight: 550;\n    }\n\n    .power-browser-settings-diagnostic-v2 {\n      padding: 13px 14px;\n      background: #fff;\n      border: 1px solid #e4e5ea;\n      border-left: 4px solid #8a8f9d;\n      border-radius: 9px;\n    }\n\n    .power-browser-settings-diagnostic-v2[data-status=\"loading\"] {\n      border-left-color: #395afc;\n    }\n\n    .power-browser-settings-diagnostic-v2[data-status=\"success\"] {\n      border-left-color: #22935c;\n    }\n\n    .power-browser-settings-diagnostic-v2[data-status=\"warning\"] {\n      border-left-color: #d78b14;\n    }\n\n    .power-browser-settings-diagnostic-v2[data-status=\"error\"] {\n      border-left-color: #d02d3d;\n    }\n\n    .power-browser-settings-diagnostic-v2 strong {\n      display: block;\n      margin-bottom: 4px;\n      color: #303442;\n      font-size: 11px;\n    }\n\n    .power-browser-settings-diagnostic-v2 span {\n      display: block;\n      color: #777d8c;\n      font-size: 10px;\n      line-height: 1.45;\n    }\n\n    .power-browser-settings-actions-v2 {\n      display: flex;\n      align-items: center;\n      flex-wrap: wrap;\n      gap: 8px;\n    }\n\n    .power-browser-settings-action-v2 {\n      padding: 8px 11px;\n      color: #3f4554;\n      background: #fff;\n      border: 1px solid #d4d6dd;\n      border-radius: 7px;\n      font-size: 10px;\n      font-weight: 700;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-action-v2:hover {\n      color: #e9004c;\n      border-color: #ef9db9;\n    }\n\n    .power-browser-settings-action-v2:disabled {\n      color: #989dab;\n      background: #f1f2f5;\n      cursor: wait;\n    }\n\n    .power-browser-settings-operation-status-v2 {\n      color: #656b79;\n      font-size: 10px;\n    }\n\n    .power-browser-settings-operation-status-v2[data-status=\"success\"] {\n      color: #167346;\n    }\n\n    .power-browser-settings-operation-status-v2[data-status=\"error\"] {\n      color: #c52a3a;\n    }\n\n    .power-browser-settings-info-empty-v2 {\n      padding: 22px;\n      color: #777d8c;\n      background: #fff;\n      border: 1px dashed #d5d7de;\n      border-radius: 11px;\n      font-size: 12px;\n      line-height: 1.5;\n      text-align: center;\n    }\n\n    .power-browser-settings-danger-v2 {\n      display: flex;\n      align-items: center;\n      justify-content: space-between;\n      gap: 20px;\n      padding: 18px;\n      background: #fff7f7;\n      border: 1px solid #f3b8b8;\n      border-radius: 11px;\n    }\n\n    .power-browser-settings-danger-v2 strong {\n      display: block;\n      margin-bottom: 4px;\n      color: #8f1d1d;\n      font-size: 13px;\n    }\n\n    .power-browser-settings-danger-v2 span {\n      display: block;\n      color: #9b4a4a;\n      font-size: 11px;\n      line-height: 1.45;\n    }\n\n    .power-browser-settings-danger-button-v2 {\n      flex: 0 0 auto;\n      padding: 9px 12px;\n      color: #fff;\n      background: #c62828;\n      border: 1px solid #a91f1f;\n      border-radius: 7px;\n      font-size: 11px;\n      font-weight: 700;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-danger-button-v2:hover {\n      background: #a91f1f;\n    }\n\n    .power-browser-settings-copy-v2 strong {\n      display: block;\n      color: #303442;\n      font-size: 13px;\n      font-weight: 650;\n    }\n\n    .power-browser-settings-label-row-v2 {\n      display: flex;\n      align-items: center;\n      flex-wrap: wrap;\n      gap: 7px;\n    }\n\n    .power-browser-settings-badge-v2 {\n      display: inline-flex;\n      align-items: center;\n      padding: 2px 6px;\n      color: #6d3bd1;\n      background: #f0eaff;\n      border: 1px solid #ded0ff;\n      border-radius: 999px;\n      font-size: 9px;\n      font-weight: 700;\n      letter-spacing: 0.03em;\n      line-height: 1.2;\n      text-transform: uppercase;\n    }\n\n    .power-browser-settings-description-v2 {\n      display: block;\n      margin-top: 4px;\n      color: #777d8c;\n      font-size: 11px;\n      line-height: 1.45;\n    }\n\n    .power-browser-settings-theme-picker-v2 {\n      display: grid;\n      grid-template-columns: repeat(3, minmax(76px, 1fr));\n      gap: 8px;\n      width: min(310px, 100%);\n    }\n\n    .power-browser-settings-theme-option-v2 {\n      display: flex;\n      min-width: 0;\n      flex-direction: column;\n      gap: 7px;\n      padding: 7px;\n      color: #555a68;\n      background: #fff;\n      border: 1px solid #d9dbe1;\n      border-radius: 9px;\n      font: 650 10px Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n      text-align: left;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-theme-option-v2:hover {\n      border-color: #aeb2bf;\n    }\n\n    .power-browser-settings-theme-option-v2.active {\n      color: #262a3a;\n      border-color: #e9004c;\n      box-shadow: 0 0 0 2px rgba(233, 0, 76, 0.12);\n    }\n\n    .power-browser-settings-size-picker-v2 {\n      display: grid;\n      grid-template-columns: repeat(5, minmax(52px, 1fr));\n      gap: 6px;\n      width: min(430px, 100%);\n    }\n\n    .power-browser-settings-size-option-v2 {\n      display: flex;\n      min-width: 0;\n      flex-direction: column;\n      gap: 6px;\n      padding: 6px;\n      color: #555a68;\n      background: #fff;\n      border: 1px solid #d9dbe1;\n      border-radius: 9px;\n      font: 650 10px Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n      text-align: center;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-size-option-v2:hover {\n      border-color: #aeb2bf;\n    }\n\n    .power-browser-settings-size-option-v2.active {\n      color: #262a3a;\n      border-color: #e9004c;\n      box-shadow: 0 0 0 2px rgba(233, 0, 76, 0.12);\n    }\n\n    .power-browser-settings-size-preview-v2 {\n      position: relative;\n      display: grid;\n      height: 38px;\n      place-items: center;\n      overflow: hidden;\n      color: #444957;\n      background: #f4f5f8;\n      border: 1px solid rgba(31, 35, 48, 0.12);\n      border-radius: 6px;\n    }\n\n    .power-browser-settings-size-option-v2[data-size-kind=\"dialog\"]\n      .power-browser-settings-size-preview-v2::before {\n      width: 68%;\n      height: 62%;\n      content: \"\";\n      background: #fff;\n      border: 1px solid #b9bdc8;\n      border-radius: 3px;\n      box-shadow: inset 7px 0 0 #333847;\n    }\n\n    .power-browser-settings-size-option-v2[data-size-kind=\"dialog\"][data-size=\"xs\"]\n      .power-browser-settings-size-preview-v2::before {\n      width: 42%;\n      height: 42%;\n    }\n\n    .power-browser-settings-size-option-v2[data-size-kind=\"dialog\"][data-size=\"sm\"]\n      .power-browser-settings-size-preview-v2::before {\n      width: 55%;\n      height: 52%;\n    }\n\n    .power-browser-settings-size-option-v2[data-size-kind=\"dialog\"][data-size=\"lg\"]\n      .power-browser-settings-size-preview-v2::before {\n      width: 82%;\n      height: 72%;\n    }\n\n    .power-browser-settings-size-option-v2[data-size-kind=\"dialog\"][data-size=\"xl\"]\n      .power-browser-settings-size-preview-v2::before {\n      width: 94%;\n      height: 82%;\n    }\n\n    .power-browser-settings-size-option-v2[data-size-kind=\"text\"]\n      .power-browser-settings-size-preview-v2::before {\n      content: \"Aa\";\n      font-size: 14px;\n      font-weight: 700;\n      line-height: 1;\n    }\n\n    .power-browser-settings-size-option-v2[data-size-kind=\"text\"][data-size=\"xs\"]\n      .power-browser-settings-size-preview-v2::before {\n      font-size: 9px;\n    }\n\n    .power-browser-settings-size-option-v2[data-size-kind=\"text\"][data-size=\"sm\"]\n      .power-browser-settings-size-preview-v2::before {\n      font-size: 11px;\n    }\n\n    .power-browser-settings-size-option-v2[data-size-kind=\"text\"][data-size=\"lg\"]\n      .power-browser-settings-size-preview-v2::before {\n      font-size: 17px;\n    }\n\n    .power-browser-settings-size-option-v2[data-size-kind=\"text\"][data-size=\"xl\"]\n      .power-browser-settings-size-preview-v2::before {\n      font-size: 20px;\n    }\n\n    .power-browser-settings-theme-preview-v2 {\n      position: relative;\n      display: block;\n      height: 34px;\n      overflow: hidden;\n      background: #f7f7f9;\n      border: 1px solid rgba(31, 35, 48, 0.12);\n      border-radius: 6px;\n    }\n\n    .power-browser-settings-theme-preview-v2::before {\n      position: absolute;\n      top: 7px;\n      right: 7px;\n      left: 7px;\n      height: 7px;\n      content: \"\";\n      background: #fff;\n      border-radius: 4px;\n      box-shadow:\n        0 9px 0 #e4e5ea,\n        0 18px 0 #f0f1f4;\n    }\n\n    .power-browser-settings-theme-option-v2[data-theme=\"dark\"]\n      .power-browser-settings-theme-preview-v2 {\n      background: #1f2330;\n      border-color: #494f60;\n    }\n\n    .power-browser-settings-theme-option-v2[data-theme=\"dark\"]\n      .power-browser-settings-theme-preview-v2::before {\n      background: #343949;\n      box-shadow:\n        0 9px 0 #282d3b,\n        0 18px 0 #404657;\n    }\n\n    .power-browser-settings-theme-option-v2[data-theme=\"betty\"]\n      .power-browser-settings-theme-preview-v2 {\n      background:\n        linear-gradient(\n          259deg,\n          rgb(233, 0, 76) 0%,\n          rgb(57, 90, 252) 51.9162%,\n          rgb(17, 171, 209) 100%\n        );\n      border-color: transparent;\n    }\n\n    .power-browser-settings-theme-option-v2[data-theme=\"betty\"]\n      .power-browser-settings-theme-preview-v2::before {\n      background: rgba(255, 255, 255, 0.94);\n      box-shadow:\n        0 9px 0 rgba(255, 255, 255, 0.68),\n        0 18px 0 rgba(255, 255, 255, 0.4);\n    }\n\n    .power-browser-settings-toggle-v2 {\n      position: relative;\n      display: inline-flex;\n      width: 42px;\n      height: 24px;\n      flex: 0 0 42px;\n    }\n\n    .power-browser-settings-toggle-v2 input {\n      position: absolute;\n      opacity: 0;\n      pointer-events: none;\n    }\n\n    .power-browser-settings-toggle-track-v2 {\n      width: 100%;\n      border-radius: 999px;\n      background: #c8cbd3;\n      cursor: pointer;\n      transition: background 0.18s ease;\n    }\n\n    .power-browser-settings-toggle-track-v2::after {\n      position: absolute;\n      top: 3px;\n      left: 3px;\n      width: 18px;\n      height: 18px;\n      content: \"\";\n      background: #fff;\n      border-radius: 50%;\n      box-shadow: 0 2px 5px rgba(20, 24, 35, 0.22);\n      transition: transform 0.18s ease;\n    }\n\n    .power-browser-settings-toggle-v2 input:checked + .power-browser-settings-toggle-track-v2 {\n      background: #e9004c;\n    }\n\n    .power-browser-settings-toggle-v2 input:checked + .power-browser-settings-toggle-track-v2::after {\n      transform: translateX(18px);\n    }\n\n    .power-browser-settings-toggle-v2 input:focus-visible + .power-browser-settings-toggle-track-v2 {\n      outline: 3px solid rgba(233, 0, 76, 0.22);\n      outline-offset: 2px;\n    }\n\n    .power-browser-settings-toggle-v2\n      input:disabled\n      + .power-browser-settings-toggle-track-v2 {\n      cursor: not-allowed;\n    }\n\n    .power-browser-settings-shortcut-v2 {\n      width: 170px;\n      padding: 8px 10px;\n      border: 1px solid #d4d6dd;\n      border-radius: 7px;\n      color: #303442;\n      background: #fbfbfc;\n      font: 12px ui-monospace, SFMono-Regular, Consolas, monospace;\n    }\n\n    .power-browser-settings-shortcut-v2:focus {\n      border-color: #e9004c;\n      outline: 3px solid rgba(233, 0, 76, 0.12);\n    }\n\n    .power-browser-settings-footer-v2 {\n      display: flex;\n      align-items: center;\n      justify-content: space-between;\n      padding: 12px 26px;\n      color: #777d8c;\n      background: #fff;\n      border-top: 1px solid #e8e9ed;\n      font-size: 11px;\n    }\n\n    .power-browser-settings-reset-v2 {\n      padding: 7px 10px;\n      border: 1px solid #d9dbe1;\n      border-radius: 7px;\n      color: #555a68;\n      background: #fff;\n      font-size: 11px;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-reset-v2:hover {\n      color: #e9004c;\n      border-color: #f0a0ba;\n      background: #fff5f8;\n    }\n\n    .power-browser-icon-only-v2 #dropdownMenu > a span,\n    .power-browser-icon-only-v2 #dropdownMenu > button span,\n    .power-browser-icon-only-v2 .power-browser-state-toggle-label-v2 {\n      display: none;\n    }\n\n    .power-browser-icon-only-v2.power-browser-show-sandbox-name-v2\n      .power-browser-state-toggle-label-v2 {\n      display: inline;\n    }\n\n    .power-browser-setting-hidden-v2 {\n      display: none !important;\n    }\n\n    .power-browser-dark-v2 .dropdown-1aaab757-b16d-413a-9499-a72197bb1732,\n    .power-browser-dark-v2 .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > a,\n    .power-browser-dark-v2 .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > button,\n    .power-browser-dark-v2 .power-browser-state-toggle-v2 {\n      color: #f4f5f7;\n      background: #262a3a;\n    }\n\n    .power-browser-dark-v2 .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > a:hover,\n    .power-browser-dark-v2 .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > button:hover,\n    .power-browser-dark-v2 .power-browser-state-toggle-v2:hover {\n      background: #343949;\n    }\n\n    .power-browser-dark-v2 .button-disabled-6b6a60d4-9e38-4279-84a5-5ef466dde62f,\n    .power-browser-dark-v2 .button-disabled-6b6a60d4-9e38-4279-84a5-5ef466dde62f:hover {\n      color: #858b9b !important;\n      background: #343947 !important;\n    }\n\n    .power-browser-dark-v2 .power-browser-state-menu-v2,\n    .power-browser-dark-v2 .power-browser-state-option-v2 {\n      color: #f4f5f7;\n      background: #262a3a;\n      border-color: #444a5b;\n    }\n\n    .power-browser-dark-v2 .power-browser-state-option-v2:hover {\n      background: #343949;\n    }\n\n    .power-browser-dark-v2 .power-browser-state-option-v2.no-access,\n    .power-browser-dark-v2 .power-browser-state-option-v2.no-access:hover {\n      color: #858b9b;\n      background: #343947;\n    }\n\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732.power-browser-hotfix-active-v2,\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732.power-browser-hotfix-active-v2 > a,\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732.power-browser-hotfix-active-v2 > button,\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732.power-browser-hotfix-active-v2 > .power-browser-state-switcher-v2 > .power-browser-state-toggle-v2 {\n      color: #4a111b !important;\n      background: #ff9c9c !important;\n    }\n\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732.power-browser-hotfix-active-v2 > a:hover,\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732.power-browser-hotfix-active-v2 > button:hover,\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732.power-browser-hotfix-active-v2 > .power-browser-state-switcher-v2 > .power-browser-state-toggle-v2:hover {\n      background: #ffd1d1 !important;\n    }\n\n    .power-browser-shift-hidden-v2 {\n      visibility: hidden !important;\n      pointer-events: none !important;\n    }\n\n    .power-browser-b5-highlighting-v2 .pane .body .action_diagram .event.active .symbol {\n      box-shadow: 0 0 15px 2px rgba(255, 126, 117, 1);\n    }\n\n    .power-browser-b5-password-v2 {\n      filter: blur(3px);\n      transition: filter 0.25s ease;\n    }\n\n    .power-browser-b5-password-v2:hover,\n    .power-browser-b5-password-v2:focus {\n      filter: blur(0);\n    }\n\n    .power-browser-dark-v2.power-browser-model-search-dialog-v2 {\n      color: #f4f5f7;\n      background: #242836;\n      border-color: #494f60;\n    }\n\n    .power-browser-dark-v2 .power-browser-model-search-header-v2,\n    .power-browser-dark-v2 .power-browser-model-search-footer-v2 {\n      background: #242836;\n      border-color: #444a5b;\n    }\n\n    .power-browser-dark-v2 .power-browser-model-search-input-v2,\n    .power-browser-dark-v2 .power-browser-model-search-title-v2 {\n      color: #f4f5f7;\n    }\n\n    .power-browser-dark-v2 .power-browser-model-search-result-v2:hover,\n    .power-browser-dark-v2 .power-browser-model-search-result-v2.active,\n    .power-browser-dark-v2 .power-browser-model-search-backoffice-v2:hover {\n      background: #343949;\n    }\n\n    .power-browser-dark-v2.power-browser-settings-dialog-v2 .power-browser-settings-main-v2,\n    .power-browser-dark-v2.power-browser-settings-dialog-v2 .power-browser-settings-content-v2 {\n      background: #1f2330;\n    }\n\n    .power-browser-dark-v2.power-browser-settings-dialog-v2 {\n      --power-browser-settings-flash-rgb: 255, 92, 145;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-header-v2,\n    .power-browser-dark-v2 .power-browser-settings-search-v2,\n    .power-browser-dark-v2 .power-browser-settings-footer-v2,\n    .power-browser-dark-v2 .power-browser-settings-card-v2 {\n      background: #282d3b;\n      border-color: #404657;\n    }\n\n    .power-browser-dark-v2\n      .power-browser-settings-search-v2 input {\n      color: #f4f5f7;\n      background: #202431;\n      border-color: #4a5061;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-heading-v2 h2,\n    .power-browser-dark-v2 .power-browser-settings-copy-v2 strong,\n    .power-browser-dark-v2 .power-browser-settings-info-title-v2,\n    .power-browser-dark-v2 .power-browser-settings-info-item-v2 dd {\n      color: #f4f5f7;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-info-empty-v2 {\n      color: #aeb4c2;\n      background: #282d3b;\n      border-color: #4a5061;\n    }\n\n    .power-browser-dark-v2\n      .power-browser-settings-diagnostic-v2,\n    .power-browser-dark-v2\n      .power-browser-settings-action-v2 {\n      color: #d5d8e0;\n      background: #282d3b;\n      border-color: #4a5061;\n    }\n\n    .power-browser-dark-v2\n      .power-browser-settings-diagnostic-v2 strong {\n      color: #f4f5f7;\n    }\n\n    .power-browser-dark-v2\n      .power-browser-settings-copy-value-v2 {\n      color: #c8ccd6;\n      background: #343949;\n      border-color: #4a5061;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-danger-v2 {\n      background: #421f25;\n      border-color: #75404a;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-danger-v2 strong {\n      color: #ffccd3;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-danger-v2 span {\n      color: #e7aab4;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-close-v2 {\n      color: #c8ccd6;\n      background: #363b4b;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-close-v2:hover {\n      color: #ff8eb3;\n      background: #472938;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-reset-v2 {\n      color: #d5d8e0;\n      background: #282d3b;\n      border-color: #4a5061;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-reset-v2:hover {\n      color: #ff9cbd;\n      background: #3d2834;\n      border-color: #8d5268;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-section-v2 {\n      color: #aeb4c2;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-badge-v2 {\n      color: #d8c7ff;\n      background: #3b3155;\n      border-color: #574876;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-shortcut-v2 {\n      color: #f4f5f7;\n      background: #202431;\n      border-color: #4a5061;\n    }\n\n    .power-browser-dark-v2\n      .power-browser-settings-theme-option-v2 {\n      color: #c8ccd6;\n      background: #202431;\n      border-color: #4a5061;\n    }\n\n    .power-browser-dark-v2\n      .power-browser-settings-size-option-v2 {\n      color: #c8ccd6;\n      background: #202431;\n      border-color: #4a5061;\n    }\n\n    .power-browser-dark-v2\n      .power-browser-settings-size-preview-v2 {\n      color: #e5e8ef;\n      background: #292e3c;\n      border-color: #4a5061;\n    }\n\n    .power-browser-dark-v2\n      .power-browser-settings-size-option-v2[data-size-kind=\"dialog\"]\n      .power-browser-settings-size-preview-v2::before {\n      background: #343949;\n      border-color: #737b91;\n      box-shadow: inset 7px 0 0 #171a24;\n    }\n\n    .power-browser-dark-v2\n      .power-browser-settings-theme-option-v2:hover {\n      border-color: #737b91;\n    }\n\n    .power-browser-dark-v2\n      .power-browser-settings-size-option-v2:hover {\n      border-color: #737b91;\n    }\n\n    .power-browser-dark-v2\n      .power-browser-settings-theme-option-v2.active {\n      color: #fff;\n      border-color: #ff5c91;\n      box-shadow: 0 0 0 2px rgba(255, 92, 145, 0.14);\n    }\n\n    .power-browser-dark-v2\n      .power-browser-settings-size-option-v2.active {\n      color: #fff;\n      border-color: #ff5c91;\n      box-shadow: 0 0 0 2px rgba(255, 92, 145, 0.14);\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-alert-v2 {\n      color: #ffc4d7;\n      background: #552134;\n      border-color: #733047;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-alert-v2 strong {\n      color: #ffe4ed;\n    }\n\n    .power-browser-betty-theme-v2\n      .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 {\n      overflow: visible;\n      background:\n        linear-gradient(\n          259deg,\n          rgb(233, 0, 76) 0%,\n          rgb(57, 90, 252) 51.9162%,\n          rgb(17, 171, 209) 100%\n        )\n        transparent;\n      border-radius: 12px;\n      box-shadow: none;\n    }\n\n    .power-browser-betty-theme-v2\n      .dropdown-1aaab757-b16d-413a-9499-a72197bb1732\n      > a,\n    .power-browser-betty-theme-v2\n      .dropdown-1aaab757-b16d-413a-9499-a72197bb1732\n      > button,\n    .power-browser-betty-theme-v2 .power-browser-state-toggle-v2 {\n      color: #fff;\n      background: transparent;\n    }\n\n    .power-browser-betty-theme-v2\n      .dropdown-1aaab757-b16d-413a-9499-a72197bb1732\n      > a:hover,\n    .power-browser-betty-theme-v2\n      .dropdown-1aaab757-b16d-413a-9499-a72197bb1732\n      > button:hover,\n    .power-browser-betty-theme-v2\n      .power-browser-state-toggle-v2:hover {\n      background: rgba(255, 255, 255, 0.16);\n    }\n\n    .power-browser-betty-theme-v2\n      .button-disabled-6b6a60d4-9e38-4279-84a5-5ef466dde62f,\n    .power-browser-betty-theme-v2\n      .button-disabled-6b6a60d4-9e38-4279-84a5-5ef466dde62f:hover {\n      color: rgba(255, 255, 255, 0.56) !important;\n      background: rgba(25, 30, 72, 0.16) !important;\n    }\n\n    .power-browser-betty-theme-v2 .power-browser-state-menu-v2,\n    .power-browser-betty-theme-v2 .power-browser-state-option-v2 {\n      color: #29304a;\n      background: #fff;\n      border-color: #cad3ff;\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-state-option-v2:hover {\n      color: #233fc4;\n      background: #eef2ff;\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-state-option-v2.no-access,\n    .power-browser-betty-theme-v2\n      .power-browser-state-option-v2.no-access:hover {\n      color: #9499aa;\n      background: #f1f2f5;\n    }\n\n    .power-browser-betty-theme-v2.power-browser-model-search-dialog-v2 {\n      border-color: #7189ff;\n      box-shadow: 0 26px 80px rgba(57, 90, 252, 0.25);\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-model-search-result-v2:hover,\n    .power-browser-betty-theme-v2\n      .power-browser-model-search-result-v2.active,\n    .power-browser-betty-theme-v2\n      .power-browser-model-search-backoffice-v2:hover {\n      background: linear-gradient(\n        90deg,\n        rgba(233, 0, 76, 0.08),\n        rgba(57, 90, 252, 0.12),\n        rgba(17, 171, 209, 0.1)\n      );\n    }\n\n    .power-browser-betty-theme-v2.power-browser-settings-dialog-v2 {\n      --power-browser-settings-flash-rgb: 57, 90, 252;\n      border-color: rgba(57, 90, 252, 0.35);\n      box-shadow: 0 32px 100px rgba(42, 61, 160, 0.32);\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-sidebar-v2 {\n      background:\n        linear-gradient(\n          259deg,\n          rgb(233, 0, 76) 0%,\n          rgb(57, 90, 252) 51.9162%,\n          rgb(17, 171, 209) 100%\n        )\n        transparent;\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-tab-v2,\n    .power-browser-betty-theme-v2\n      .power-browser-settings-section-link-v2 {\n      color: rgba(255, 255, 255, 0.8);\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-tab-v2:hover,\n    .power-browser-betty-theme-v2\n      .power-browser-settings-tab-v2.active {\n      color: #fff;\n      background: rgba(255, 255, 255, 0.18);\n      box-shadow: none;\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-section-link-v2:hover,\n    .power-browser-betty-theme-v2\n      .power-browser-settings-section-link-v2.active {\n      color: #fff;\n      border-left-color: #fff;\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-main-v2,\n    .power-browser-betty-theme-v2\n      .power-browser-settings-content-v2 {\n      background: #f3f6ff;\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-header-v2,\n    .power-browser-betty-theme-v2\n      .power-browser-settings-search-v2,\n    .power-browser-betty-theme-v2\n      .power-browser-settings-footer-v2,\n    .power-browser-betty-theme-v2\n      .power-browser-settings-card-v2 {\n      background: #fff;\n      border-color: #dce2ff;\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-close-v2 {\n      color: #395afc;\n      background: #edf1ff;\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-close-v2:hover {\n      color: #e9004c;\n      background: #fff0f5;\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-reset-v2 {\n      color: #395afc;\n      background: #fff;\n      border-color: #aebcff;\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-reset-v2:hover {\n      color: #e9004c;\n      background: #fff4f8;\n      border-color: #ed8aad;\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-theme-option-v2.active {\n      border-color: #395afc;\n      box-shadow: 0 0 0 2px rgba(57, 90, 252, 0.14);\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-size-option-v2.active {\n      border-color: #395afc;\n      box-shadow: 0 0 0 2px rgba(57, 90, 252, 0.14);\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-version-v2 {\n      color: #fff;\n    }\n\n    .power-browser-settings-dialog-v2[data-dialog-size=\"xs\"] {\n      grid-template-columns: 190px minmax(0, 1fr);\n      width: min(780px, calc(100vw - 32px));\n      height: min(580px, calc(100vh - 32px));\n    }\n\n    .power-browser-settings-dialog-v2[data-dialog-size=\"sm\"] {\n      grid-template-columns: 205px minmax(0, 1fr);\n      width: min(900px, calc(100vw - 32px));\n      height: min(660px, calc(100vh - 32px));\n    }\n\n    .power-browser-settings-dialog-v2[data-dialog-size=\"md\"] {\n      grid-template-columns: 220px minmax(0, 1fr);\n      width: min(1000px, calc(100vw - 32px));\n      height: min(740px, calc(100vh - 32px));\n    }\n\n    .power-browser-settings-dialog-v2[data-dialog-size=\"lg\"] {\n      grid-template-columns: 235px minmax(0, 1fr);\n      width: min(1100px, calc(100vw - 24px));\n      height: min(790px, calc(100vh - 24px));\n    }\n\n    .power-browser-settings-dialog-v2[data-dialog-size=\"xl\"] {\n      grid-template-columns: 250px minmax(0, 1fr);\n      width: min(1200px, calc(100vw - 20px));\n      height: min(860px, calc(100vh - 20px));\n    }\n\n    .power-browser-settings-dialog-v2[data-text-size=\"xs\"] {\n      --pb-settings-font-micro: 7.5px;\n      --pb-settings-font-small: 9px;\n      --pb-settings-font-body: 11px;\n      --pb-settings-font-input: 10px;\n      --pb-settings-font-title: 17px;\n      --pb-settings-font-large: 12px;\n    }\n\n    .power-browser-settings-dialog-v2[data-text-size=\"sm\"] {\n      --pb-settings-font-micro: 8px;\n      --pb-settings-font-small: 10px;\n      --pb-settings-font-body: 12px;\n      --pb-settings-font-input: 11px;\n      --pb-settings-font-title: 18px;\n      --pb-settings-font-large: 13.5px;\n    }\n\n    .power-browser-settings-dialog-v2[data-text-size=\"lg\"] {\n      --pb-settings-font-micro: 10px;\n      --pb-settings-font-small: 12.5px;\n      --pb-settings-font-body: 15px;\n      --pb-settings-font-input: 14px;\n      --pb-settings-font-title: 23px;\n      --pb-settings-font-large: 17px;\n    }\n\n    .power-browser-settings-dialog-v2[data-text-size=\"xl\"] {\n      --pb-settings-font-micro: 11px;\n      --pb-settings-font-small: 14px;\n      --pb-settings-font-body: 17px;\n      --pb-settings-font-input: 16px;\n      --pb-settings-font-title: 26px;\n      --pb-settings-font-large: 19px;\n    }\n\n    .power-browser-settings-dialog-v2 .power-browser-settings-tab-v2,\n    .power-browser-settings-dialog-v2 .power-browser-settings-footer-v2,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-diagnostic-v2 strong {\n      font-size: var(--pb-settings-font-body);\n    }\n\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-brand-v2 strong {\n      font-size: var(--pb-settings-font-large);\n    }\n\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-heading-v2 h2 {\n      font-size: var(--pb-settings-font-title);\n    }\n\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-copy-v2 strong,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-info-title-v2 {\n      font-size: var(--pb-settings-font-large);\n    }\n\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-section-link-v2,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-description-v2,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-info-item-v2 dd,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-diagnostic-v2 span,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-operation-status-v2,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-brand-v2 span,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-version-v2,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-theme-option-v2,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-size-option-v2 {\n      font-size: var(--pb-settings-font-small);\n    }\n\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-heading-v2 p,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-search-v2 input,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-section-v2,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-shortcut-v2,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-action-v2,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-reset-v2,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-danger-button-v2 {\n      font-size: var(--pb-settings-font-input);\n    }\n\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-info-item-v2 dt {\n      font-size: var(--pb-settings-font-micro);\n    }\n\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-badge-v2 {\n      font-size: var(--pb-settings-font-micro);\n    }\n\n    @media (max-width: 720px) {\n      .power-browser-settings-dialog-v2,\n      .power-browser-settings-dialog-v2.open {\n        grid-template-columns: 1fr;\n        grid-template-rows: auto minmax(0, 1fr);\n      }\n\n      .power-browser-settings-sidebar-v2 {\n        padding: 14px;\n      }\n\n      .power-browser-settings-brand-v2,\n      .power-browser-settings-version-v2 {\n        display: none;\n      }\n\n      .power-browser-settings-tabs-v2 {\n        height: auto;\n        flex: none;\n        flex-direction: row;\n        overflow-x: auto;\n        overflow-y: hidden;\n        touch-action: pan-x;\n      }\n\n      .power-browser-settings-tab-v2 {\n        width: auto;\n        white-space: nowrap;\n      }\n\n      .power-browser-settings-section-links-v2 {\n        flex: none;\n        flex-direction: row;\n        padding: 0;\n      }\n\n      .power-browser-settings-section-link-v2 {\n        border-left: 0;\n        border-bottom: 1px solid rgba(255, 255, 255, 0.16);\n        white-space: nowrap;\n      }\n\n      .power-browser-settings-card-v2 {\n        grid-template-columns: minmax(0, 1fr);\n      }\n\n      .power-browser-settings-shortcut-v2 {\n        width: 100%;\n        box-sizing: border-box;\n      }\n\n      .power-browser-settings-info-grid-v2 {\n        grid-template-columns: minmax(0, 1fr);\n      }\n\n      .power-browser-settings-diagnostics-v2 {\n        grid-template-columns: minmax(0, 1fr);\n      }\n\n      .power-browser-settings-danger-v2 {\n        align-items: stretch;\n        flex-direction: column;\n      }\n\n      .power-browser-settings-theme-picker-v2 {\n        width: 100%;\n      }\n\n      .power-browser-settings-size-picker-v2 {\n        width: 100%;\n      }\n    }\n");
+GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px !important;\n      width: min(900px, calc(100vw - 48px)) !important;\n      max-width: min(900px, calc(100vw - 48px)) !important;\n      height: min(880px, calc(100vh - 88px)) !important;\n      min-height: min(720px, calc(100vh - 88px)) !important;\n      max-height: calc(100vh - 88px) !important;\n      grid-template-rows: auto minmax(0, 1fr) auto auto !important;\n      overflow: hidden !important;\n      transform: translateX(-50%) !important;\n    }\n\n    .power-browser-action-playground-dialog-v2\n      > .box-border.overflow-auto {\n      min-height: 0 !important;\n      overflow-x: hidden !important;\n      overflow-y: auto !important;\n      padding-right: 6px;\n    }\n\n    .power-browser-action-playground-dialog-v2\n      > .flex.flex-row.justify-between.gap-2 {\n      position: relative;\n      z-index: 1;\n      flex-shrink: 0;\n      background: white;\n    }\n\n    .power-browser-action-playground-dialog-v2\n      [data-power-browser-action-headers-v2] {\n      padding-bottom: 4px;\n    }\n\n    .power-browser-action-playground-dialog-v2\n      [data-power-browser-action-headers-v2]\n      textarea {\n      min-height: 112px;\n    }\n\n    .power-browser-action-playground-dialog-v2\n      textarea[data-power-browser-action-variables-v2] {\n      max-height: calc(12em + 16px) !important;\n    }\n\n    .power-browser-action-alert-v2 {\n      display: none;\n      margin: 4px 0 12px;\n      padding: 10px 12px;\n      color: #991b1b;\n      background: #fef2f2;\n      border: 1px solid #fecaca;\n      border-radius: 6px;\n      font: 500 12px/1.4 Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n    }\n\n    .power-browser-action-alert-v2.open {\n      display: block;\n    }\n\n    .nav-container-1c7b2759-c793-4d17-b89b-1da6c5c5cf5b {\n      position: fixed;\n      margin: 0;\n      top: 0;\n      left: 50%;\n      transform: translateX(-50%);\n      text-align: center;\n      padding: 6px 2px 2px;\n      width: 30%;\n      min-width: 250px;\n      z-index: 2147483647;\n      background: transparent !important;\n      box-shadow: none !important;\n      font-family: Arial, sans-serif;\n    }\n\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 {\n      position: absolute;\n      top: 50%;\n      left: 50%;\n      transform: translateX(-50%);\n      display: flex !important;\n      flex-direction: row;\n      align-items: stretch;\n      padding: 0;\n      opacity: 1;\n      white-space: nowrap;\n      background: white;\n      border-radius: 5px;\n      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);\n    }\n\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > a,\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > button,\n    .power-browser-state-toggle-v2 {\n      box-sizing: border-box;\n      display: inline-flex;\n      align-items: center;\n      gap: 5px;\n      min-height: 38px;\n      padding: 10px 20px;\n      border: 0;\n      border-radius: 0;\n      color: black;\n      background: white;\n      font: 14px Arial, sans-serif;\n      text-decoration: none;\n      cursor: pointer;\n    }\n\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > a:hover,\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > button:hover,\n    .power-browser-state-toggle-v2:hover {\n      background: #f0f0f0;\n    }\n\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > :first-child {\n      border-radius: 5px 0 0 5px;\n    }\n\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > :last-child {\n      border-radius: 0 5px 5px 0;\n    }\n\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 svg {\n      width: 16px;\n      height: 16px;\n      flex: 0 0 16px;\n      margin-bottom: 2px;\n      vertical-align: middle;\n      fill: currentColor;\n    }\n\n    .button-disabled-6b6a60d4-9e38-4279-84a5-5ef466dde62f {\n      color: #777 !important;\n      background-color: rgb(220, 220, 220) !important;\n      cursor: not-allowed !important;\n      pointer-events: none;\n    }\n\n    #buttonCopyBearer.button-disabled-6b6a60d4-9e38-4279-84a5-5ef466dde62f {\n      pointer-events: auto;\n    }\n\n    .power-browser-hidden-v2 {\n      display: none !important;\n    }\n\n    .power-browser-state-switcher-v2 {\n      position: relative;\n      display: inline-flex;\n    }\n\n    .power-browser-state-status-v2 {\n      position: absolute;\n      top: calc(100% + 8px);\n      right: 0;\n      display: none;\n      flex-direction: column;\n      gap: 7px;\n      width: min(320px, calc(100vw - 24px));\n      padding: 12px;\n      color: #343844;\n      background: #fff;\n      border: 1px solid #d9dbe2;\n      border-radius: 8px;\n      box-shadow: 0 12px 30px rgba(20, 24, 35, 0.2);\n      font: 12px/1.45 Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n      text-align: left;\n      white-space: normal;\n      z-index: 3;\n    }\n\n    .power-browser-state-switcher-v2:not([data-status=\"ready\"]):hover\n      .power-browser-state-status-v2,\n    .power-browser-state-switcher-v2:not([data-status=\"ready\"]):focus-within\n      .power-browser-state-status-v2 {\n      display: flex;\n    }\n\n    .power-browser-state-status-v2 strong {\n      color: #252936;\n      font-size: 13px;\n    }\n\n    .power-browser-state-status-actions-v2 {\n      display: flex;\n      gap: 7px;\n    }\n\n    .power-browser-state-status-actions-v2 button {\n      padding: 6px 9px;\n      color: #343844;\n      background: #fff;\n      border: 1px solid #cfd2da;\n      border-radius: 5px;\n      font: 600 11px Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n      cursor: pointer;\n    }\n\n    .power-browser-state-status-actions-v2 button:hover {\n      color: #e9004c;\n      border-color: #e9004c;\n    }\n\n    .power-browser-state-status-actions-v2 button:disabled {\n      color: #8c909b;\n      background: #f0f1f3;\n      border-color: #dddfe4;\n      cursor: wait;\n    }\n\n    .power-browser-state-toggle-v2 {\n      max-width: 210px;\n    }\n\n    .power-browser-state-toggle-label-v2 {\n      overflow: hidden;\n      text-overflow: ellipsis;\n    }\n\n    .power-browser-state-menu-v2 {\n      position: absolute;\n      top: calc(100% + 5px);\n      left: 0;\n      display: none;\n      min-width: 240px;\n      padding: 5px;\n      background: white;\n      border: 1px solid #ddd;\n      border-radius: 5px;\n      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);\n      z-index: 1;\n    }\n\n    .power-browser-state-group-v2 {\n      padding: 8px 9px 4px;\n      color: #777d8c;\n      font-size: 10px;\n      font-weight: 700;\n      text-transform: uppercase;\n    }\n\n    .power-browser-environment-badge-v2 {\n      align-self: center;\n      margin: 0 7px;\n      padding: 3px 6px;\n      color: #fff;\n      background: #596070;\n      border-radius: 999px;\n      font: 700 9px/1 Arial, sans-serif;\n    }\n\n    .nav-container-1c7b2759-c793-4d17-b89b-1da6c5c5cf5b[data-environment=\"production\"]\n      .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 {\n      box-shadow: 0 0 0 2px #d14343, 0 4px 12px rgba(209, 67, 67, 0.25);\n    }\n\n    .nav-container-1c7b2759-c793-4d17-b89b-1da6c5c5cf5b[data-environment=\"production\"]\n      .power-browser-environment-badge-v2 {\n      background: #c83232;\n    }\n\n    .power-browser-state-switcher-v2.open .power-browser-state-menu-v2 {\n      display: flex;\n      flex-direction: column;\n    }\n\n    .power-browser-state-option-v2 {\n      display: flex;\n      align-items: center;\n      width: 100%;\n      padding: 9px 12px;\n      padding-left: calc(12px + var(--power-browser-depth, 0) * 16px);\n      border: 0;\n      border-radius: 3px;\n      color: #222;\n      background: white;\n      font: 14px Arial, sans-serif;\n      text-align: left;\n      cursor: pointer;\n    }\n\n    .power-browser-state-option-v2:hover {\n      background: #f0f0f0;\n    }\n\n    .power-browser-state-option-v2.current {\n      color: #e9004c;\n      font-weight: 600;\n      cursor: default;\n    }\n\n    .power-browser-state-option-v2.no-access {\n      color: #888;\n      background: #e7e7e7;\n      cursor: not-allowed;\n      opacity: 0.7;\n    }\n\n    .power-browser-state-option-v2.no-access:hover {\n      background: #e7e7e7;\n    }\n\n    .power-browser-state-option-v2 small {\n      margin-left: auto;\n      padding-left: 12px;\n      color: #777;\n      font-size: 11px;\n    }\n\n    .power-browser-bearer-copied-v2 {\n      background: rgba(202, 240, 181, 0.95) !important;\n    }\n\n    .power-browser-bearer-error-v2 {\n      background: rgba(255, 190, 190, 0.95) !important;\n    }\n\n    .power-browser-model-search-overlay-v2 {\n      position: fixed;\n      inset: 0;\n      display: none;\n      background: rgba(20, 24, 35, 0.45);\n      backdrop-filter: blur(2px);\n      z-index: 2147483646;\n    }\n\n    .power-browser-model-search-overlay-v2.open {\n      display: block;\n    }\n\n    .power-browser-model-search-dialog-v2 {\n      position: fixed;\n      top: clamp(55px, 10vh, 120px);\n      left: 50%;\n      display: none;\n      width: min(720px, calc(100vw - 32px));\n      max-height: min(720px, 80vh);\n      overflow: hidden;\n      transform: translateX(-50%);\n      color: #262a3a;\n      background: #fff;\n      border: 1px solid rgba(233, 0, 76, 0.2);\n      border-radius: 14px;\n      box-shadow: 0 28px 80px rgba(20, 24, 35, 0.28);\n      font-family: Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n      z-index: 2147483647;\n    }\n\n    .power-browser-model-search-dialog-v2.open {\n      display: flex;\n      flex-direction: column;\n    }\n\n    .power-browser-model-search-header-v2 {\n      display: flex;\n      align-items: center;\n      gap: 12px;\n      padding: 16px 18px;\n      border-bottom: 1px solid #e6e7eb;\n    }\n\n    .power-browser-model-search-header-v2 svg {\n      width: 20px;\n      height: 20px;\n      fill: #e9004c;\n    }\n\n    .power-browser-model-search-input-v2 {\n      flex: 1;\n      min-width: 0;\n      padding: 0;\n      border: 0;\n      outline: 0;\n      color: #262a3a;\n      background: transparent;\n      font: 500 17px Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n    }\n\n    .power-browser-model-search-shortcut-v2,\n    .power-browser-model-search-count-v2 {\n      color: #777d8c;\n      font-size: 12px;\n      white-space: nowrap;\n    }\n\n    .power-browser-model-search-results-v2 {\n      display: flex;\n      flex-direction: column;\n      gap: 4px;\n      margin: 0;\n      padding: 8px;\n      overflow-y: auto;\n      list-style: none;\n    }\n\n    .power-browser-model-search-result-row-v2 {\n      display: grid;\n      grid-template-columns: minmax(0, 1fr) auto;\n      align-items: stretch;\n      gap: 4px;\n    }\n\n    .power-browser-model-search-result-v2 {\n      display: grid;\n      grid-template-columns: auto minmax(0, 1fr) auto;\n      align-items: center;\n      gap: 12px;\n      width: 100%;\n      padding: 11px 12px;\n      border: 0;\n      border-radius: 8px;\n      color: #262a3a;\n      background: transparent;\n      text-align: left;\n      cursor: pointer;\n    }\n\n    .power-browser-model-search-result-v2:hover,\n    .power-browser-model-search-result-v2.active {\n      background: #fff0f5;\n    }\n\n    .power-browser-model-search-chip-v2 {\n      min-width: 58px;\n      padding: 4px 7px;\n      border-radius: 999px;\n      color: #6b2541;\n      background: #ffdbe8;\n      font-size: 10px;\n      font-weight: 700;\n      text-align: center;\n      text-transform: uppercase;\n    }\n\n    .power-browser-model-search-chip-v2.property {\n      color: #24546c;\n      background: #dceff8;\n    }\n\n    .power-browser-model-search-chip-v2.relation {\n      color: #614e13;\n      background: #fff0b8;\n    }\n\n    .power-browser-model-search-copy-v2 {\n      min-width: 0;\n    }\n\n    .power-browser-model-search-title-v2 {\n      display: block;\n      overflow: hidden;\n      color: #262a3a;\n      font-size: 14px;\n      font-weight: 650;\n      text-overflow: ellipsis;\n      white-space: nowrap;\n    }\n\n    .power-browser-model-search-meta-v2 {\n      display: block;\n      margin-top: 3px;\n      overflow: hidden;\n      color: #777d8c;\n      font-size: 11px;\n      text-overflow: ellipsis;\n      white-space: nowrap;\n    }\n\n    .power-browser-model-search-open-v2 {\n      padding: 5px 8px;\n      border: 1px solid #d9dbe2;\n      border-radius: 6px;\n      color: #4e5360;\n      background: #fff;\n      font-size: 11px;\n    }\n\n    .power-browser-model-search-backoffice-v2 {\n      display: inline-flex;\n      align-items: center;\n      justify-content: center;\n      width: 42px;\n      padding: 0;\n      border: 1px solid transparent;\n      border-radius: 8px;\n      color: #4e5360;\n      background: transparent;\n      cursor: pointer;\n    }\n\n    .power-browser-model-search-backoffice-v2:hover,\n    .power-browser-model-search-backoffice-v2:focus-visible {\n      color: #e9004c;\n      background: #fff0f5;\n      border-color: #ffd0df;\n      outline: none;\n    }\n\n    .power-browser-model-search-backoffice-v2 svg {\n      width: 18px;\n      height: 18px;\n      fill: currentColor;\n    }\n\n    .power-browser-model-search-empty-v2 {\n      padding: 32px 20px;\n      color: #777d8c;\n      font-size: 13px;\n      text-align: center;\n    }\n\n    .power-browser-model-search-footer-v2 {\n      display: flex;\n      justify-content: space-between;\n      gap: 12px;\n      padding: 9px 16px;\n      color: #777d8c;\n      background: #f7f7f9;\n      border-top: 1px solid #e6e7eb;\n      font-size: 11px;\n    }\n\n    .power-browser-settings-overlay-v2 {\n      position: fixed;\n      inset: 0;\n      display: none;\n      background: rgba(19, 23, 34, 0.48);\n      backdrop-filter: blur(4px);\n      z-index: 2147483646;\n    }\n\n    .power-browser-settings-overlay-v2.open {\n      display: block;\n    }\n\n    .power-browser-settings-dialog-v2 {\n      --power-browser-settings-flash-rgb: 233, 0, 76;\n      --pb-settings-font-micro: 9px;\n      --pb-settings-font-small: 11px;\n      --pb-settings-font-body: 13px;\n      --pb-settings-font-input: 12px;\n      --pb-settings-font-title: 20px;\n      --pb-settings-font-large: 15px;\n      position: fixed;\n      top: 50%;\n      left: 50%;\n      display: none;\n      grid-template-columns: 220px minmax(0, 1fr);\n      width: min(1000px, calc(100vw - 32px));\n      height: min(740px, calc(100vh - 32px));\n      overflow: hidden;\n      transform: translate(-50%, -50%);\n      color: #282c3a;\n      background: #fff;\n      border: 1px solid rgba(233, 0, 76, 0.18);\n      border-radius: 18px;\n      box-shadow: 0 32px 100px rgba(15, 18, 28, 0.32);\n      font-family: Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n      z-index: 2147483647;\n    }\n\n    .power-browser-settings-dialog-v2.open {\n      display: grid;\n    }\n\n    .power-browser-settings-sidebar-v2 {\n      display: flex;\n      flex-direction: column;\n      min-width: 0;\n      min-height: 0;\n      overflow: hidden;\n      padding: 24px 14px 14px;\n      color: #fff;\n      background: linear-gradient(165deg, #262a3a 0%, #171a25 100%);\n    }\n\n    .power-browser-settings-brand-v2 {\n      padding: 0 10px 22px;\n    }\n\n    .power-browser-settings-brand-v2 strong {\n      display: block;\n      font-size: 17px;\n      letter-spacing: -0.02em;\n    }\n\n    .power-browser-settings-brand-v2 span {\n      display: block;\n      margin-top: 4px;\n      color: #aeb3c2;\n      font-size: 11px;\n    }\n\n    .power-browser-settings-tabs-v2 {\n      display: flex;\n      height: 0;\n      flex: 1 1 0;\n      flex-direction: column;\n      gap: 4px;\n      min-height: 0;\n      overflow-y: auto;\n      overscroll-behavior: contain;\n      scrollbar-width: none;\n      touch-action: pan-y;\n    }\n\n    .power-browser-settings-tabs-v2::-webkit-scrollbar {\n      display: none;\n      width: 0;\n      height: 0;\n    }\n\n    .power-browser-settings-tabs-v2\n      > .power-browser-settings-tab-v2,\n    .power-browser-settings-tabs-v2\n      > .power-browser-settings-section-links-v2 {\n      flex: 0 0 auto;\n    }\n\n    .power-browser-settings-tab-v2 {\n      display: flex;\n      align-items: center;\n      justify-content: space-between;\n      gap: 8px;\n      width: 100%;\n      padding: 10px 12px;\n      border: 0;\n      border-radius: 8px;\n      color: #c7cad4;\n      background: transparent;\n      font: 500 13px Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n      text-align: left;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-tab-v2.has-sections::after {\n      content: \"›\";\n      font-size: 17px;\n      line-height: 1;\n      transform: rotate(0deg);\n      transition: transform 120ms ease;\n    }\n\n    .power-browser-settings-tab-v2.has-sections[aria-expanded=\"true\"]::after {\n      transform: rotate(90deg);\n    }\n\n    .power-browser-settings-tab-v2:hover {\n      color: #fff;\n      background: rgba(255, 255, 255, 0.07);\n    }\n\n    .power-browser-settings-tab-v2.active {\n      color: #fff;\n      background: #e9004c;\n      box-shadow: 0 6px 18px rgba(233, 0, 76, 0.28);\n    }\n\n    .power-browser-settings-section-links-v2 {\n      display: flex;\n      flex-direction: column;\n      gap: 2px;\n      padding: 2px 0 4px 13px;\n    }\n\n    .power-browser-settings-section-link-v2 {\n      padding: 6px 10px;\n      border: 0;\n      border-left: 1px solid rgba(255, 255, 255, 0.16);\n      color: #969cac;\n      background: transparent;\n      font: 500 11px Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n      text-align: left;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-section-link-v2:hover,\n    .power-browser-settings-section-link-v2.active {\n      color: #fff;\n      border-left-color: #e9004c;\n    }\n\n    .power-browser-settings-version-v2 {\n      padding: 12px 10px 2px;\n      color: #777d8c;\n      font-size: 10px;\n    }\n\n    .power-browser-settings-main-v2 {\n      display: flex;\n      min-width: 0;\n      flex-direction: column;\n      overflow: hidden;\n      background: #f7f7f9;\n    }\n\n    .power-browser-settings-header-v2 {\n      display: flex;\n      align-items: center;\n      justify-content: space-between;\n      gap: 20px;\n      padding: 22px 26px 18px;\n      background: #fff;\n      border-bottom: 1px solid #e8e9ed;\n    }\n\n    .power-browser-settings-heading-v2 h2 {\n      margin: 0;\n      color: #262a3a;\n      font-size: 20px;\n      letter-spacing: -0.02em;\n    }\n\n    .power-browser-settings-heading-v2 p {\n      margin: 5px 0 0;\n      color: #777d8c;\n      font-size: 12px;\n    }\n\n    .power-browser-settings-close-v2 {\n      display: inline-flex;\n      align-items: center;\n      justify-content: center;\n      width: 34px;\n      height: 34px;\n      border: 0;\n      border-radius: 8px;\n      color: #646977;\n      background: #f1f2f5;\n      font-size: 21px;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-close-v2:hover {\n      color: #e9004c;\n      background: #fff0f5;\n    }\n\n    .power-browser-settings-alert-v2 {\n      display: none;\n      align-items: center;\n      justify-content: space-between;\n      gap: 18px;\n      padding: 12px 26px;\n      color: #6e1836;\n      background: #ffe4ed;\n      border-bottom: 1px solid #ffc1d5;\n      font-size: 12px;\n      line-height: 1.4;\n    }\n\n    .power-browser-settings-alert-v2.open {\n      display: flex;\n    }\n\n    .power-browser-settings-search-v2 {\n      padding: 12px 26px;\n      background: #fff;\n      border-bottom: 1px solid #e8e9ed;\n    }\n\n    .power-browser-settings-search-v2 input {\n      box-sizing: border-box;\n      width: 100%;\n      padding: 9px 12px;\n      color: #303442;\n      background: #f7f7f9;\n      border: 1px solid #d9dbe1;\n      border-radius: 8px;\n      font-size: 12px;\n      outline: none;\n    }\n\n    .power-browser-settings-search-v2 input:focus {\n      background: #fff;\n      border-color: #e9004c;\n      box-shadow: 0 0 0 3px rgba(233, 0, 76, 0.1);\n    }\n\n    .power-browser-settings-search-result-v2 {\n      width: 100%;\n      color: inherit;\n      text-align: left;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-search-result-v2\n      .power-browser-settings-info-status-v2 {\n      color: #344bc1;\n      background: #edf1ff;\n      border-color: #ccd5ff;\n    }\n\n    .power-browser-settings-alert-v2 strong {\n      display: block;\n      margin-bottom: 2px;\n      color: #4f1027;\n      font-size: 12px;\n    }\n\n    .power-browser-settings-reload-v2 {\n      flex: 0 0 auto;\n      padding: 8px 12px;\n      border: 0;\n      border-radius: 7px;\n      color: #fff;\n      background: #e9004c;\n      font-size: 11px;\n      font-weight: 650;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-reload-v2:hover {\n      background: #c90042;\n    }\n\n    .power-browser-settings-content-v2 {\n      flex: 1;\n      padding: 20px 26px 28px;\n      overflow-y: auto;\n    }\n\n    .power-browser-settings-list-v2 {\n      display: flex;\n      flex-direction: column;\n      gap: 10px;\n    }\n\n    .power-browser-settings-section-v2 {\n      margin: 12px 4px 0;\n      color: #656b79;\n      font-size: 11px;\n      font-weight: 700;\n      letter-spacing: 0.06em;\n      text-transform: uppercase;\n    }\n\n    .power-browser-settings-section-v2:first-child {\n      margin-top: 0;\n    }\n\n    .power-browser-settings-card-v2 {\n      display: grid;\n      grid-template-columns: minmax(0, 1fr) auto;\n      align-items: center;\n      gap: 18px;\n      padding: 16px 18px;\n      background: #fff;\n      border: 1px solid #e4e5ea;\n      border-radius: 11px;\n      box-shadow: 0 2px 7px rgba(25, 29, 42, 0.03);\n    }\n\n    .power-browser-settings-card-v2:hover {\n      border-color: #d4d6dd;\n    }\n\n    .power-browser-settings-card-v2.setting-flash {\n      animation: power-browser-settings-flash-v2 1.65s ease;\n    }\n\n    @keyframes power-browser-settings-flash-v2 {\n      0%,\n      100% {\n        box-shadow: 0 2px 7px rgba(25, 29, 42, 0.03);\n        transform: translateY(0);\n      }\n\n      18%,\n      55% {\n        border-color: rgb(var(--power-browser-settings-flash-rgb));\n        box-shadow:\n          0 0 0 4px\n            rgba(var(--power-browser-settings-flash-rgb), 0.22),\n          0 8px 22px rgba(25, 29, 42, 0.12);\n        transform: translateY(-1px);\n      }\n    }\n\n    .power-browser-settings-card-v2.setting-disabled {\n      opacity: 0.55;\n    }\n\n    .power-browser-settings-info-card-v2 {\n      display: block;\n    }\n\n    .power-browser-settings-data-v2\n      .power-browser-settings-info-title-v2 {\n      margin-bottom: 0;\n    }\n\n    .power-browser-settings-data-v2\n      .power-browser-settings-actions-v2 {\n      margin-top: 14px;\n    }\n\n    .power-browser-settings-scope-v2 {\n      margin-left: auto;\n      padding: 7px 9px;\n      color: #4e5360;\n      background: #fff;\n      border: 1px solid #d9dbe2;\n      border-radius: 7px;\n      font-size: 11px;\n    }\n\n    .power-browser-settings-override-badge-v2 {\n      padding: 3px 7px;\n      color: #62410c;\n      background: #fff2c7;\n      border: 1px solid #f1d780;\n      border-radius: 999px;\n      font-size: 9px;\n      font-weight: 750;\n      letter-spacing: 0.03em;\n      text-transform: uppercase;\n    }\n\n    .power-browser-settings-override-badge-v2.inherited {\n      color: #536071;\n      background: #f0f2f5;\n      border-color: #d9dde4;\n    }\n\n    .power-browser-settings-use-global-v2 {\n      padding: 3px 7px;\n      color: #4655a5;\n      background: #f2f4ff;\n      border: 1px solid #d4dafb;\n      border-radius: 6px;\n      font-size: 9px;\n      font-weight: 700;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-use-global-v2:hover {\n      color: #e9004c;\n      background: #fff;\n      border-color: #ef9db9;\n    }\n\n    .power-browser-settings-profile-v2,\n    .power-browser-settings-update-v2 {\n      grid-template-columns: minmax(0, 1fr) auto;\n    }\n\n    .power-browser-settings-profile-name-v2 {\n      box-sizing: border-box;\n      width: min(360px, 100%);\n      padding: 7px 9px;\n      color: #303442;\n      background: #fff;\n      border: 1px solid #d9dbe2;\n      border-radius: 7px;\n      font: 600 12px Inter, sans-serif;\n    }\n\n    .power-browser-settings-profile-actions-v2 {\n      display: flex;\n      align-items: center;\n      gap: 7px;\n    }\n\n    .power-browser-settings-profile-actions-v2 button {\n      padding: 7px 9px;\n      color: #4e5360;\n      background: #fff;\n      border: 1px solid #d9dbe2;\n      border-radius: 7px;\n      font-size: 10px;\n      font-weight: 650;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-profile-actions-v2\n      .power-browser-settings-profile-clear-v2 {\n      color: #a12840;\n      border-color: #efbdc7;\n    }\n\n    #settingsButton {\n      position: relative;\n    }\n\n    #settingsButton.power-browser-update-available-v2::after {\n      position: absolute;\n      top: 5px;\n      right: 5px;\n      width: 8px;\n      height: 8px;\n      background: #e9004c;\n      border: 2px solid #fff;\n      border-radius: 50%;\n      content: \"\";\n    }\n\n    .power-browser-settings-file-input-v2 {\n      display: none !important;\n    }\n\n    .power-browser-command-overlay-v2 {\n      position: fixed;\n      inset: 0;\n      display: none;\n      background: rgba(19, 23, 34, 0.48);\n      backdrop-filter: blur(3px);\n      z-index: 2147483646;\n    }\n\n    .power-browser-command-overlay-v2.open {\n      display: block;\n    }\n\n    .power-browser-command-dialog-v2 {\n      position: fixed;\n      top: clamp(70px, 14vh, 150px);\n      left: 50%;\n      display: none;\n      width: min(640px, calc(100vw - 32px));\n      max-height: min(560px, 72vh);\n      overflow: hidden;\n      transform: translateX(-50%);\n      color: #282c3a;\n      background: #fff;\n      border: 1px solid rgba(233, 0, 76, 0.2);\n      border-radius: 13px;\n      box-shadow: 0 28px 80px rgba(20, 24, 35, 0.3);\n      font-family: Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n      z-index: 2147483647;\n    }\n\n    .power-browser-command-dialog-v2.open {\n      display: flex;\n      flex-direction: column;\n    }\n\n    .power-browser-command-input-v2 {\n      box-sizing: border-box;\n      width: 100%;\n      padding: 17px 18px;\n      color: #282c3a;\n      background: #fff;\n      border: 0;\n      border-bottom: 1px solid #e5e6eb;\n      outline: 0;\n      font-size: 16px;\n    }\n\n    .power-browser-command-results-v2 {\n      display: flex;\n      flex-direction: column;\n      gap: 3px;\n      padding: 7px;\n      overflow-y: auto;\n    }\n\n    .power-browser-command-result-v2 {\n      padding: 11px 12px;\n      color: #303442;\n      background: transparent;\n      border: 0;\n      border-radius: 8px;\n      font: 500 13px Inter, sans-serif;\n      text-align: left;\n      cursor: pointer;\n    }\n\n    .power-browser-command-result-v2:hover,\n    .power-browser-command-result-v2.active {\n      color: #78102f;\n      background: #fff0f5;\n    }\n\n    .power-browser-command-empty-v2 {\n      padding: 26px 18px;\n      color: #777d8c;\n      font-size: 12px;\n      text-align: center;\n    }\n\n    .power-browser-settings-info-title-v2 {\n      display: flex;\n      align-items: center;\n      justify-content: space-between;\n      gap: 12px;\n      margin-bottom: 14px;\n      color: #303442;\n      font-size: 13px;\n      font-weight: 700;\n    }\n\n    .power-browser-settings-info-status-v2 {\n      display: inline-flex;\n      align-items: center;\n      padding: 3px 7px;\n      color: #23603e;\n      background: #e8f7ef;\n      border: 1px solid #bde8cf;\n      border-radius: 999px;\n      font-size: 9px;\n      font-weight: 750;\n      letter-spacing: 0.04em;\n      text-transform: uppercase;\n    }\n\n    .power-browser-settings-info-grid-v2 {\n      display: grid;\n      grid-template-columns: repeat(2, minmax(0, 1fr));\n      gap: 12px 20px;\n      margin: 0;\n    }\n\n    .power-browser-settings-info-item-v2 {\n      min-width: 0;\n    }\n\n    .power-browser-settings-info-item-v2 dt {\n      margin: 0 0 3px;\n      color: #8a8f9d;\n      font-size: 9px;\n      font-weight: 700;\n      letter-spacing: 0.05em;\n      text-transform: uppercase;\n    }\n\n    .power-browser-settings-info-item-v2 dd {\n      margin: 0;\n      overflow-wrap: anywhere;\n      color: #303442;\n      font: 11px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace;\n    }\n\n    .power-browser-settings-info-value-v2 {\n      display: flex;\n      align-items: flex-start;\n      gap: 6px;\n    }\n\n    .power-browser-settings-info-value-v2 dd {\n      min-width: 0;\n      flex: 1;\n    }\n\n    .power-browser-settings-copy-value-v2 {\n      flex: 0 0 auto;\n      padding: 2px 5px;\n      color: #656b79;\n      background: #f3f4f7;\n      border: 1px solid #dfe1e7;\n      border-radius: 5px;\n      font-size: 8px;\n      font-weight: 700;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-copy-value-v2:hover {\n      color: #e9004c;\n      background: #fff;\n      border-color: #ef9db9;\n    }\n\n    .power-browser-settings-diagnostics-v2 {\n      display: grid;\n      grid-template-columns: repeat(2, minmax(0, 1fr));\n      gap: 10px;\n    }\n\n    .power-browser-settings-timeline-v2 {\n      display: flex;\n      flex-direction: column;\n      gap: 6px;\n      margin: 0;\n      padding: 0;\n      list-style: none;\n    }\n\n    .power-browser-settings-timeline-v2 li {\n      display: flex;\n      flex-direction: column;\n      gap: 2px;\n      padding: 9px 11px;\n      color: #343844;\n      background: #fff;\n      border: 1px solid #e0e2e7;\n      border-left: 3px solid #9ca1ad;\n      border-radius: 7px;\n    }\n\n    .power-browser-settings-timeline-v2 li[data-status=\"success\"],\n    .power-browser-settings-timeline-v2 li[data-status=\"ready\"] {\n      border-left-color: #24945f;\n    }\n\n    .power-browser-settings-timeline-v2 li[data-status=\"error\"],\n    .power-browser-settings-timeline-v2\n      li[data-status=\"manual-login-required\"] {\n      border-left-color: #d14343;\n    }\n\n    .power-browser-settings-timeline-v2\n      li[data-status=\"loading\"],\n    .power-browser-settings-timeline-v2\n      li[data-status=\"reauthenticating\"] {\n      border-left-color: #395afc;\n    }\n\n    .power-browser-settings-timeline-v2 li span {\n      color: #777d8c;\n      font-size: 10px;\n    }\n\n    .power-browser-settings-timeline-v2 li strong {\n      font-size: 11px;\n      font-weight: 550;\n    }\n\n    .power-browser-settings-diagnostic-v2 {\n      padding: 13px 14px;\n      background: #fff;\n      border: 1px solid #e4e5ea;\n      border-left: 4px solid #8a8f9d;\n      border-radius: 9px;\n    }\n\n    .power-browser-settings-diagnostic-v2[data-status=\"loading\"] {\n      border-left-color: #395afc;\n    }\n\n    .power-browser-settings-diagnostic-v2[data-status=\"success\"] {\n      border-left-color: #22935c;\n    }\n\n    .power-browser-settings-diagnostic-v2[data-status=\"warning\"] {\n      border-left-color: #d78b14;\n    }\n\n    .power-browser-settings-diagnostic-v2[data-status=\"error\"] {\n      border-left-color: #d02d3d;\n    }\n\n    .power-browser-settings-diagnostic-v2 strong {\n      display: block;\n      margin-bottom: 4px;\n      color: #303442;\n      font-size: 11px;\n    }\n\n    .power-browser-settings-diagnostic-v2 span {\n      display: block;\n      color: #777d8c;\n      font-size: 10px;\n      line-height: 1.45;\n    }\n\n    .power-browser-settings-actions-v2 {\n      display: flex;\n      align-items: center;\n      flex-wrap: wrap;\n      gap: 8px;\n    }\n\n    .power-browser-settings-action-v2 {\n      padding: 8px 11px;\n      color: #3f4554;\n      background: #fff;\n      border: 1px solid #d4d6dd;\n      border-radius: 7px;\n      font-size: 10px;\n      font-weight: 700;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-action-v2:hover {\n      color: #e9004c;\n      border-color: #ef9db9;\n    }\n\n    .power-browser-settings-action-v2:disabled {\n      color: #989dab;\n      background: #f1f2f5;\n      cursor: wait;\n    }\n\n    .power-browser-settings-operation-status-v2 {\n      color: #656b79;\n      font-size: 10px;\n    }\n\n    .power-browser-settings-operation-status-v2[data-status=\"success\"] {\n      color: #167346;\n    }\n\n    .power-browser-settings-operation-status-v2[data-status=\"error\"] {\n      color: #c52a3a;\n    }\n\n    .power-browser-settings-info-empty-v2 {\n      padding: 22px;\n      color: #777d8c;\n      background: #fff;\n      border: 1px dashed #d5d7de;\n      border-radius: 11px;\n      font-size: 12px;\n      line-height: 1.5;\n      text-align: center;\n    }\n\n    .power-browser-settings-danger-v2 {\n      display: flex;\n      align-items: center;\n      justify-content: space-between;\n      gap: 20px;\n      padding: 18px;\n      background: #fff7f7;\n      border: 1px solid #f3b8b8;\n      border-radius: 11px;\n    }\n\n    .power-browser-settings-danger-v2 strong {\n      display: block;\n      margin-bottom: 4px;\n      color: #8f1d1d;\n      font-size: 13px;\n    }\n\n    .power-browser-settings-danger-v2 span {\n      display: block;\n      color: #9b4a4a;\n      font-size: 11px;\n      line-height: 1.45;\n    }\n\n    .power-browser-settings-danger-button-v2 {\n      flex: 0 0 auto;\n      padding: 9px 12px;\n      color: #fff;\n      background: #c62828;\n      border: 1px solid #a91f1f;\n      border-radius: 7px;\n      font-size: 11px;\n      font-weight: 700;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-danger-button-v2:hover {\n      background: #a91f1f;\n    }\n\n    .power-browser-settings-copy-v2 strong {\n      display: block;\n      color: #303442;\n      font-size: 13px;\n      font-weight: 650;\n    }\n\n    .power-browser-settings-label-row-v2 {\n      display: flex;\n      align-items: center;\n      flex-wrap: wrap;\n      gap: 7px;\n    }\n\n    .power-browser-settings-badge-v2 {\n      display: inline-flex;\n      align-items: center;\n      padding: 2px 6px;\n      color: #6d3bd1;\n      background: #f0eaff;\n      border: 1px solid #ded0ff;\n      border-radius: 999px;\n      font-size: 9px;\n      font-weight: 700;\n      letter-spacing: 0.03em;\n      line-height: 1.2;\n      text-transform: uppercase;\n    }\n\n    .power-browser-settings-description-v2 {\n      display: block;\n      margin-top: 4px;\n      color: #777d8c;\n      font-size: 11px;\n      line-height: 1.45;\n    }\n\n    .power-browser-settings-theme-picker-v2 {\n      display: grid;\n      grid-template-columns: repeat(3, minmax(76px, 1fr));\n      gap: 8px;\n      width: min(310px, 100%);\n    }\n\n    .power-browser-settings-theme-option-v2 {\n      display: flex;\n      min-width: 0;\n      flex-direction: column;\n      gap: 7px;\n      padding: 7px;\n      color: #555a68;\n      background: #fff;\n      border: 1px solid #d9dbe1;\n      border-radius: 9px;\n      font: 650 10px Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n      text-align: left;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-theme-option-v2:hover {\n      border-color: #aeb2bf;\n    }\n\n    .power-browser-settings-theme-option-v2.active {\n      color: #262a3a;\n      border-color: #e9004c;\n      box-shadow: 0 0 0 2px rgba(233, 0, 76, 0.12);\n    }\n\n    .power-browser-settings-size-picker-v2 {\n      display: grid;\n      grid-template-columns: repeat(5, minmax(52px, 1fr));\n      gap: 6px;\n      width: min(430px, 100%);\n    }\n\n    .power-browser-settings-size-option-v2 {\n      display: flex;\n      min-width: 0;\n      flex-direction: column;\n      gap: 6px;\n      padding: 6px;\n      color: #555a68;\n      background: #fff;\n      border: 1px solid #d9dbe1;\n      border-radius: 9px;\n      font: 650 10px Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n      text-align: center;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-size-option-v2:hover {\n      border-color: #aeb2bf;\n    }\n\n    .power-browser-settings-size-option-v2.active {\n      color: #262a3a;\n      border-color: #e9004c;\n      box-shadow: 0 0 0 2px rgba(233, 0, 76, 0.12);\n    }\n\n    .power-browser-settings-size-preview-v2 {\n      position: relative;\n      display: grid;\n      height: 38px;\n      place-items: center;\n      overflow: hidden;\n      color: #444957;\n      background: #f4f5f8;\n      border: 1px solid rgba(31, 35, 48, 0.12);\n      border-radius: 6px;\n    }\n\n    .power-browser-settings-size-option-v2[data-size-kind=\"dialog\"]\n      .power-browser-settings-size-preview-v2::before {\n      width: 68%;\n      height: 62%;\n      content: \"\";\n      background: #fff;\n      border: 1px solid #b9bdc8;\n      border-radius: 3px;\n      box-shadow: inset 7px 0 0 #333847;\n    }\n\n    .power-browser-settings-size-option-v2[data-size-kind=\"dialog\"][data-size=\"xs\"]\n      .power-browser-settings-size-preview-v2::before {\n      width: 42%;\n      height: 42%;\n    }\n\n    .power-browser-settings-size-option-v2[data-size-kind=\"dialog\"][data-size=\"sm\"]\n      .power-browser-settings-size-preview-v2::before {\n      width: 55%;\n      height: 52%;\n    }\n\n    .power-browser-settings-size-option-v2[data-size-kind=\"dialog\"][data-size=\"lg\"]\n      .power-browser-settings-size-preview-v2::before {\n      width: 82%;\n      height: 72%;\n    }\n\n    .power-browser-settings-size-option-v2[data-size-kind=\"dialog\"][data-size=\"xl\"]\n      .power-browser-settings-size-preview-v2::before {\n      width: 94%;\n      height: 82%;\n    }\n\n    .power-browser-settings-size-option-v2[data-size-kind=\"text\"]\n      .power-browser-settings-size-preview-v2::before {\n      content: \"Aa\";\n      font-size: 14px;\n      font-weight: 700;\n      line-height: 1;\n    }\n\n    .power-browser-settings-size-option-v2[data-size-kind=\"text\"][data-size=\"xs\"]\n      .power-browser-settings-size-preview-v2::before {\n      font-size: 9px;\n    }\n\n    .power-browser-settings-size-option-v2[data-size-kind=\"text\"][data-size=\"sm\"]\n      .power-browser-settings-size-preview-v2::before {\n      font-size: 11px;\n    }\n\n    .power-browser-settings-size-option-v2[data-size-kind=\"text\"][data-size=\"lg\"]\n      .power-browser-settings-size-preview-v2::before {\n      font-size: 17px;\n    }\n\n    .power-browser-settings-size-option-v2[data-size-kind=\"text\"][data-size=\"xl\"]\n      .power-browser-settings-size-preview-v2::before {\n      font-size: 20px;\n    }\n\n    .power-browser-settings-theme-preview-v2 {\n      position: relative;\n      display: block;\n      height: 34px;\n      overflow: hidden;\n      background: #f7f7f9;\n      border: 1px solid rgba(31, 35, 48, 0.12);\n      border-radius: 6px;\n    }\n\n    .power-browser-settings-theme-preview-v2::before {\n      position: absolute;\n      top: 7px;\n      right: 7px;\n      left: 7px;\n      height: 7px;\n      content: \"\";\n      background: #fff;\n      border-radius: 4px;\n      box-shadow:\n        0 9px 0 #e4e5ea,\n        0 18px 0 #f0f1f4;\n    }\n\n    .power-browser-settings-theme-option-v2[data-theme=\"dark\"]\n      .power-browser-settings-theme-preview-v2 {\n      background: #1f2330;\n      border-color: #494f60;\n    }\n\n    .power-browser-settings-theme-option-v2[data-theme=\"dark\"]\n      .power-browser-settings-theme-preview-v2::before {\n      background: #343949;\n      box-shadow:\n        0 9px 0 #282d3b,\n        0 18px 0 #404657;\n    }\n\n    .power-browser-settings-theme-option-v2[data-theme=\"betty\"]\n      .power-browser-settings-theme-preview-v2 {\n      background:\n        linear-gradient(\n          259deg,\n          rgb(233, 0, 76) 0%,\n          rgb(57, 90, 252) 51.9162%,\n          rgb(17, 171, 209) 100%\n        );\n      border-color: transparent;\n    }\n\n    .power-browser-settings-theme-option-v2[data-theme=\"betty\"]\n      .power-browser-settings-theme-preview-v2::before {\n      background: rgba(255, 255, 255, 0.94);\n      box-shadow:\n        0 9px 0 rgba(255, 255, 255, 0.68),\n        0 18px 0 rgba(255, 255, 255, 0.4);\n    }\n\n    .power-browser-settings-toggle-v2 {\n      position: relative;\n      display: inline-flex;\n      width: 42px;\n      height: 24px;\n      flex: 0 0 42px;\n    }\n\n    .power-browser-settings-toggle-v2 input {\n      position: absolute;\n      opacity: 0;\n      pointer-events: none;\n    }\n\n    .power-browser-settings-toggle-track-v2 {\n      width: 100%;\n      border-radius: 999px;\n      background: #c8cbd3;\n      cursor: pointer;\n      transition: background 0.18s ease;\n    }\n\n    .power-browser-settings-toggle-track-v2::after {\n      position: absolute;\n      top: 3px;\n      left: 3px;\n      width: 18px;\n      height: 18px;\n      content: \"\";\n      background: #fff;\n      border-radius: 50%;\n      box-shadow: 0 2px 5px rgba(20, 24, 35, 0.22);\n      transition: transform 0.18s ease;\n    }\n\n    .power-browser-settings-toggle-v2 input:checked + .power-browser-settings-toggle-track-v2 {\n      background: #e9004c;\n    }\n\n    .power-browser-settings-toggle-v2 input:checked + .power-browser-settings-toggle-track-v2::after {\n      transform: translateX(18px);\n    }\n\n    .power-browser-settings-toggle-v2 input:focus-visible + .power-browser-settings-toggle-track-v2 {\n      outline: 3px solid rgba(233, 0, 76, 0.22);\n      outline-offset: 2px;\n    }\n\n    .power-browser-settings-toggle-v2\n      input:disabled\n      + .power-browser-settings-toggle-track-v2 {\n      cursor: not-allowed;\n    }\n\n    .power-browser-settings-shortcut-v2 {\n      width: 170px;\n      padding: 8px 10px;\n      border: 1px solid #d4d6dd;\n      border-radius: 7px;\n      color: #303442;\n      background: #fbfbfc;\n      font: 12px ui-monospace, SFMono-Regular, Consolas, monospace;\n    }\n\n    .power-browser-settings-shortcut-v2:focus {\n      border-color: #e9004c;\n      outline: 3px solid rgba(233, 0, 76, 0.12);\n    }\n\n    .power-browser-settings-footer-v2 {\n      display: flex;\n      align-items: center;\n      justify-content: space-between;\n      padding: 12px 26px;\n      color: #777d8c;\n      background: #fff;\n      border-top: 1px solid #e8e9ed;\n      font-size: 11px;\n    }\n\n    .power-browser-settings-reset-v2 {\n      padding: 7px 10px;\n      border: 1px solid #d9dbe1;\n      border-radius: 7px;\n      color: #555a68;\n      background: #fff;\n      font-size: 11px;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-reset-v2:hover {\n      color: #e9004c;\n      border-color: #f0a0ba;\n      background: #fff5f8;\n    }\n\n    .power-browser-icon-only-v2 #dropdownMenu > a span,\n    .power-browser-icon-only-v2 #dropdownMenu > button span,\n    .power-browser-icon-only-v2 .power-browser-state-toggle-label-v2 {\n      display: none;\n    }\n\n    .power-browser-icon-only-v2.power-browser-show-sandbox-name-v2\n      .power-browser-state-toggle-label-v2 {\n      display: inline;\n    }\n\n    .power-browser-setting-hidden-v2 {\n      display: none !important;\n    }\n\n    .power-browser-dark-v2 .dropdown-1aaab757-b16d-413a-9499-a72197bb1732,\n    .power-browser-dark-v2 .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > a,\n    .power-browser-dark-v2 .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > button,\n    .power-browser-dark-v2 .power-browser-state-toggle-v2 {\n      color: #f4f5f7;\n      background: #262a3a;\n    }\n\n    .power-browser-dark-v2 .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > a:hover,\n    .power-browser-dark-v2 .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > button:hover,\n    .power-browser-dark-v2 .power-browser-state-toggle-v2:hover {\n      background: #343949;\n    }\n\n    .power-browser-dark-v2 .button-disabled-6b6a60d4-9e38-4279-84a5-5ef466dde62f,\n    .power-browser-dark-v2 .button-disabled-6b6a60d4-9e38-4279-84a5-5ef466dde62f:hover {\n      color: #858b9b !important;\n      background: #343947 !important;\n    }\n\n    .power-browser-dark-v2 .power-browser-state-menu-v2,\n    .power-browser-dark-v2 .power-browser-state-option-v2 {\n      color: #f4f5f7;\n      background: #262a3a;\n      border-color: #444a5b;\n    }\n\n    .power-browser-dark-v2 .power-browser-state-option-v2:hover {\n      background: #343949;\n    }\n\n    .power-browser-dark-v2 .power-browser-state-option-v2.no-access,\n    .power-browser-dark-v2 .power-browser-state-option-v2.no-access:hover {\n      color: #858b9b;\n      background: #343947;\n    }\n\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732.power-browser-hotfix-active-v2,\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732.power-browser-hotfix-active-v2 > a,\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732.power-browser-hotfix-active-v2 > button,\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732.power-browser-hotfix-active-v2 > .power-browser-state-switcher-v2 > .power-browser-state-toggle-v2 {\n      color: #4a111b !important;\n      background: #ff9c9c !important;\n    }\n\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732.power-browser-hotfix-active-v2 > a:hover,\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732.power-browser-hotfix-active-v2 > button:hover,\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732.power-browser-hotfix-active-v2 > .power-browser-state-switcher-v2 > .power-browser-state-toggle-v2:hover {\n      background: #ffd1d1 !important;\n    }\n\n    .power-browser-shift-hidden-v2 {\n      visibility: hidden !important;\n      pointer-events: none !important;\n    }\n\n    .power-browser-b5-highlighting-v2 .pane .body .action_diagram .event.active .symbol {\n      box-shadow: 0 0 15px 2px rgba(255, 126, 117, 1);\n    }\n\n    .power-browser-b5-password-v2 {\n      filter: blur(3px);\n      transition: filter 0.25s ease;\n    }\n\n    .power-browser-b5-password-v2:hover,\n    .power-browser-b5-password-v2:focus {\n      filter: blur(0);\n    }\n\n    .power-browser-dark-v2.power-browser-model-search-dialog-v2 {\n      color: #f4f5f7;\n      background: #242836;\n      border-color: #494f60;\n    }\n\n    .power-browser-dark-v2 .power-browser-model-search-header-v2,\n    .power-browser-dark-v2 .power-browser-model-search-footer-v2 {\n      background: #242836;\n      border-color: #444a5b;\n    }\n\n    .power-browser-dark-v2 .power-browser-model-search-input-v2,\n    .power-browser-dark-v2 .power-browser-model-search-title-v2 {\n      color: #f4f5f7;\n    }\n\n    .power-browser-dark-v2 .power-browser-model-search-result-v2:hover,\n    .power-browser-dark-v2 .power-browser-model-search-result-v2.active,\n    .power-browser-dark-v2 .power-browser-model-search-backoffice-v2:hover {\n      background: #343949;\n    }\n\n    .power-browser-dark-v2.power-browser-settings-dialog-v2 .power-browser-settings-main-v2,\n    .power-browser-dark-v2.power-browser-settings-dialog-v2 .power-browser-settings-content-v2 {\n      background: #1f2330;\n    }\n\n    .power-browser-dark-v2.power-browser-settings-dialog-v2 {\n      --power-browser-settings-flash-rgb: 255, 92, 145;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-header-v2,\n    .power-browser-dark-v2 .power-browser-settings-search-v2,\n    .power-browser-dark-v2 .power-browser-settings-footer-v2,\n    .power-browser-dark-v2 .power-browser-settings-card-v2 {\n      background: #282d3b;\n      border-color: #404657;\n    }\n\n    .power-browser-dark-v2\n      .power-browser-settings-search-v2 input {\n      color: #f4f5f7;\n      background: #202431;\n      border-color: #4a5061;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-heading-v2 h2,\n    .power-browser-dark-v2 .power-browser-settings-copy-v2 strong,\n    .power-browser-dark-v2 .power-browser-settings-info-title-v2,\n    .power-browser-dark-v2 .power-browser-settings-info-item-v2 dd {\n      color: #f4f5f7;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-info-empty-v2 {\n      color: #aeb4c2;\n      background: #282d3b;\n      border-color: #4a5061;\n    }\n\n    .power-browser-dark-v2\n      .power-browser-settings-diagnostic-v2,\n    .power-browser-dark-v2\n      .power-browser-settings-action-v2 {\n      color: #d5d8e0;\n      background: #282d3b;\n      border-color: #4a5061;\n    }\n\n    .power-browser-dark-v2\n      .power-browser-settings-diagnostic-v2 strong {\n      color: #f4f5f7;\n    }\n\n    .power-browser-dark-v2\n      .power-browser-settings-copy-value-v2 {\n      color: #c8ccd6;\n      background: #343949;\n      border-color: #4a5061;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-danger-v2 {\n      background: #421f25;\n      border-color: #75404a;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-danger-v2 strong {\n      color: #ffccd3;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-danger-v2 span {\n      color: #e7aab4;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-close-v2 {\n      color: #c8ccd6;\n      background: #363b4b;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-close-v2:hover {\n      color: #ff8eb3;\n      background: #472938;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-reset-v2 {\n      color: #d5d8e0;\n      background: #282d3b;\n      border-color: #4a5061;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-reset-v2:hover {\n      color: #ff9cbd;\n      background: #3d2834;\n      border-color: #8d5268;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-section-v2 {\n      color: #aeb4c2;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-badge-v2 {\n      color: #d8c7ff;\n      background: #3b3155;\n      border-color: #574876;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-shortcut-v2 {\n      color: #f4f5f7;\n      background: #202431;\n      border-color: #4a5061;\n    }\n\n    .power-browser-dark-v2\n      .power-browser-settings-theme-option-v2 {\n      color: #c8ccd6;\n      background: #202431;\n      border-color: #4a5061;\n    }\n\n    .power-browser-dark-v2\n      .power-browser-settings-size-option-v2 {\n      color: #c8ccd6;\n      background: #202431;\n      border-color: #4a5061;\n    }\n\n    .power-browser-dark-v2\n      .power-browser-settings-size-preview-v2 {\n      color: #e5e8ef;\n      background: #292e3c;\n      border-color: #4a5061;\n    }\n\n    .power-browser-dark-v2\n      .power-browser-settings-size-option-v2[data-size-kind=\"dialog\"]\n      .power-browser-settings-size-preview-v2::before {\n      background: #343949;\n      border-color: #737b91;\n      box-shadow: inset 7px 0 0 #171a24;\n    }\n\n    .power-browser-dark-v2\n      .power-browser-settings-theme-option-v2:hover {\n      border-color: #737b91;\n    }\n\n    .power-browser-dark-v2\n      .power-browser-settings-size-option-v2:hover {\n      border-color: #737b91;\n    }\n\n    .power-browser-dark-v2\n      .power-browser-settings-theme-option-v2.active {\n      color: #fff;\n      border-color: #ff5c91;\n      box-shadow: 0 0 0 2px rgba(255, 92, 145, 0.14);\n    }\n\n    .power-browser-dark-v2\n      .power-browser-settings-size-option-v2.active {\n      color: #fff;\n      border-color: #ff5c91;\n      box-shadow: 0 0 0 2px rgba(255, 92, 145, 0.14);\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-alert-v2 {\n      color: #ffc4d7;\n      background: #552134;\n      border-color: #733047;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-alert-v2 strong {\n      color: #ffe4ed;\n    }\n\n    .power-browser-betty-theme-v2\n      .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 {\n      overflow: visible;\n      background:\n        linear-gradient(\n          259deg,\n          rgb(233, 0, 76) 0%,\n          rgb(57, 90, 252) 51.9162%,\n          rgb(17, 171, 209) 100%\n        )\n        transparent;\n      border-radius: 12px;\n      box-shadow: none;\n    }\n\n    .power-browser-betty-theme-v2\n      .dropdown-1aaab757-b16d-413a-9499-a72197bb1732\n      > a,\n    .power-browser-betty-theme-v2\n      .dropdown-1aaab757-b16d-413a-9499-a72197bb1732\n      > button,\n    .power-browser-betty-theme-v2 .power-browser-state-toggle-v2 {\n      color: #fff;\n      background: transparent;\n    }\n\n    .power-browser-betty-theme-v2\n      .dropdown-1aaab757-b16d-413a-9499-a72197bb1732\n      > a:hover,\n    .power-browser-betty-theme-v2\n      .dropdown-1aaab757-b16d-413a-9499-a72197bb1732\n      > button:hover,\n    .power-browser-betty-theme-v2\n      .power-browser-state-toggle-v2:hover {\n      background: rgba(255, 255, 255, 0.16);\n    }\n\n    .power-browser-betty-theme-v2\n      .button-disabled-6b6a60d4-9e38-4279-84a5-5ef466dde62f,\n    .power-browser-betty-theme-v2\n      .button-disabled-6b6a60d4-9e38-4279-84a5-5ef466dde62f:hover {\n      color: rgba(255, 255, 255, 0.56) !important;\n      background: rgba(25, 30, 72, 0.16) !important;\n    }\n\n    .power-browser-betty-theme-v2 .power-browser-state-menu-v2,\n    .power-browser-betty-theme-v2 .power-browser-state-option-v2 {\n      color: #29304a;\n      background: #fff;\n      border-color: #cad3ff;\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-state-option-v2:hover {\n      color: #233fc4;\n      background: #eef2ff;\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-state-option-v2.no-access,\n    .power-browser-betty-theme-v2\n      .power-browser-state-option-v2.no-access:hover {\n      color: #9499aa;\n      background: #f1f2f5;\n    }\n\n    .power-browser-betty-theme-v2.power-browser-model-search-dialog-v2 {\n      border-color: #7189ff;\n      box-shadow: 0 26px 80px rgba(57, 90, 252, 0.25);\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-model-search-result-v2:hover,\n    .power-browser-betty-theme-v2\n      .power-browser-model-search-result-v2.active,\n    .power-browser-betty-theme-v2\n      .power-browser-model-search-backoffice-v2:hover {\n      background: linear-gradient(\n        90deg,\n        rgba(233, 0, 76, 0.08),\n        rgba(57, 90, 252, 0.12),\n        rgba(17, 171, 209, 0.1)\n      );\n    }\n\n    .power-browser-betty-theme-v2.power-browser-settings-dialog-v2 {\n      --power-browser-settings-flash-rgb: 57, 90, 252;\n      border-color: rgba(57, 90, 252, 0.35);\n      box-shadow: 0 32px 100px rgba(42, 61, 160, 0.32);\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-sidebar-v2 {\n      background:\n        linear-gradient(\n          259deg,\n          rgb(233, 0, 76) 0%,\n          rgb(57, 90, 252) 51.9162%,\n          rgb(17, 171, 209) 100%\n        )\n        transparent;\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-tab-v2,\n    .power-browser-betty-theme-v2\n      .power-browser-settings-section-link-v2 {\n      color: rgba(255, 255, 255, 0.8);\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-tab-v2:hover,\n    .power-browser-betty-theme-v2\n      .power-browser-settings-tab-v2.active {\n      color: #fff;\n      background: rgba(255, 255, 255, 0.18);\n      box-shadow: none;\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-section-link-v2:hover,\n    .power-browser-betty-theme-v2\n      .power-browser-settings-section-link-v2.active {\n      color: #fff;\n      border-left-color: #fff;\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-main-v2,\n    .power-browser-betty-theme-v2\n      .power-browser-settings-content-v2 {\n      background: #f3f6ff;\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-header-v2,\n    .power-browser-betty-theme-v2\n      .power-browser-settings-search-v2,\n    .power-browser-betty-theme-v2\n      .power-browser-settings-footer-v2,\n    .power-browser-betty-theme-v2\n      .power-browser-settings-card-v2 {\n      background: #fff;\n      border-color: #dce2ff;\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-close-v2 {\n      color: #395afc;\n      background: #edf1ff;\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-close-v2:hover {\n      color: #e9004c;\n      background: #fff0f5;\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-reset-v2 {\n      color: #395afc;\n      background: #fff;\n      border-color: #aebcff;\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-reset-v2:hover {\n      color: #e9004c;\n      background: #fff4f8;\n      border-color: #ed8aad;\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-theme-option-v2.active {\n      border-color: #395afc;\n      box-shadow: 0 0 0 2px rgba(57, 90, 252, 0.14);\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-size-option-v2.active {\n      border-color: #395afc;\n      box-shadow: 0 0 0 2px rgba(57, 90, 252, 0.14);\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-version-v2 {\n      color: #fff;\n    }\n\n    .power-browser-settings-dialog-v2[data-dialog-size=\"xs\"] {\n      grid-template-columns: 190px minmax(0, 1fr);\n      width: min(780px, calc(100vw - 32px));\n      height: min(580px, calc(100vh - 32px));\n    }\n\n    .power-browser-settings-dialog-v2[data-dialog-size=\"sm\"] {\n      grid-template-columns: 205px minmax(0, 1fr);\n      width: min(900px, calc(100vw - 32px));\n      height: min(660px, calc(100vh - 32px));\n    }\n\n    .power-browser-settings-dialog-v2[data-dialog-size=\"md\"] {\n      grid-template-columns: 220px minmax(0, 1fr);\n      width: min(1000px, calc(100vw - 32px));\n      height: min(740px, calc(100vh - 32px));\n    }\n\n    .power-browser-settings-dialog-v2[data-dialog-size=\"lg\"] {\n      grid-template-columns: 235px minmax(0, 1fr);\n      width: min(1100px, calc(100vw - 24px));\n      height: min(790px, calc(100vh - 24px));\n    }\n\n    .power-browser-settings-dialog-v2[data-dialog-size=\"xl\"] {\n      grid-template-columns: 250px minmax(0, 1fr);\n      width: min(1200px, calc(100vw - 20px));\n      height: min(860px, calc(100vh - 20px));\n    }\n\n    .power-browser-settings-dialog-v2[data-text-size=\"xs\"] {\n      --pb-settings-font-micro: 7.5px;\n      --pb-settings-font-small: 9px;\n      --pb-settings-font-body: 11px;\n      --pb-settings-font-input: 10px;\n      --pb-settings-font-title: 17px;\n      --pb-settings-font-large: 12px;\n    }\n\n    .power-browser-settings-dialog-v2[data-text-size=\"sm\"] {\n      --pb-settings-font-micro: 8px;\n      --pb-settings-font-small: 10px;\n      --pb-settings-font-body: 12px;\n      --pb-settings-font-input: 11px;\n      --pb-settings-font-title: 18px;\n      --pb-settings-font-large: 13.5px;\n    }\n\n    .power-browser-settings-dialog-v2[data-text-size=\"lg\"] {\n      --pb-settings-font-micro: 10px;\n      --pb-settings-font-small: 12.5px;\n      --pb-settings-font-body: 15px;\n      --pb-settings-font-input: 14px;\n      --pb-settings-font-title: 23px;\n      --pb-settings-font-large: 17px;\n    }\n\n    .power-browser-settings-dialog-v2[data-text-size=\"xl\"] {\n      --pb-settings-font-micro: 11px;\n      --pb-settings-font-small: 14px;\n      --pb-settings-font-body: 17px;\n      --pb-settings-font-input: 16px;\n      --pb-settings-font-title: 26px;\n      --pb-settings-font-large: 19px;\n    }\n\n    .power-browser-settings-dialog-v2 .power-browser-settings-tab-v2,\n    .power-browser-settings-dialog-v2 .power-browser-settings-footer-v2,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-diagnostic-v2 strong {\n      font-size: var(--pb-settings-font-body);\n    }\n\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-brand-v2 strong {\n      font-size: var(--pb-settings-font-large);\n    }\n\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-heading-v2 h2 {\n      font-size: var(--pb-settings-font-title);\n    }\n\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-copy-v2 strong,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-info-title-v2 {\n      font-size: var(--pb-settings-font-large);\n    }\n\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-section-link-v2,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-description-v2,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-info-item-v2 dd,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-diagnostic-v2 span,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-operation-status-v2,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-brand-v2 span,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-version-v2,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-theme-option-v2,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-size-option-v2 {\n      font-size: var(--pb-settings-font-small);\n    }\n\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-heading-v2 p,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-search-v2 input,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-section-v2,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-shortcut-v2,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-action-v2,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-reset-v2,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-danger-button-v2 {\n      font-size: var(--pb-settings-font-input);\n    }\n\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-info-item-v2 dt {\n      font-size: var(--pb-settings-font-micro);\n    }\n\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-badge-v2 {\n      font-size: var(--pb-settings-font-micro);\n    }\n\n    @media (max-width: 720px) {\n      .power-browser-settings-dialog-v2,\n      .power-browser-settings-dialog-v2.open {\n        grid-template-columns: 1fr;\n        grid-template-rows: auto minmax(0, 1fr);\n      }\n\n      .power-browser-settings-sidebar-v2 {\n        padding: 14px;\n      }\n\n      .power-browser-settings-brand-v2,\n      .power-browser-settings-version-v2 {\n        display: none;\n      }\n\n      .power-browser-settings-tabs-v2 {\n        height: auto;\n        flex: none;\n        flex-direction: row;\n        overflow-x: auto;\n        overflow-y: hidden;\n        touch-action: pan-x;\n      }\n\n      .power-browser-settings-tab-v2 {\n        width: auto;\n        white-space: nowrap;\n      }\n\n      .power-browser-settings-section-links-v2 {\n        flex: none;\n        flex-direction: row;\n        padding: 0;\n      }\n\n      .power-browser-settings-section-link-v2 {\n        border-left: 0;\n        border-bottom: 1px solid rgba(255, 255, 255, 0.16);\n        white-space: nowrap;\n      }\n\n      .power-browser-settings-card-v2 {\n        grid-template-columns: minmax(0, 1fr);\n      }\n\n      .power-browser-settings-shortcut-v2 {\n        width: 100%;\n        box-sizing: border-box;\n      }\n\n      .power-browser-settings-info-grid-v2 {\n        grid-template-columns: minmax(0, 1fr);\n      }\n\n      .power-browser-settings-diagnostics-v2 {\n        grid-template-columns: minmax(0, 1fr);\n      }\n\n      .power-browser-settings-danger-v2 {\n        align-items: stretch;\n        flex-direction: column;\n      }\n\n      .power-browser-settings-theme-picker-v2 {\n        width: 100%;\n      }\n\n      .power-browser-settings-size-picker-v2 {\n        width: 100%;\n      }\n    }\n");
 /*
   Credits:
   PageUI remove uneditable layer: Sven Truschel
@@ -420,9 +511,16 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     createFeatureRegistry,
     createLogger,
     csvCell: powerBrowserCsvCell,
+    hasApplicationOverride,
     isAuthenticationError: isPowerBrowserAuthenticationError,
+    isVersionNewer,
     normalizeEndpoints: normalizePowerBrowserEndpoints,
+    removeApplicationOverride,
+    removeApplicationProfile,
+    resolveEditableSetting,
+    resolveEffectiveSetting,
     selectors: PowerBrowserSelectors,
+    setApplicationOverride,
   } = globalThis.PowerBrowserCore;
   const logger = createLogger("runtime");
   const diagnosticTimeline = createDiagnosticTimeline();
@@ -479,6 +577,8 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
   let modelSearchState = null;
   let modelSearchDebounce = null;
   let settingsState = null;
+  let commandPaletteState = null;
+  let powerBrowserUpdateState = null;
   let settingsSectionScrollFrame = null;
   let currentPowerBrowserContext = null;
   let activePowerBrowserNavigator = null;
@@ -508,6 +608,11 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
   let powerBrowserNavigationScheduled = false;
   let powerBrowserLastUrl = location.href;
   const powerBrowserDiagnostics = {
+    health: {
+      status: "success",
+      message: "No extension health issues detected.",
+      updatedAt: null,
+    },
     artifact: {
       status: "idle",
       message: "Not requested yet.",
@@ -530,6 +635,36 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     },
     lastError: null,
   };
+  const powerBrowserHealthIssues = [];
+
+  function reportPowerBrowserHealthIssue(source, message, error) {
+    const issue = {
+      source,
+      message,
+      updatedAt: new Date().toISOString(),
+    };
+    powerBrowserHealthIssues.push(issue);
+    powerBrowserHealthIssues.splice(
+      0,
+      Math.max(0, powerBrowserHealthIssues.length - 25),
+    );
+    powerBrowserDiagnostics.health = {
+      status: "error",
+      message: `${powerBrowserHealthIssues.length} extension health issue${powerBrowserHealthIssues.length === 1 ? "" : "s"} detected.`,
+      updatedAt: issue.updatedAt,
+    };
+    diagnosticTimeline.add({
+      source: `health:${source}`,
+      status: "error",
+      message,
+      details: error
+        ? {
+            error: error instanceof Error ? error.message : String(error),
+          }
+        : undefined,
+    });
+    logger.warn(`[${source}] ${message}`, error);
+  }
 
   function updateApplicationSwitcherStatus(status, message) {
     applicationAuthState.transition(status, message);
@@ -858,6 +993,15 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       defaultValue: false,
     },
     {
+      key: "environmentSafetyBadge",
+      tab: "general",
+      section: "Environment safety",
+      label: "Environment badge",
+      description: "Show whether the current application is production, sandbox, or branch.",
+      type: "toggle",
+      defaultValue: false,
+    },
+    {
       key: "buttonBackOfficeHidden",
       tab: "betty5",
       section: "Navigation visibility",
@@ -1112,6 +1256,14 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       description: "Open or close model and property search.",
       type: "shortcut",
       defaultValue: "Ctrl+Shift+K",
+    },
+    {
+      key: "extraCommandPaletteShortcut",
+      tab: "shortcuts",
+      label: "Command palette",
+      description: "Search navigation destinations and Power Browser actions.",
+      type: "shortcut",
+      defaultValue: "Ctrl+Shift+P",
     },
     {
       key: "extraDialogCloseShortcut",
@@ -1635,6 +1787,19 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
 
           const applicationFamily =
             data?.applicationFamily || null;
+          if (
+            applicationFamily &&
+            !Array.isArray(applicationFamily) &&
+            typeof applicationFamily !== "object"
+          ) {
+            reportPowerBrowserHealthIssue(
+              "application-family",
+              "My Betty returned an unexpected application-family response shape.",
+            );
+            throw new Error(
+              "Unexpected application-family response shape.",
+            );
+          }
           updatePowerBrowserDiagnostic(
             "applicationFamily",
             applicationFamily ? "success" : "warning",
@@ -1724,6 +1889,13 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
           }
 
           const artifactData = await response.json();
+          if (!artifactData || typeof artifactData !== "object") {
+            reportPowerBrowserHealthIssue(
+              "artifact",
+              "The runtime artifact response is not a JSON object.",
+            );
+            throw new Error("Unexpected runtime artifact response shape.");
+          }
           updatePowerBrowserDiagnostic(
             "artifact",
             "success",
@@ -1891,6 +2063,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     let stateStatusPopover;
     let stateStatusMessage;
     let stateRetryButton;
+    let environmentBadge;
 
     NavigatorItems.forEach((item) => {
       const control = document.createElement(item.button ? "button" : "a");
@@ -1913,6 +2086,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
 
       if (item.id === "organizationButton") {
         stateSwitcher = document.createElement("div");
+        stateSwitcher.id = "sandboxSwitcher";
         stateSwitcher.className = "power-browser-state-switcher-v2";
 
         stateToggle = document.createElement("button");
@@ -1986,6 +2160,12 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       }
     });
 
+    environmentBadge = document.createElement("span");
+    environmentBadge.id = "environmentBadge";
+    environmentBadge.className = "power-browser-environment-badge-v2";
+    environmentBadge.hidden = true;
+    dropdown.appendChild(environmentBadge);
+
     const settingsButton = document.createElement("button");
     settingsButton.id = "settingsButton";
     settingsButton.type = "button";
@@ -2015,6 +2195,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
 
     return {
       navigatorBar,
+      dropdown,
       controls,
       stateSwitcher,
       stateToggle,
@@ -2023,6 +2204,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       stateStatusPopover,
       stateStatusMessage,
       stateRetryButton,
+      environmentBadge,
     };
   }
 
@@ -2030,9 +2212,80 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     return SettingsDefinitions.find((setting) => setting.key === key) || null;
   }
 
-  function getSettingValue(key) {
+  function getGlobalSettingValue(key) {
     const definition = getSettingDefinition(key);
     return GM_getValue(key, definition?.defaultValue);
+  }
+
+  function getApplicationProfiles() {
+    const profiles = GM_getValue("powerBrowserApplicationProfiles", {});
+    return profiles && typeof profiles === "object" && !Array.isArray(profiles)
+      ? profiles
+      : {};
+  }
+
+  function getSettingValue(key) {
+    const identifier = currentPowerBrowserContext?.identifier;
+    return resolveEffectiveSetting(
+      getGlobalSettingValue(key),
+      getApplicationProfiles(),
+      identifier,
+      key,
+    );
+  }
+
+  function getEditableSettingValue(key) {
+    const identifier = currentPowerBrowserContext?.identifier;
+    const scope = GM_getValue("powerBrowserSettingsWriteScope", "global");
+    return resolveEditableSetting(
+      scope,
+      getGlobalSettingValue(key),
+      getApplicationProfiles(),
+      identifier,
+      key,
+    );
+  }
+
+  function hasCurrentApplicationSettingOverride(key) {
+    return hasApplicationOverride(
+      getApplicationProfiles(),
+      currentPowerBrowserContext?.identifier,
+      key,
+    );
+  }
+
+  function setSettingValue(key, value) {
+    const identifier = currentPowerBrowserContext?.identifier;
+    const scope = GM_getValue("powerBrowserSettingsWriteScope", "global");
+    if (scope === "application" && identifier) {
+      GM_setValue(
+        "powerBrowserApplicationProfiles",
+        setApplicationOverride(
+          getApplicationProfiles(),
+          identifier,
+          key,
+          value,
+        ),
+      );
+      return;
+    }
+    GM_setValue(key, value);
+  }
+
+  function clearCurrentApplicationSettingOverride(key) {
+    const identifier = currentPowerBrowserContext?.identifier;
+    if (!identifier) {
+      return false;
+    }
+    const profiles = getApplicationProfiles();
+    if (!hasApplicationOverride(profiles, identifier, key)) {
+      return false;
+    }
+    GM_setValue(
+      "powerBrowserApplicationProfiles",
+      removeApplicationOverride(profiles, identifier, key),
+    );
+    return true;
   }
 
   /**
@@ -2040,20 +2293,25 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
    *
    * @returns {"light"|"dark"|"betty"}
    */
-  function getPowerBrowserTheme() {
+  function getPowerBrowserTheme(editable = false) {
     const storedTheme = GM_getValue("themeMode", null);
-    if (["light", "dark", "betty"].includes(storedTheme)) {
-      return storedTheme;
+    if (!["light", "dark", "betty"].includes(storedTheme)) {
+      const legacyDarkMode = GM_getValue("themeDarkMode", null);
+      if (legacyDarkMode !== null) {
+        GM_setValue(
+          "themeMode",
+          legacyDarkMode === true ? "dark" : "light",
+        );
+        GM_deleteValue("themeDarkMode");
+      }
     }
 
-    const legacyDarkMode = GM_getValue("themeDarkMode", null);
-    const migratedTheme =
-      legacyDarkMode === true ? "dark" : "light";
-    if (legacyDarkMode !== null) {
-      GM_setValue("themeMode", migratedTheme);
-      GM_deleteValue("themeDarkMode");
-    }
-    return migratedTheme;
+    const selectedTheme = editable
+      ? getEditableSettingValue("themeMode")
+      : getSettingValue("themeMode");
+    return ["light", "dark", "betty"].includes(selectedTheme)
+      ? selectedTheme
+      : "light";
   }
 
   const SETTINGS_SIZE_VALUES = Object.freeze([
@@ -2081,8 +2339,10 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     GM_deleteValue("seniorDeveloperMode");
   }
 
-  function getSettingsSize(key) {
-    const value = getSettingValue(key);
+  function getSettingsSize(key, editable = false) {
+    const value = editable
+      ? getEditableSettingValue(key)
+      : getSettingValue(key);
     return SETTINGS_SIZE_VALUES.includes(value) ? value : "md";
   }
 
@@ -4746,6 +5006,17 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       applyNavigatorVisibilitySettings(navigator);
     }
 
+    if (definition.key === "environmentSafetyBadge") {
+      const showEnvironmentBadge = Boolean(value);
+      navigator.environmentBadge.hidden = !showEnvironmentBadge;
+      if (showEnvironmentBadge) {
+        navigator.navigatorBar.dataset.environment =
+          navigator.navigatorBar.dataset.currentEnvironment || "unknown";
+      } else {
+        delete navigator.navigatorBar.dataset.environment;
+      }
+    }
+
     if (definition.flag && currentPowerBrowserContext?.siteType) {
       applyFeatureFlagSettings(currentPowerBrowserContext.siteType);
     }
@@ -4802,6 +5073,16 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
         searchButton.title = `Search models and properties (${value || "No shortcut"})`;
       }
     }
+  }
+
+  function applyEffectiveSettings(navigator) {
+    SettingsDefinitions.forEach((definition) => {
+      applySettingChange(
+        navigator,
+        definition,
+        getSettingValue(definition.key),
+      );
+    });
   }
 
   function formatShortcutEvent(event) {
@@ -5069,6 +5350,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       dataSources: JSON.parse(
         JSON.stringify(powerBrowserDiagnostics),
       ),
+      healthIssues: powerBrowserHealthIssues.map((issue) => ({ ...issue })),
       authentication: applicationAuthState.current,
       timeline: diagnosticTimeline.entries(),
       csrfAvailable: Boolean(
@@ -5146,6 +5428,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     );
     [
       ["Artifact", powerBrowserDiagnostics.artifact],
+      ["Extension health", powerBrowserDiagnostics.health],
       [
         "Application family",
         powerBrowserDiagnostics.applicationFamily,
@@ -5472,12 +5755,10 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
 
     SettingsDefinitions.forEach((definition) => {
       GM_deleteValue(definition.key);
-      applySettingChange(
-        navigator,
-        definition,
-        definition.defaultValue,
-      );
     });
+    GM_deleteValue("powerBrowserApplicationProfiles");
+    GM_deleteValue("powerBrowserApplicationProfileNames");
+    applyEffectiveSettings(navigator);
     renderSettingsTab(navigator);
   }
 
@@ -5496,8 +5777,16 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       settings: Object.fromEntries(
         SettingsDefinitions.map((definition) => [
           definition.key,
-          getSettingValue(definition.key),
+          getGlobalSettingValue(definition.key),
         ]),
+      ),
+      applicationProfiles: GM_getValue(
+        "powerBrowserApplicationProfiles",
+        {},
+      ),
+      applicationProfileNames: GM_getValue(
+        "powerBrowserApplicationProfileNames",
+        {},
       ),
     };
   }
@@ -5533,15 +5822,75 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
    * @param {ReturnType<typeof initializeNavigator>} navigator
    * @returns {{applied: number, ignored: number}}
    */
+  function isValidImportedSettingValue(definition, value) {
+    return (
+      (definition.type === "toggle" &&
+        typeof value === "boolean") ||
+      (definition.type === "shortcut" &&
+        typeof value === "string") ||
+      (definition.type === "theme" &&
+        ["light", "dark", "betty"].includes(value)) ||
+      (definition.type === "size" &&
+        SETTINGS_SIZE_VALUES.includes(value))
+    );
+  }
+
   function importPowerBrowserSettings(payload, navigator) {
     if (!payload || typeof payload !== "object") {
       throw new Error("The imported file must contain a JSON object.");
     }
 
-    if (
-      payload.format &&
-      payload.format !== "power-browser-settings"
-    ) {
+    if (payload.format === "power-browser-application-profile") {
+      if (
+        typeof payload.identifier !== "string" ||
+        !payload.identifier ||
+        !payload.settings ||
+        typeof payload.settings !== "object" ||
+        Array.isArray(payload.settings)
+      ) {
+        throw new Error("This application profile is invalid.");
+      }
+      const settings = {};
+      let ignored = 0;
+      Object.entries(payload.settings).forEach(([key, value]) => {
+        const definition = getSettingDefinition(key);
+        if (!definition) {
+          ignored += 1;
+          return;
+        }
+        if (!isValidImportedSettingValue(definition, value)) {
+          throw new Error(
+            `Setting “${definition.label}” has an invalid value.`,
+          );
+        }
+        settings[key] = value;
+      });
+      if (!Object.keys(settings).length) {
+        throw new Error(
+          "The application profile contains no recognized settings.",
+        );
+      }
+      GM_setValue("powerBrowserApplicationProfiles", {
+        ...getApplicationProfiles(),
+        [payload.identifier]: settings,
+      });
+      if (typeof payload.name === "string" && payload.name.trim()) {
+        GM_setValue("powerBrowserApplicationProfileNames", {
+          ...GM_getValue(
+            "powerBrowserApplicationProfileNames",
+            {},
+          ),
+          [payload.identifier]: payload.name.trim(),
+        });
+      }
+      applyEffectiveSettings(navigator);
+      return {
+        applied: Object.keys(settings).length,
+        ignored,
+      };
+    }
+
+    if (payload.format && payload.format !== "power-browser-settings") {
       throw new Error("This is not a Power Browser settings export.");
     }
 
@@ -5561,16 +5910,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
         return;
       }
 
-      const valid =
-        (definition.type === "toggle" &&
-          typeof value === "boolean") ||
-        (definition.type === "shortcut" &&
-          typeof value === "string") ||
-        (definition.type === "theme" &&
-          ["light", "dark", "betty"].includes(value)) ||
-        (definition.type === "size" &&
-          SETTINGS_SIZE_VALUES.includes(value));
-      if (!valid) {
+      if (!isValidImportedSettingValue(definition, value)) {
         throw new Error(
           `Setting “${definition.label}” has an invalid value.`,
         );
@@ -5589,9 +5929,34 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     }
 
     validatedSettings.forEach(({ definition, value }) => {
-      GM_setValue(definition.key, value);
-      applySettingChange(navigator, definition, value);
+      setSettingValue(definition.key, value);
+      applySettingChange(
+        navigator,
+        definition,
+        getSettingValue(definition.key),
+      );
     });
+    if (
+      payload.applicationProfiles &&
+      typeof payload.applicationProfiles === "object" &&
+      !Array.isArray(payload.applicationProfiles)
+    ) {
+      GM_setValue(
+        "powerBrowserApplicationProfiles",
+        payload.applicationProfiles,
+      );
+    }
+    if (
+      payload.applicationProfileNames &&
+      typeof payload.applicationProfileNames === "object" &&
+      !Array.isArray(payload.applicationProfileNames)
+    ) {
+      GM_setValue(
+        "powerBrowserApplicationProfileNames",
+        payload.applicationProfileNames,
+      );
+    }
+    applyEffectiveSettings(navigator);
 
     return {
       applied: validatedSettings.length,
@@ -5610,7 +5975,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       settingsState.list,
       "settings",
       "Data",
-      1,
+      2,
     );
     const card = document.createElement("div");
     card.className =
@@ -5719,6 +6084,236 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     settingsState.list.appendChild(card);
   }
 
+  function renderPowerBrowserUpdateControls(navigator) {
+    appendSettingsSectionHeading(
+      settingsState.list,
+      "settings",
+      "Updates",
+      1,
+    );
+    const card = document.createElement("div");
+    card.className =
+      "power-browser-settings-card-v2 power-browser-settings-update-v2";
+    const copy = document.createElement("div");
+    copy.className = "power-browser-settings-copy-v2";
+    const title = document.createElement("strong");
+    const currentVersion = String(
+      globalThis.GM_info?.script?.version || "unknown",
+    );
+    title.textContent = powerBrowserUpdateState?.available
+      ? `Version ${powerBrowserUpdateState.version} is available`
+      : powerBrowserUpdateState?.development
+        ? `Development version ${currentVersion}`
+      : `Power Browser ${currentVersion}`;
+    const description = document.createElement("span");
+    description.className =
+      "power-browser-settings-description-v2";
+    description.textContent = powerBrowserUpdateState?.checking
+      ? "Checking GitHub Releases…"
+      : powerBrowserUpdateState?.error
+        ? powerBrowserUpdateState.error
+        : powerBrowserUpdateState?.available
+          ? "Published through GitHub Releases. Install it through your userscript manager."
+          : powerBrowserUpdateState?.development
+            ? `This build is newer than the latest public release (${powerBrowserUpdateState.version}).`
+          : "You are using the latest published release.";
+    copy.append(title, description);
+    const actions = document.createElement("div");
+    actions.className =
+      "power-browser-settings-profile-actions-v2";
+    if (powerBrowserUpdateState?.available) {
+      const install = document.createElement("button");
+      install.type = "button";
+      install.textContent = "Install update";
+      install.addEventListener("click", () =>
+        openPowerBrowserTab(powerBrowserUpdateState.downloadUrl),
+      );
+      actions.appendChild(install);
+    }
+    if (powerBrowserUpdateState?.development) {
+      const latestRelease = document.createElement("button");
+      latestRelease.type = "button";
+      latestRelease.textContent = "See latest release";
+      latestRelease.addEventListener("click", () =>
+        openPowerBrowserTab(powerBrowserUpdateState.releaseUrl),
+      );
+      actions.appendChild(latestRelease);
+    }
+    const check = document.createElement("button");
+    check.type = "button";
+    check.textContent = "Check now";
+    check.disabled = Boolean(powerBrowserUpdateState?.checking);
+    check.addEventListener("click", () => {
+      void checkPowerBrowserReleaseUpdate(navigator, {
+        force: true,
+      });
+    });
+    actions.appendChild(check);
+    card.append(copy, actions);
+    settingsState.list.appendChild(card);
+  }
+
+  function renderApplicationProfileManagement(navigator) {
+    appendSettingsSectionHeading(
+      settingsState.list,
+      "settings",
+      "Application profiles",
+      3,
+    );
+    const profiles = getApplicationProfiles();
+    const identifiers = Object.keys(profiles).filter(
+      (identifier) =>
+        profiles[identifier] &&
+        Object.keys(profiles[identifier]).length > 0,
+    );
+    if (!identifiers.length) {
+      const empty = document.createElement("div");
+      empty.className = "power-browser-settings-info-empty-v2";
+      empty.textContent =
+        "No application-specific overrides have been saved yet.";
+      settingsState.list.appendChild(empty);
+      return;
+    }
+
+    const knownApplications = GM_getValue(
+      "powerBrowserKnownApplications",
+      {},
+    );
+    const profileNames = GM_getValue(
+      "powerBrowserApplicationProfileNames",
+      {},
+    );
+    identifiers
+      .sort((left, right) =>
+        String(
+          profileNames[left] ||
+            knownApplications[left]?.name ||
+            left,
+        ).localeCompare(
+          String(
+            profileNames[right] ||
+              knownApplications[right]?.name ||
+              right,
+          ),
+        ),
+      )
+      .forEach((identifier) => {
+        const card = document.createElement("div");
+        card.className =
+          "power-browser-settings-card-v2 power-browser-settings-profile-v2";
+        const copy = document.createElement("div");
+        copy.className = "power-browser-settings-copy-v2";
+        const name = document.createElement("input");
+        name.type = "text";
+        name.className = "power-browser-settings-profile-name-v2";
+        name.value =
+          profileNames[identifier] ||
+          knownApplications[identifier]?.name ||
+          identifier;
+        name.setAttribute(
+          "aria-label",
+          `Profile name for ${identifier}`,
+        );
+        const description = document.createElement("span");
+        description.className =
+          "power-browser-settings-description-v2";
+        const overrideCount = Object.keys(
+          profiles[identifier],
+        ).length;
+        description.textContent =
+          `${identifier} · ${overrideCount} override${overrideCount === 1 ? "" : "s"}` +
+          (identifier === currentPowerBrowserContext?.identifier
+            ? " · Current application"
+            : "");
+        name.addEventListener("change", () => {
+          const nextNames = {
+            ...GM_getValue(
+              "powerBrowserApplicationProfileNames",
+              {},
+            ),
+          };
+          const value = name.value.trim();
+          if (value) {
+            nextNames[identifier] = value;
+          } else {
+            delete nextNames[identifier];
+            name.value =
+              knownApplications[identifier]?.name || identifier;
+          }
+          GM_setValue(
+            "powerBrowserApplicationProfileNames",
+            nextNames,
+          );
+        });
+        copy.append(name, description);
+
+        const actions = document.createElement("div");
+        actions.className =
+          "power-browser-settings-profile-actions-v2";
+        const exportButton = document.createElement("button");
+        exportButton.type = "button";
+        exportButton.textContent = "Export";
+        exportButton.addEventListener("click", () => {
+          downloadPowerBrowserTextFile(
+            `power-browser-profile_${identifier}.json`,
+            JSON.stringify(
+              {
+                format: "power-browser-application-profile",
+                formatVersion: 1,
+                identifier,
+                name: name.value.trim() || identifier,
+                settings: profiles[identifier],
+              },
+              null,
+              2,
+            ),
+            "application/json;charset=utf-8",
+          );
+        });
+        const clearButton = document.createElement("button");
+        clearButton.type = "button";
+        clearButton.className =
+          "power-browser-settings-profile-clear-v2";
+        clearButton.textContent = "Clear overrides";
+        clearButton.addEventListener("click", () => {
+          if (
+            !window.confirm(
+              `Clear all overrides for ${name.value || identifier}?`,
+            )
+          ) {
+            return;
+          }
+          GM_setValue(
+            "powerBrowserApplicationProfiles",
+            removeApplicationProfile(
+              getApplicationProfiles(),
+              identifier,
+            ),
+          );
+          const nextNames = {
+            ...GM_getValue(
+              "powerBrowserApplicationProfileNames",
+              {},
+            ),
+          };
+          delete nextNames[identifier];
+          GM_setValue(
+            "powerBrowserApplicationProfileNames",
+            nextNames,
+          );
+          if (
+            identifier === currentPowerBrowserContext?.identifier
+          ) {
+            applyEffectiveSettings(navigator);
+          }
+          renderSettingsTab(navigator);
+        });
+        actions.append(exportButton, clearButton);
+        card.append(copy, actions);
+        settingsState.list.appendChild(card);
+      });
+  }
+
   /**
    * Renders the destructive reset control at the end of Settings.
    *
@@ -5730,7 +6325,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       settingsState.list,
       "settings",
       "Danger zone",
-      2,
+      4,
     );
     const danger = document.createElement("div");
     danger.className = "power-browser-settings-danger-v2";
@@ -5772,7 +6367,13 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     }
 
     if (tabId === "settings") {
-      return ["Appearance", "Data", "Danger zone"];
+      return [
+        "Appearance",
+        "Updates",
+        "Data",
+        "Application profiles",
+        "Danger zone",
+      ];
     }
 
     return [
@@ -6096,6 +6697,23 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
 
     settingsState.heading.textContent = tab.label;
     settingsState.description.textContent = descriptions[tab.id];
+    const currentApplication =
+      sortApplicationFamily(
+        currentPowerBrowserContext?.applicationFamily,
+      ).find(
+        ({ application }) =>
+          application.identifier ===
+          currentPowerBrowserContext?.identifier,
+      )?.application || null;
+    settingsState.applicationScopeOption.textContent =
+      `Settings for: ${
+        currentApplication?.name ||
+        currentPowerBrowserContext?.identifier ||
+        "current application"
+      }`;
+    const editingApplication =
+      GM_getValue("powerBrowserSettingsWriteScope", "global") ===
+      "application";
     settingsState.list.replaceChildren();
     const searchQuery = settingsState.searchQuery || "";
     if (searchQuery.trim()) {
@@ -6188,6 +6806,41 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
         badge.textContent = definition.badge;
         labelRow.appendChild(badge);
       }
+      if (hasCurrentApplicationSettingOverride(definition.key)) {
+        const overrideBadge = document.createElement("span");
+        overrideBadge.className =
+          "power-browser-settings-override-badge-v2";
+        overrideBadge.textContent = "Application override";
+        const clearOverride = document.createElement("button");
+        clearOverride.type = "button";
+        clearOverride.className =
+          "power-browser-settings-use-global-v2";
+        clearOverride.textContent = "Use global";
+        clearOverride.title =
+          "Delete this application override and inherit the global value.";
+        clearOverride.addEventListener("click", () => {
+          if (
+            !clearCurrentApplicationSettingOverride(
+              definition.key,
+            )
+          ) {
+            return;
+          }
+          applySettingChange(
+            navigator,
+            definition,
+            getSettingValue(definition.key),
+          );
+          renderSettingsTab(navigator);
+        });
+        labelRow.append(overrideBadge, clearOverride);
+      } else if (editingApplication) {
+        const inheritedBadge = document.createElement("span");
+        inheritedBadge.className =
+          "power-browser-settings-override-badge-v2 inherited";
+        inheritedBadge.textContent = "Inherited from global";
+        labelRow.appendChild(inheritedBadge);
+      }
       copy.appendChild(labelRow);
       copy.appendChild(description);
       card.appendChild(copy);
@@ -6198,7 +6851,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
           "power-browser-settings-theme-picker-v2";
         picker.setAttribute("role", "radiogroup");
         picker.setAttribute("aria-label", definition.label);
-        const selectedTheme = getPowerBrowserTheme();
+        const selectedTheme = getPowerBrowserTheme(true);
         [
           ["light", "Light"],
           ["dark", "Dark"],
@@ -6227,11 +6880,11 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
           option.appendChild(preview);
           option.appendChild(optionLabel);
           option.addEventListener("click", () => {
-            GM_setValue(definition.key, themeId);
+            setSettingValue(definition.key, themeId);
             applySettingChange(
               navigator,
               definition,
-              themeId,
+              getSettingValue(definition.key),
             );
             renderSettingsTab(navigator);
           });
@@ -6244,7 +6897,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
           "power-browser-settings-size-picker-v2";
         picker.setAttribute("role", "radiogroup");
         picker.setAttribute("aria-label", definition.label);
-        const selectedSize = getSettingsSize(definition.key);
+        const selectedSize = getSettingsSize(definition.key, true);
         const sizeNames =
           definition.sizeKind === "dialog"
             ? [
@@ -6298,8 +6951,12 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
           option.appendChild(preview);
           option.appendChild(optionLabel);
           option.addEventListener("click", () => {
-            GM_setValue(definition.key, sizeId);
-            applySettingChange(navigator, definition, sizeId);
+            setSettingValue(definition.key, sizeId);
+            applySettingChange(
+              navigator,
+              definition,
+              getSettingValue(definition.key),
+            );
             renderSettingsTab(navigator);
           });
           picker.appendChild(option);
@@ -6310,7 +6967,9 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
         wrapper.className = "power-browser-settings-toggle-v2";
         const input = document.createElement("input");
         input.type = "checkbox";
-        input.checked = Boolean(getSettingValue(definition.key));
+        input.checked = Boolean(
+          getEditableSettingValue(definition.key),
+        );
         input.disabled = settingDisabled;
         input.setAttribute("aria-label", definition.label);
         const track = document.createElement("span");
@@ -6320,12 +6979,13 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
             "Enable Icons only to use this setting.";
         }
         input.addEventListener("change", () => {
-          GM_setValue(definition.key, input.checked);
+          setSettingValue(definition.key, input.checked);
           applySettingChange(
             navigator,
             definition,
-            input.checked,
+            getSettingValue(definition.key),
           );
+          renderSettingsTab(navigator);
         });
         wrapper.appendChild(input);
         wrapper.appendChild(track);
@@ -6335,7 +6995,9 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
         input.type = "text";
         input.readOnly = true;
         input.className = "power-browser-settings-shortcut-v2";
-        input.value = String(getSettingValue(definition.key) || "");
+        input.value = String(
+          getEditableSettingValue(definition.key) || "",
+        );
         input.placeholder = "Click and press a shortcut";
         input.setAttribute("aria-label", definition.label);
         input.addEventListener("keydown", (event) => {
@@ -6348,8 +7010,13 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
 
           if (event.key === "Backspace" || event.key === "Delete") {
             input.value = "";
-            GM_setValue(definition.key, "");
-            applySettingChange(navigator, definition, "");
+            setSettingValue(definition.key, "");
+            applySettingChange(
+              navigator,
+              definition,
+              getSettingValue(definition.key),
+            );
+            renderSettingsTab(navigator);
             return;
           }
 
@@ -6359,8 +7026,13 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
           }
 
           input.value = shortcut;
-          GM_setValue(definition.key, shortcut);
-          applySettingChange(navigator, definition, shortcut);
+          setSettingValue(definition.key, shortcut);
+          applySettingChange(
+            navigator,
+            definition,
+            getSettingValue(definition.key),
+          );
+          renderSettingsTab(navigator);
         });
         card.appendChild(input);
       }
@@ -6368,7 +7040,9 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       settingsState.list.appendChild(card);
     });
     if (tab.id === "settings") {
+      renderPowerBrowserUpdateControls(navigator);
       renderSettingsDataControls(navigator);
+      renderApplicationProfileManagement(navigator);
       renderSettingsDangerZone(navigator);
     }
     renderSettingsSectionNavigation(navigator);
@@ -6458,7 +7132,32 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     closeButton.className = "power-browser-settings-close-v2";
     closeButton.innerHTML = "&times;";
     closeButton.setAttribute("aria-label", "Close settings");
+    const scopeSelect = document.createElement("select");
+    scopeSelect.className = "power-browser-settings-scope-v2";
+    scopeSelect.setAttribute("aria-label", "Settings edit scope");
+    let applicationScopeOption = null;
+    [
+      ["global", "Global settings"],
+      ["application", "Settings for current application"],
+    ].forEach(([value, label]) => {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = label;
+      if (value === "application") {
+        applicationScopeOption = option;
+      }
+      scopeSelect.appendChild(option);
+    });
+    scopeSelect.value = GM_getValue(
+      "powerBrowserSettingsWriteScope",
+      "global",
+    );
+    scopeSelect.addEventListener("change", () => {
+      GM_setValue("powerBrowserSettingsWriteScope", scopeSelect.value);
+      renderSettingsTab(navigator);
+    });
     header.appendChild(headingWrapper);
+    header.appendChild(scopeSelect);
     header.appendChild(closeButton);
 
     const reloadAlert = document.createElement("div");
@@ -6507,14 +7206,25 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       const tabDefinitions = SettingsDefinitions.filter(
         (definition) => definition.tab === settingsState.activeTab,
       );
+      const editScope = GM_getValue(
+        "powerBrowserSettingsWriteScope",
+        "global",
+      );
       tabDefinitions.forEach((definition) => {
-        GM_setValue(definition.key, definition.defaultValue);
+        if (editScope === "application") {
+          clearCurrentApplicationSettingOverride(definition.key);
+        } else {
+          setSettingValue(
+            definition.key,
+            definition.defaultValue,
+          );
+        }
       });
       tabDefinitions.forEach((definition) => {
         applySettingChange(
           navigator,
           definition,
-          definition.defaultValue,
+          getSettingValue(definition.key),
         );
       });
       renderSettingsTab(navigator);
@@ -6544,6 +7254,8 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       tabs,
       heading,
       description,
+      applicationScopeOption,
+      scopeSelect,
       searchInput,
       searchQuery: "",
       operationStatus: null,
@@ -6594,6 +7306,14 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     state.overlay.classList.add("open");
     state.dialog.classList.add("open");
     state.tabs.querySelector(".active")?.focus();
+  }
+
+  function toggleSettings(navigator) {
+    if (settingsState?.dialog.classList.contains("open")) {
+      closeSettings();
+      return;
+    }
+    openSettings(navigator);
   }
 
   function closeSettings() {
@@ -6662,15 +7382,12 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     SettingsDefinitions.forEach((definition) => {
       globalThis.GM_addValueChangeListener(
         definition.key,
-        (_key, _oldValue, newValue, remote) => {
+        (_key, _oldValue, _newValue, remote) => {
           if (!remote) {
             return;
           }
 
-          const value =
-            newValue === undefined
-              ? definition.defaultValue
-              : newValue;
+          const value = getSettingValue(definition.key);
           applySettingChange(navigator, definition, value);
 
           if (
@@ -6681,6 +7398,31 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
         },
       );
     });
+    globalThis.GM_addValueChangeListener(
+      "powerBrowserApplicationProfiles",
+      (_key, _oldValue, _newValue, remote) => {
+        if (!remote) {
+          return;
+        }
+        applyEffectiveSettings(navigator);
+        if (settingsState?.dialog.classList.contains("open")) {
+          renderSettingsTab(navigator);
+        }
+      },
+    );
+    globalThis.GM_addValueChangeListener(
+      "powerBrowserSettingsWriteScope",
+      (_key, _oldValue, newValue, remote) => {
+        if (!remote || !settingsState) {
+          return;
+        }
+        settingsState.scopeSelect.value =
+          newValue === "application" ? "application" : "global";
+        if (settingsState.dialog.classList.contains("open")) {
+          renderSettingsTab(navigator);
+        }
+      },
+    );
   }
 
   function initializeSettings(navigator) {
@@ -6694,7 +7436,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     button.classList.remove(NAV_DISABLED_CLASS);
     button.setAttribute("aria-disabled", "false");
     button.title = "Power Browser settings";
-    button.addEventListener("click", () => openSettings(navigator));
+    button.addEventListener("click", () => toggleSettings(navigator));
 
     if (typeof GM_registerMenuCommand === "function") {
       GM_registerMenuCommand("Open Power Browser settings", () =>
@@ -7506,11 +8248,493 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
   /**
    * Populate the standard shortcuts while retaining the original bar order.
    */
+  const POWER_BROWSER_RELEASE_API =
+    "https://api.github.com/repos/ebosdnl/powerbrowser-navigator/releases/latest";
+  const POWER_BROWSER_RELEASE_CACHE_TTL = 6 * 60 * 60 * 1000;
+
+  function requestLatestPowerBrowserRelease() {
+    return new Promise((resolve, reject) => {
+      if (typeof GM_xmlhttpRequest !== "function") {
+        reject(new Error("Release checks are unavailable."));
+        return;
+      }
+      GM_xmlhttpRequest({
+        method: "GET",
+        url: POWER_BROWSER_RELEASE_API,
+        headers: {
+          Accept: "application/vnd.github+json",
+        },
+        timeout: 10000,
+        onload: (response) => {
+          if (response.status < 200 || response.status >= 300) {
+            reject(
+              new Error(
+                `GitHub release check failed with status ${response.status}.`,
+              ),
+            );
+            return;
+          }
+          try {
+            resolve(JSON.parse(response.responseText));
+          } catch {
+            reject(new Error("GitHub returned invalid release data."));
+          }
+        },
+        onerror: () =>
+          reject(new Error("Unable to reach GitHub Releases.")),
+        ontimeout: () =>
+          reject(new Error("The GitHub release check timed out.")),
+      });
+    });
+  }
+
+  function normalizePowerBrowserRelease(release) {
+    const version = String(release?.tag_name || "").replace(/^v/i, "");
+    if (!version || release?.draft || release?.prerelease) {
+      return null;
+    }
+    const asset = Array.isArray(release.assets)
+      ? release.assets.find(
+          (candidate) =>
+            candidate.name === "bb-powerbrowser.user.js",
+        )
+      : null;
+    return {
+      version,
+      releaseUrl:
+        release.html_url ||
+        "https://github.com/ebosdnl/powerbrowser-navigator/releases/latest",
+      downloadUrl:
+        asset?.browser_download_url ||
+        "https://github.com/ebosdnl/powerbrowser-navigator/releases/latest/download/bb-powerbrowser.user.js",
+      publishedAt: release.published_at || null,
+    };
+  }
+
+  function updatePowerBrowserReleaseIndicator(navigator) {
+    const button =
+      navigator.controls.get("settingsButton") ||
+      document.getElementById("settingsButton");
+    if (!button) {
+      return;
+    }
+    const available = Boolean(powerBrowserUpdateState?.available);
+    button.classList.toggle(
+      "power-browser-update-available-v2",
+      available,
+    );
+    button.title = available
+      ? `Power Browser ${powerBrowserUpdateState.version} is available`
+      : powerBrowserUpdateState?.development
+        ? `Development version ${powerBrowserUpdateState.currentVersion}; latest public release ${powerBrowserUpdateState.version}`
+        : "Power Browser settings";
+    if (available) {
+      button.setAttribute(
+        "aria-label",
+        `Settings. Power Browser ${powerBrowserUpdateState.version} is available.`,
+      );
+    } else {
+      button.removeAttribute("aria-label");
+    }
+  }
+
+  function notifyPowerBrowserRelease(release) {
+    const notificationKey = "powerBrowserLastNotifiedRelease";
+    if (
+      GM_getValue(notificationKey, "") === release.version ||
+      typeof globalThis.GM_notification !== "function"
+    ) {
+      return;
+    }
+    GM_setValue(notificationKey, release.version);
+    globalThis.GM_notification({
+      title: "Power Browser update available",
+      text: `Version ${release.version} was published through GitHub Releases.`,
+      onclick: () => openPowerBrowserTab(release.downloadUrl),
+    });
+  }
+
+  async function checkPowerBrowserReleaseUpdate(
+    navigator,
+    { force = false } = {},
+  ) {
+    powerBrowserUpdateState = {
+      ...powerBrowserUpdateState,
+      checking: true,
+      error: null,
+    };
+    if (settingsState?.activeTab === "settings") {
+      renderSettingsTab(navigator);
+    }
+    try {
+      const cached = GM_getValue("powerBrowserLatestRelease", null);
+      const useCachedRelease = Boolean(
+        !force &&
+          cached?.fetchedAt &&
+          Date.now() - cached.fetchedAt <
+            POWER_BROWSER_RELEASE_CACHE_TTL,
+      );
+      const release = useCachedRelease
+        ? cached.release
+        : normalizePowerBrowserRelease(
+            await requestLatestPowerBrowserRelease(),
+          );
+      if (!release) {
+        throw new Error("No stable Power Browser release was found.");
+      }
+      if (!useCachedRelease) {
+        GM_setValue("powerBrowserLatestRelease", {
+          fetchedAt: Date.now(),
+          release,
+        });
+      }
+      const currentVersion = String(
+        globalThis.GM_info?.script?.version || "0.0.0",
+      );
+      const available = isVersionNewer(
+        release.version,
+        currentVersion,
+      );
+      powerBrowserUpdateState = {
+        ...release,
+        currentVersion,
+        checking: false,
+        available,
+        development:
+          !available &&
+          isVersionNewer(currentVersion, release.version),
+        error: null,
+      };
+      updatePowerBrowserReleaseIndicator(navigator);
+      if (powerBrowserUpdateState.available) {
+        notifyPowerBrowserRelease(powerBrowserUpdateState);
+      }
+    } catch (error) {
+      powerBrowserUpdateState = {
+        checking: false,
+        available: false,
+        development: false,
+        currentVersion: String(
+          globalThis.GM_info?.script?.version || "0.0.0",
+        ),
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unable to check for updates.",
+      };
+      diagnosticTimeline.add({
+        source: "release-update",
+        status: "warn",
+        message: powerBrowserUpdateState.error,
+      });
+    }
+    if (settingsState?.activeTab === "settings") {
+      renderSettingsTab(navigator);
+    }
+    return powerBrowserUpdateState;
+  }
+
+  async function initializeReleaseUpdateChecker(navigator) {
+    await checkPowerBrowserReleaseUpdate(navigator);
+  }
+  function getCommandPaletteShortcut() {
+    return String(
+      getSettingValue("extraCommandPaletteShortcut") ||
+        "Ctrl+Shift+P",
+    );
+  }
+
+  function buildPowerBrowserCommands(navigator) {
+    const commands = [
+      {
+        label: "Open Power Browser settings",
+        keywords: "preferences configuration",
+        action: () => openSettings(navigator),
+      },
+      {
+        label: "Open sandbox switcher",
+        keywords: "application environment branch production",
+        available: !navigator.stateToggle.disabled,
+        action: () => navigator.stateToggle.click(),
+      },
+      {
+        label: "Search models and properties",
+        keywords: "runtime model relation field",
+        available: Boolean(modelSearchState?.entries.length),
+        action: openModelSearch,
+      },
+      {
+        label: "Refresh Power Browser data",
+        keywords: "reload artifact application family",
+        action: () => void refreshPowerBrowserData(navigator),
+      },
+      {
+        label: "Toggle navigation bar",
+        keywords: "show hide menu",
+        action: () =>
+          navigator.navigatorBar.classList.toggle(
+            "power-browser-setting-hidden-v2",
+          ),
+      },
+    ];
+
+    navigator.controls.forEach((control, id) => {
+      if (
+        [
+          "buttonRuntimeModelSearch",
+          "buttonCopyBearer",
+        ].includes(id) ||
+        control.disabled ||
+        control.classList.contains(NAV_DISABLED_CLASS) ||
+        control.classList.contains("power-browser-hidden-v2") ||
+        control.classList.contains(
+          "power-browser-setting-hidden-v2",
+        )
+      ) {
+        return;
+      }
+      const label =
+        control.querySelector("span")?.textContent?.trim() || id;
+      commands.push({
+        label: `Navigate to ${label}`,
+        keywords: `${id} link destination`,
+        action: () => control.click(),
+      });
+    });
+
+    const bearer = navigator.controls.get("buttonCopyBearer");
+    if (bearer && !bearer.disabled) {
+      commands.push({
+        label: "Copy bearer token",
+        keywords: "authentication clipboard runtime",
+        action: () => bearer.click(),
+      });
+    }
+
+    navigator.stateMenu
+      .querySelectorAll(".power-browser-state-option-v2")
+      .forEach((option) => {
+        if (option.disabled || option.classList.contains("current")) {
+          return;
+        }
+        const label =
+          option.querySelector("span")?.textContent?.trim() ||
+          option.textContent.trim();
+        commands.push({
+          label: `Switch to ${label}`,
+          keywords: `sandbox application environment ${option.dataset.searchText || ""}`,
+          action: () => option.click(),
+        });
+      });
+
+    if (powerBrowserUpdateState?.available) {
+      commands.push({
+        label: `Install Power Browser ${powerBrowserUpdateState.version}`,
+        keywords: "update release github latest",
+        action: () =>
+          openPowerBrowserTab(powerBrowserUpdateState.downloadUrl),
+      });
+    } else if (powerBrowserUpdateState?.development) {
+      commands.push({
+        label: `See latest public release (${powerBrowserUpdateState.version})`,
+        keywords: "development version release github stable",
+        action: () =>
+          openPowerBrowserTab(powerBrowserUpdateState.releaseUrl),
+      });
+    }
+
+    return commands.filter(
+      (command) => command.available !== false,
+    );
+  }
+
+  function renderCommandPaletteResults() {
+    if (!commandPaletteState) {
+      return;
+    }
+    const query = commandPaletteState.input.value
+      .trim()
+      .toLowerCase();
+    commandPaletteState.filtered = commandPaletteState.commands
+      .filter((command) =>
+        `${command.label} ${command.keywords || ""}`
+          .toLowerCase()
+          .includes(query),
+      )
+      .slice(0, 30);
+    commandPaletteState.activeIndex = Math.min(
+      Math.max(commandPaletteState.activeIndex, 0),
+      Math.max(commandPaletteState.filtered.length - 1, 0),
+    );
+    commandPaletteState.results.replaceChildren();
+    if (!commandPaletteState.filtered.length) {
+      const empty = document.createElement("div");
+      empty.className = "power-browser-command-empty-v2";
+      empty.textContent = "No matching commands.";
+      commandPaletteState.results.appendChild(empty);
+      return;
+    }
+    commandPaletteState.filtered.forEach((command, index) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "power-browser-command-result-v2";
+      button.classList.toggle(
+        "active",
+        index === commandPaletteState.activeIndex,
+      );
+      button.textContent = command.label;
+      button.addEventListener("mouseenter", () => {
+        if (commandPaletteState.activeIndex === index) {
+          return;
+        }
+        commandPaletteState.activeIndex = index;
+        renderCommandPaletteResults();
+      });
+      button.addEventListener("click", () =>
+        executeCommandPaletteCommand(command),
+      );
+      commandPaletteState.results.appendChild(button);
+    });
+  }
+
+  function executeCommandPaletteCommand(command) {
+    closeCommandPalette();
+    command.action();
+  }
+
+  function ensureCommandPalette(navigator) {
+    if (commandPaletteState) {
+      return commandPaletteState;
+    }
+    const overlay = document.createElement("div");
+    overlay.className = "power-browser-command-overlay-v2";
+    const dialog = document.createElement("section");
+    dialog.className = "power-browser-command-dialog-v2";
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("aria-modal", "true");
+    dialog.setAttribute("aria-label", "Power Browser command palette");
+    const input = document.createElement("input");
+    input.type = "search";
+    input.className = "power-browser-command-input-v2";
+    input.placeholder = "Type a command or destination…";
+    input.setAttribute("aria-label", "Search commands");
+    const results = document.createElement("div");
+    results.className = "power-browser-command-results-v2";
+    dialog.append(input, results);
+    document.body.append(overlay, dialog);
+    commandPaletteState = {
+      navigator,
+      overlay,
+      dialog,
+      input,
+      results,
+      commands: [],
+      filtered: [],
+      activeIndex: 0,
+      lastFocusedElement: null,
+    };
+    overlay.addEventListener("click", closeCommandPalette);
+    input.addEventListener("input", () => {
+      commandPaletteState.activeIndex = 0;
+      renderCommandPaletteResults();
+    });
+    return commandPaletteState;
+  }
+
+  function openCommandPalette(navigator) {
+    const state = ensureCommandPalette(navigator);
+    closeSettings();
+    closeModelSearch();
+    state.lastFocusedElement = document.activeElement;
+    state.commands = buildPowerBrowserCommands(navigator);
+    state.input.value = "";
+    state.activeIndex = 0;
+    state.overlay.classList.add("open");
+    state.dialog.classList.add("open");
+    renderCommandPaletteResults();
+    setTimeout(() => state.input.focus(), 0);
+  }
+
+  function closeCommandPalette() {
+    if (!commandPaletteState?.dialog.classList.contains("open")) {
+      return;
+    }
+    commandPaletteState.overlay.classList.remove("open");
+    commandPaletteState.dialog.classList.remove("open");
+    commandPaletteState.lastFocusedElement?.focus?.();
+  }
+
+  function handleCommandPaletteKeydown(event, navigator) {
+    const isOpen =
+      commandPaletteState?.dialog.classList.contains("open");
+    if (
+      shortcutMatchesEvent(getCommandPaletteShortcut(), event)
+    ) {
+      event.preventDefault();
+      isOpen
+        ? closeCommandPalette()
+        : openCommandPalette(navigator);
+      return;
+    }
+    if (!isOpen) {
+      return;
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeCommandPalette();
+    } else if (event.key === "ArrowDown") {
+      event.preventDefault();
+      if (!commandPaletteState.filtered.length) {
+        return;
+      }
+      commandPaletteState.activeIndex =
+        (commandPaletteState.activeIndex + 1) %
+        commandPaletteState.filtered.length;
+      renderCommandPaletteResults();
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      if (!commandPaletteState.filtered.length) {
+        return;
+      }
+      commandPaletteState.activeIndex =
+        (commandPaletteState.activeIndex -
+          1 +
+          commandPaletteState.filtered.length) %
+        commandPaletteState.filtered.length;
+      renderCommandPaletteResults();
+    } else if (
+      event.key === "Enter" &&
+      commandPaletteState.filtered.length
+    ) {
+      event.preventDefault();
+      executeCommandPaletteCommand(
+        commandPaletteState.filtered[
+          commandPaletteState.activeIndex
+        ],
+      );
+    }
+  }
+
+  function initializeCommandPalette(navigator) {
+    document.addEventListener("keydown", (event) =>
+      handleCommandPaletteKeydown(event, navigator),
+    );
+    if (typeof GM_registerMenuCommand === "function") {
+      GM_registerMenuCommand(
+        "Open Power Browser command palette",
+        () => openCommandPalette(navigator),
+      );
+    }
+  }
   function configureNavigator(
     navigator,
     { artifactData, siteType, identifier, applicationFamily = null },
   ) {
     if (!identifier) {
+      reportPowerBrowserHealthIssue(
+        "navigator",
+        "The current application identifier is unavailable; navigation links cannot be configured.",
+      );
       return;
     }
 
@@ -7759,6 +8983,53 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
 
     const currentSandboxName =
       currentApplication?.name || currentIdentifier || "Unknown";
+    const environmentKind = currentApplication
+      ? !currentApplication.parentId && !currentApplication.parent
+        ? "production"
+        : currentApplication.isBranch
+          ? "branch"
+          : "sandbox"
+      : "unknown";
+    navigator.navigatorBar.dataset.currentEnvironment = environmentKind;
+    const showEnvironmentBadge = Boolean(
+      getSettingValue("environmentSafetyBadge"),
+    );
+    navigator.environmentBadge.hidden = !showEnvironmentBadge;
+    if (showEnvironmentBadge) {
+      navigator.navigatorBar.dataset.environment = environmentKind;
+    } else {
+      delete navigator.navigatorBar.dataset.environment;
+    }
+    navigator.environmentBadge.textContent =
+      environmentKind === "production"
+        ? "PROD"
+        : environmentKind === "branch"
+          ? "BRANCH"
+          : environmentKind === "sandbox"
+            ? "SANDBOX"
+            : "UNKNOWN";
+
+    const knownApplications = GM_getValue(
+      "powerBrowserKnownApplications",
+      {},
+    );
+    orderedApplications.forEach(({ application }) => {
+      knownApplications[application.identifier] = {
+        identifier: application.identifier,
+        name: application.name || application.identifier,
+        url: application.url || "",
+        lastSeenAt: new Date().toISOString(),
+      };
+    });
+    GM_setValue("powerBrowserKnownApplications", knownApplications);
+    const recentApplications = GM_getValue(
+      "powerBrowserRecentApplications",
+      [],
+    ).filter((value) => value !== currentIdentifier);
+    GM_setValue("powerBrowserRecentApplications", [
+      currentIdentifier,
+      ...recentApplications,
+    ].slice(0, 12));
     navigator.stateToggleLabel.textContent = currentSandboxName;
     navigator.stateToggle.setAttribute(
       "aria-label",
@@ -7809,6 +9080,48 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
 
       navigator.stateMenu.appendChild(option);
     });
+
+    const familyIdentifiers = new Set(
+      orderedApplications.map(({ application }) => application.identifier),
+    );
+    const externalIdentifiers = recentApplications
+      .filter(
+        (identifier, index, values) =>
+          identifier &&
+          !familyIdentifiers.has(identifier) &&
+          values.indexOf(identifier) === index &&
+          knownApplications[identifier],
+      )
+      .slice(0, 8);
+    if (externalIdentifiers.length && siteType !== SiteType.PLAYGROUND) {
+      const heading = document.createElement("small");
+      heading.className = "power-browser-state-group-v2";
+      heading.textContent = "Recent applications";
+      navigator.stateMenu.appendChild(heading);
+      externalIdentifiers.forEach((identifier) => {
+        const known = knownApplications[identifier];
+        const option = document.createElement("button");
+        option.type = "button";
+        option.className = "power-browser-state-option-v2";
+        const label = document.createElement("span");
+        label.textContent = known.name || identifier;
+        const meta = document.createElement("small");
+        meta.textContent = "Recent";
+        option.append(label, meta);
+        option.addEventListener("click", () => {
+          const target = new URL(location.href);
+          if (target.hostname.startsWith(`${currentIdentifier}.`)) {
+            target.hostname =
+              identifier +
+              target.hostname.slice(currentIdentifier.length);
+            location.assign(target.href);
+          } else if (known.url) {
+            location.assign(known.url);
+          }
+        });
+        navigator.stateMenu.appendChild(option);
+      });
+    }
 
     updateApplicationSwitcherStatus(
       "ready",
@@ -8007,6 +9320,8 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
   );
   initializeSettings(navigator);
   initializeHoldToHideMenu(navigator);
+  initializeCommandPalette(navigator);
+  void initializeReleaseUpdateChecker(navigator);
   let artifactData = await fetchArtifact();
   const siteType = detectSiteType(artifactData);
   const applicationIdentifier = resolveApplicationIdentifier(artifactData);
@@ -8091,5 +9406,19 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
   });
 
   window.powerBrowserV2 = powerBrowser;
+  window.setTimeout(() => {
+    if (!navigator.navigatorBar.isConnected) {
+      reportPowerBrowserHealthIssue(
+        "navigator",
+        "The navigation bar was removed from the page DOM.",
+      );
+    }
+    if (!navigator.controls.get("settingsButton") && !document.getElementById("settingsButton")) {
+      reportPowerBrowserHealthIssue(
+        "settings",
+        "The settings control could not be found.",
+      );
+    }
+  }, 1500);
   logger.info("Initialized.", powerBrowser);
 })();

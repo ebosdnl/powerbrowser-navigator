@@ -27,6 +27,17 @@
       applyNavigatorVisibilitySettings(navigator);
     }
 
+    if (definition.key === "environmentSafetyBadge") {
+      const showEnvironmentBadge = Boolean(value);
+      navigator.environmentBadge.hidden = !showEnvironmentBadge;
+      if (showEnvironmentBadge) {
+        navigator.navigatorBar.dataset.environment =
+          navigator.navigatorBar.dataset.currentEnvironment || "unknown";
+      } else {
+        delete navigator.navigatorBar.dataset.environment;
+      }
+    }
+
     if (definition.flag && currentPowerBrowserContext?.siteType) {
       applyFeatureFlagSettings(currentPowerBrowserContext.siteType);
     }
@@ -83,6 +94,16 @@
         searchButton.title = `Search models and properties (${value || "No shortcut"})`;
       }
     }
+  }
+
+  function applyEffectiveSettings(navigator) {
+    SettingsDefinitions.forEach((definition) => {
+      applySettingChange(
+        navigator,
+        definition,
+        getSettingValue(definition.key),
+      );
+    });
   }
 
   function formatShortcutEvent(event) {

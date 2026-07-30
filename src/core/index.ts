@@ -14,6 +14,15 @@ export {
   normalizeEndpoints,
 } from "./domain-utils.js";
 export { validateSettingsDefinitions } from "./settings-validation.js";
+export {
+  hasApplicationOverride,
+  removeApplicationOverride,
+  removeApplicationProfile,
+  resolveEditableSetting,
+  resolveEffectiveSetting,
+  setApplicationOverride,
+} from "./settings-profiles.js";
+export { compareVersions, isVersionNewer } from "./version.js";
 export type {
   AuthSnapshot,
   AuthStatus,

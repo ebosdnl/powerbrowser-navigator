@@ -240,6 +240,7 @@
       dataSources: JSON.parse(
         JSON.stringify(powerBrowserDiagnostics),
       ),
+      healthIssues: powerBrowserHealthIssues.map((issue) => ({ ...issue })),
       authentication: applicationAuthState.current,
       timeline: diagnosticTimeline.entries(),
       csrfAvailable: Boolean(
@@ -317,6 +318,7 @@
     );
     [
       ["Artifact", powerBrowserDiagnostics.artifact],
+      ["Extension health", powerBrowserDiagnostics.health],
       [
         "Application family",
         powerBrowserDiagnostics.applicationFamily,

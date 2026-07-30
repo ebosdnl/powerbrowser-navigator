@@ -18,6 +18,7 @@
     let stateStatusPopover;
     let stateStatusMessage;
     let stateRetryButton;
+    let environmentBadge;
 
     NavigatorItems.forEach((item) => {
       const control = document.createElement(item.button ? "button" : "a");
@@ -40,6 +41,7 @@
 
       if (item.id === "organizationButton") {
         stateSwitcher = document.createElement("div");
+        stateSwitcher.id = "sandboxSwitcher";
         stateSwitcher.className = "power-browser-state-switcher-v2";
 
         stateToggle = document.createElement("button");
@@ -113,6 +115,12 @@
       }
     });
 
+    environmentBadge = document.createElement("span");
+    environmentBadge.id = "environmentBadge";
+    environmentBadge.className = "power-browser-environment-badge-v2";
+    environmentBadge.hidden = true;
+    dropdown.appendChild(environmentBadge);
+
     const settingsButton = document.createElement("button");
     settingsButton.id = "settingsButton";
     settingsButton.type = "button";
@@ -142,6 +150,7 @@
 
     return {
       navigatorBar,
+      dropdown,
       controls,
       stateSwitcher,
       stateToggle,
@@ -150,6 +159,7 @@
       stateStatusPopover,
       stateStatusMessage,
       stateRetryButton,
+      environmentBadge,
     };
   }
 

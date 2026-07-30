@@ -30,9 +30,16 @@
     createFeatureRegistry,
     createLogger,
     csvCell: powerBrowserCsvCell,
+    hasApplicationOverride,
     isAuthenticationError: isPowerBrowserAuthenticationError,
+    isVersionNewer,
     normalizeEndpoints: normalizePowerBrowserEndpoints,
+    removeApplicationOverride,
+    removeApplicationProfile,
+    resolveEditableSetting,
+    resolveEffectiveSetting,
     selectors: PowerBrowserSelectors,
+    setApplicationOverride,
   } = globalThis.PowerBrowserCore;
   const logger = createLogger("runtime");
   const diagnosticTimeline = createDiagnosticTimeline();
@@ -89,6 +96,8 @@
   let modelSearchState = null;
   let modelSearchDebounce = null;
   let settingsState = null;
+  let commandPaletteState = null;
+  let powerBrowserUpdateState = null;
   let settingsSectionScrollFrame = null;
   let currentPowerBrowserContext = null;
   let activePowerBrowserNavigator = null;
@@ -118,6 +127,11 @@
   let powerBrowserNavigationScheduled = false;
   let powerBrowserLastUrl = location.href;
   const powerBrowserDiagnostics = {
+    health: {
+      status: "success",
+      message: "No extension health issues detected.",
+      updatedAt: null,
+    },
     artifact: {
       status: "idle",
       message: "Not requested yet.",
@@ -140,6 +154,36 @@
     },
     lastError: null,
   };
+  const powerBrowserHealthIssues = [];
+
+  function reportPowerBrowserHealthIssue(source, message, error) {
+    const issue = {
+      source,
+      message,
+      updatedAt: new Date().toISOString(),
+    };
+    powerBrowserHealthIssues.push(issue);
+    powerBrowserHealthIssues.splice(
+      0,
+      Math.max(0, powerBrowserHealthIssues.length - 25),
+    );
+    powerBrowserDiagnostics.health = {
+      status: "error",
+      message: `${powerBrowserHealthIssues.length} extension health issue${powerBrowserHealthIssues.length === 1 ? "" : "s"} detected.`,
+      updatedAt: issue.updatedAt,
+    };
+    diagnosticTimeline.add({
+      source: `health:${source}`,
+      status: "error",
+      message,
+      details: error
+        ? {
+            error: error instanceof Error ? error.message : String(error),
+          }
+        : undefined,
+    });
+    logger.warn(`[${source}] ${message}`, error);
+  }
 
   function updateApplicationSwitcherStatus(status, message) {
     applicationAuthState.transition(status, message);

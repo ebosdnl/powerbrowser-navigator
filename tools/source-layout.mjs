@@ -18,6 +18,8 @@ export const sourceLayout = [
   "src/ui/settings/navigation.js",
   "src/ui/settings/dialog.js",
   "src/features/navigation-tools.js",
+  "src/features/release-updates.js",
+  "src/features/command-palette.js",
   "src/ui/navigator-config.js",
   "src/main.js",
 ];

@@ -19,6 +19,23 @@
 
     settingsState.heading.textContent = tab.label;
     settingsState.description.textContent = descriptions[tab.id];
+    const currentApplication =
+      sortApplicationFamily(
+        currentPowerBrowserContext?.applicationFamily,
+      ).find(
+        ({ application }) =>
+          application.identifier ===
+          currentPowerBrowserContext?.identifier,
+      )?.application || null;
+    settingsState.applicationScopeOption.textContent =
+      `Settings for: ${
+        currentApplication?.name ||
+        currentPowerBrowserContext?.identifier ||
+        "current application"
+      }`;
+    const editingApplication =
+      GM_getValue("powerBrowserSettingsWriteScope", "global") ===
+      "application";
     settingsState.list.replaceChildren();
     const searchQuery = settingsState.searchQuery || "";
     if (searchQuery.trim()) {
@@ -111,6 +128,41 @@
         badge.textContent = definition.badge;
         labelRow.appendChild(badge);
       }
+      if (hasCurrentApplicationSettingOverride(definition.key)) {
+        const overrideBadge = document.createElement("span");
+        overrideBadge.className =
+          "power-browser-settings-override-badge-v2";
+        overrideBadge.textContent = "Application override";
+        const clearOverride = document.createElement("button");
+        clearOverride.type = "button";
+        clearOverride.className =
+          "power-browser-settings-use-global-v2";
+        clearOverride.textContent = "Use global";
+        clearOverride.title =
+          "Delete this application override and inherit the global value.";
+        clearOverride.addEventListener("click", () => {
+          if (
+            !clearCurrentApplicationSettingOverride(
+              definition.key,
+            )
+          ) {
+            return;
+          }
+          applySettingChange(
+            navigator,
+            definition,
+            getSettingValue(definition.key),
+          );
+          renderSettingsTab(navigator);
+        });
+        labelRow.append(overrideBadge, clearOverride);
+      } else if (editingApplication) {
+        const inheritedBadge = document.createElement("span");
+        inheritedBadge.className =
+          "power-browser-settings-override-badge-v2 inherited";
+        inheritedBadge.textContent = "Inherited from global";
+        labelRow.appendChild(inheritedBadge);
+      }
       copy.appendChild(labelRow);
       copy.appendChild(description);
       card.appendChild(copy);
@@ -121,7 +173,7 @@
           "power-browser-settings-theme-picker-v2";
         picker.setAttribute("role", "radiogroup");
         picker.setAttribute("aria-label", definition.label);
-        const selectedTheme = getPowerBrowserTheme();
+        const selectedTheme = getPowerBrowserTheme(true);
         [
           ["light", "Light"],
           ["dark", "Dark"],
@@ -150,11 +202,11 @@
           option.appendChild(preview);
           option.appendChild(optionLabel);
           option.addEventListener("click", () => {
-            GM_setValue(definition.key, themeId);
+            setSettingValue(definition.key, themeId);
             applySettingChange(
               navigator,
               definition,
-              themeId,
+              getSettingValue(definition.key),
             );
             renderSettingsTab(navigator);
           });
@@ -167,7 +219,7 @@
           "power-browser-settings-size-picker-v2";
         picker.setAttribute("role", "radiogroup");
         picker.setAttribute("aria-label", definition.label);
-        const selectedSize = getSettingsSize(definition.key);
+        const selectedSize = getSettingsSize(definition.key, true);
         const sizeNames =
           definition.sizeKind === "dialog"
             ? [
@@ -221,8 +273,12 @@
           option.appendChild(preview);
           option.appendChild(optionLabel);
           option.addEventListener("click", () => {
-            GM_setValue(definition.key, sizeId);
-            applySettingChange(navigator, definition, sizeId);
+            setSettingValue(definition.key, sizeId);
+            applySettingChange(
+              navigator,
+              definition,
+              getSettingValue(definition.key),
+            );
             renderSettingsTab(navigator);
           });
           picker.appendChild(option);
@@ -233,7 +289,9 @@
         wrapper.className = "power-browser-settings-toggle-v2";
         const input = document.createElement("input");
         input.type = "checkbox";
-        input.checked = Boolean(getSettingValue(definition.key));
+        input.checked = Boolean(
+          getEditableSettingValue(definition.key),
+        );
         input.disabled = settingDisabled;
         input.setAttribute("aria-label", definition.label);
         const track = document.createElement("span");
@@ -243,12 +301,13 @@
             "Enable Icons only to use this setting.";
         }
         input.addEventListener("change", () => {
-          GM_setValue(definition.key, input.checked);
+          setSettingValue(definition.key, input.checked);
           applySettingChange(
             navigator,
             definition,
-            input.checked,
+            getSettingValue(definition.key),
           );
+          renderSettingsTab(navigator);
         });
         wrapper.appendChild(input);
         wrapper.appendChild(track);
@@ -258,7 +317,9 @@
         input.type = "text";
         input.readOnly = true;
         input.className = "power-browser-settings-shortcut-v2";
-        input.value = String(getSettingValue(definition.key) || "");
+        input.value = String(
+          getEditableSettingValue(definition.key) || "",
+        );
         input.placeholder = "Click and press a shortcut";
         input.setAttribute("aria-label", definition.label);
         input.addEventListener("keydown", (event) => {
@@ -271,8 +332,13 @@
 
           if (event.key === "Backspace" || event.key === "Delete") {
             input.value = "";
-            GM_setValue(definition.key, "");
-            applySettingChange(navigator, definition, "");
+            setSettingValue(definition.key, "");
+            applySettingChange(
+              navigator,
+              definition,
+              getSettingValue(definition.key),
+            );
+            renderSettingsTab(navigator);
             return;
           }
 
@@ -282,8 +348,13 @@
           }
 
           input.value = shortcut;
-          GM_setValue(definition.key, shortcut);
-          applySettingChange(navigator, definition, shortcut);
+          setSettingValue(definition.key, shortcut);
+          applySettingChange(
+            navigator,
+            definition,
+            getSettingValue(definition.key),
+          );
+          renderSettingsTab(navigator);
         });
         card.appendChild(input);
       }
@@ -291,7 +362,9 @@
       settingsState.list.appendChild(card);
     });
     if (tab.id === "settings") {
+      renderPowerBrowserUpdateControls(navigator);
       renderSettingsDataControls(navigator);
+      renderApplicationProfileManagement(navigator);
       renderSettingsDangerZone(navigator);
     }
     renderSettingsSectionNavigation(navigator);
@@ -381,7 +454,32 @@
     closeButton.className = "power-browser-settings-close-v2";
     closeButton.innerHTML = "&times;";
     closeButton.setAttribute("aria-label", "Close settings");
+    const scopeSelect = document.createElement("select");
+    scopeSelect.className = "power-browser-settings-scope-v2";
+    scopeSelect.setAttribute("aria-label", "Settings edit scope");
+    let applicationScopeOption = null;
+    [
+      ["global", "Global settings"],
+      ["application", "Settings for current application"],
+    ].forEach(([value, label]) => {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = label;
+      if (value === "application") {
+        applicationScopeOption = option;
+      }
+      scopeSelect.appendChild(option);
+    });
+    scopeSelect.value = GM_getValue(
+      "powerBrowserSettingsWriteScope",
+      "global",
+    );
+    scopeSelect.addEventListener("change", () => {
+      GM_setValue("powerBrowserSettingsWriteScope", scopeSelect.value);
+      renderSettingsTab(navigator);
+    });
     header.appendChild(headingWrapper);
+    header.appendChild(scopeSelect);
     header.appendChild(closeButton);
 
     const reloadAlert = document.createElement("div");
@@ -430,14 +528,25 @@
       const tabDefinitions = SettingsDefinitions.filter(
         (definition) => definition.tab === settingsState.activeTab,
       );
+      const editScope = GM_getValue(
+        "powerBrowserSettingsWriteScope",
+        "global",
+      );
       tabDefinitions.forEach((definition) => {
-        GM_setValue(definition.key, definition.defaultValue);
+        if (editScope === "application") {
+          clearCurrentApplicationSettingOverride(definition.key);
+        } else {
+          setSettingValue(
+            definition.key,
+            definition.defaultValue,
+          );
+        }
       });
       tabDefinitions.forEach((definition) => {
         applySettingChange(
           navigator,
           definition,
-          definition.defaultValue,
+          getSettingValue(definition.key),
         );
       });
       renderSettingsTab(navigator);
@@ -467,6 +576,8 @@
       tabs,
       heading,
       description,
+      applicationScopeOption,
+      scopeSelect,
       searchInput,
       searchQuery: "",
       operationStatus: null,
@@ -517,6 +628,14 @@
     state.overlay.classList.add("open");
     state.dialog.classList.add("open");
     state.tabs.querySelector(".active")?.focus();
+  }
+
+  function toggleSettings(navigator) {
+    if (settingsState?.dialog.classList.contains("open")) {
+      closeSettings();
+      return;
+    }
+    openSettings(navigator);
   }
 
   function closeSettings() {
@@ -585,15 +704,12 @@
     SettingsDefinitions.forEach((definition) => {
       globalThis.GM_addValueChangeListener(
         definition.key,
-        (_key, _oldValue, newValue, remote) => {
+        (_key, _oldValue, _newValue, remote) => {
           if (!remote) {
             return;
           }
 
-          const value =
-            newValue === undefined
-              ? definition.defaultValue
-              : newValue;
+          const value = getSettingValue(definition.key);
           applySettingChange(navigator, definition, value);
 
           if (
@@ -604,6 +720,31 @@
         },
       );
     });
+    globalThis.GM_addValueChangeListener(
+      "powerBrowserApplicationProfiles",
+      (_key, _oldValue, _newValue, remote) => {
+        if (!remote) {
+          return;
+        }
+        applyEffectiveSettings(navigator);
+        if (settingsState?.dialog.classList.contains("open")) {
+          renderSettingsTab(navigator);
+        }
+      },
+    );
+    globalThis.GM_addValueChangeListener(
+      "powerBrowserSettingsWriteScope",
+      (_key, _oldValue, newValue, remote) => {
+        if (!remote || !settingsState) {
+          return;
+        }
+        settingsState.scopeSelect.value =
+          newValue === "application" ? "application" : "global";
+        if (settingsState.dialog.classList.contains("open")) {
+          renderSettingsTab(navigator);
+        }
+      },
+    );
   }
 
   function initializeSettings(navigator) {
@@ -617,7 +758,7 @@
     button.classList.remove(NAV_DISABLED_CLASS);
     button.setAttribute("aria-disabled", "false");
     button.title = "Power Browser settings";
-    button.addEventListener("click", () => openSettings(navigator));
+    button.addEventListener("click", () => toggleSettings(navigator));
 
     if (typeof GM_registerMenuCommand === "function") {
       GM_registerMenuCommand("Open Power Browser settings", () =>

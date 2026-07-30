@@ -2,9 +2,80 @@
     return SettingsDefinitions.find((setting) => setting.key === key) || null;
   }
 
-  function getSettingValue(key) {
+  function getGlobalSettingValue(key) {
     const definition = getSettingDefinition(key);
     return GM_getValue(key, definition?.defaultValue);
+  }
+
+  function getApplicationProfiles() {
+    const profiles = GM_getValue("powerBrowserApplicationProfiles", {});
+    return profiles && typeof profiles === "object" && !Array.isArray(profiles)
+      ? profiles
+      : {};
+  }
+
+  function getSettingValue(key) {
+    const identifier = currentPowerBrowserContext?.identifier;
+    return resolveEffectiveSetting(
+      getGlobalSettingValue(key),
+      getApplicationProfiles(),
+      identifier,
+      key,
+    );
+  }
+
+  function getEditableSettingValue(key) {
+    const identifier = currentPowerBrowserContext?.identifier;
+    const scope = GM_getValue("powerBrowserSettingsWriteScope", "global");
+    return resolveEditableSetting(
+      scope,
+      getGlobalSettingValue(key),
+      getApplicationProfiles(),
+      identifier,
+      key,
+    );
+  }
+
+  function hasCurrentApplicationSettingOverride(key) {
+    return hasApplicationOverride(
+      getApplicationProfiles(),
+      currentPowerBrowserContext?.identifier,
+      key,
+    );
+  }
+
+  function setSettingValue(key, value) {
+    const identifier = currentPowerBrowserContext?.identifier;
+    const scope = GM_getValue("powerBrowserSettingsWriteScope", "global");
+    if (scope === "application" && identifier) {
+      GM_setValue(
+        "powerBrowserApplicationProfiles",
+        setApplicationOverride(
+          getApplicationProfiles(),
+          identifier,
+          key,
+          value,
+        ),
+      );
+      return;
+    }
+    GM_setValue(key, value);
+  }
+
+  function clearCurrentApplicationSettingOverride(key) {
+    const identifier = currentPowerBrowserContext?.identifier;
+    if (!identifier) {
+      return false;
+    }
+    const profiles = getApplicationProfiles();
+    if (!hasApplicationOverride(profiles, identifier, key)) {
+      return false;
+    }
+    GM_setValue(
+      "powerBrowserApplicationProfiles",
+      removeApplicationOverride(profiles, identifier, key),
+    );
+    return true;
   }
 
   /**
@@ -12,20 +83,25 @@
    *
    * @returns {"light"|"dark"|"betty"}
    */
-  function getPowerBrowserTheme() {
+  function getPowerBrowserTheme(editable = false) {
     const storedTheme = GM_getValue("themeMode", null);
-    if (["light", "dark", "betty"].includes(storedTheme)) {
-      return storedTheme;
+    if (!["light", "dark", "betty"].includes(storedTheme)) {
+      const legacyDarkMode = GM_getValue("themeDarkMode", null);
+      if (legacyDarkMode !== null) {
+        GM_setValue(
+          "themeMode",
+          legacyDarkMode === true ? "dark" : "light",
+        );
+        GM_deleteValue("themeDarkMode");
+      }
     }
 
-    const legacyDarkMode = GM_getValue("themeDarkMode", null);
-    const migratedTheme =
-      legacyDarkMode === true ? "dark" : "light";
-    if (legacyDarkMode !== null) {
-      GM_setValue("themeMode", migratedTheme);
-      GM_deleteValue("themeDarkMode");
-    }
-    return migratedTheme;
+    const selectedTheme = editable
+      ? getEditableSettingValue("themeMode")
+      : getSettingValue("themeMode");
+    return ["light", "dark", "betty"].includes(selectedTheme)
+      ? selectedTheme
+      : "light";
   }
 
   const SETTINGS_SIZE_VALUES = Object.freeze([
@@ -53,8 +129,10 @@
     GM_deleteValue("seniorDeveloperMode");
   }
 
-  function getSettingsSize(key) {
-    const value = getSettingValue(key);
+  function getSettingsSize(key, editable = false) {
+    const value = editable
+      ? getEditableSettingValue(key)
+      : getSettingValue(key);
     return SETTINGS_SIZE_VALUES.includes(value) ? value : "md";
   }
 

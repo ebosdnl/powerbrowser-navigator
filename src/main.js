@@ -155,6 +155,8 @@
   );
   initializeSettings(navigator);
   initializeHoldToHideMenu(navigator);
+  initializeCommandPalette(navigator);
+  void initializeReleaseUpdateChecker(navigator);
   let artifactData = await fetchArtifact();
   const siteType = detectSiteType(artifactData);
   const applicationIdentifier = resolveApplicationIdentifier(artifactData);
@@ -239,5 +241,19 @@
   });
 
   window.powerBrowserV2 = powerBrowser;
+  window.setTimeout(() => {
+    if (!navigator.navigatorBar.isConnected) {
+      reportPowerBrowserHealthIssue(
+        "navigator",
+        "The navigation bar was removed from the page DOM.",
+      );
+    }
+    if (!navigator.controls.get("settingsButton") && !document.getElementById("settingsButton")) {
+      reportPowerBrowserHealthIssue(
+        "settings",
+        "The settings control could not be found.",
+      );
+    }
+  }, 1500);
   logger.info("Initialized.", powerBrowser);
 })();

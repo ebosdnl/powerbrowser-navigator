@@ -498,6 +498,19 @@
 
           const applicationFamily =
             data?.applicationFamily || null;
+          if (
+            applicationFamily &&
+            !Array.isArray(applicationFamily) &&
+            typeof applicationFamily !== "object"
+          ) {
+            reportPowerBrowserHealthIssue(
+              "application-family",
+              "My Betty returned an unexpected application-family response shape.",
+            );
+            throw new Error(
+              "Unexpected application-family response shape.",
+            );
+          }
           updatePowerBrowserDiagnostic(
             "applicationFamily",
             applicationFamily ? "success" : "warning",
@@ -587,6 +600,13 @@
           }
 
           const artifactData = await response.json();
+          if (!artifactData || typeof artifactData !== "object") {
+            reportPowerBrowserHealthIssue(
+              "artifact",
+              "The runtime artifact response is not a JSON object.",
+            );
+            throw new Error("Unexpected runtime artifact response shape.");
+          }
           updatePowerBrowserDiagnostic(
             "artifact",
             "success",

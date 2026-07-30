@@ -2,7 +2,9 @@
 // @name         Power Browser Navigator V2
 // @description  Easier navigation to the playground, page-builder and backoffice. Feature flag setter and extra productivity scripts.
 // @tag          Productivity
-// @version      3.1.5
+// @version      3.2.6
+// @updateURL    https://github.com/ebosdnl/powerbrowser-navigator/releases/latest/download/bb-powerbrowser.user.js
+// @downloadURL  https://github.com/ebosdnl/powerbrowser-navigator/releases/latest/download/bb-powerbrowser.user.js
 // @author       Enrique Bos, Menno Weijling (OG grondlegger), Sven Truschel, Hacker
 // @match        https://*.betty.app/*
 // @match        https://*.betty.services/*
@@ -40,6 +42,7 @@
 // @grant        GM_deleteValue
 // @grant        GM_openInTab
 // @grant        GM_registerMenuCommand
+// @grant        GM_notification
 // @grant        GM_cookie
 // @grant        GM_info
 // @grant        unsafeWindow

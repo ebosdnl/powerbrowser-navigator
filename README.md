@@ -59,6 +59,21 @@ family.
 duplicate keys, missing tabs, unsupported control types, missing labels or
 descriptions, and invalid toggle defaults. It is included in `npm run check`.
 
+## Productivity and safety
+
+- Production environments can receive a red indicator when the environment
+  badge setting is enabled.
+- The sandbox switcher includes the current application family and recent
+  applications.
+- Settings can be edited globally or as named overrides for the current
+  application. Overrides remain effective while viewing the global layer and
+  can be returned to their inherited value individually.
+- `Ctrl+Shift+P` opens a command palette for navigation, sandbox switching,
+  model search, and common actions.
+- Published GitHub Releases are checked for updates and can be installed
+  through the userscript manager.
+- Extension health issues are recorded in the redacted diagnostics timeline.
+
 ## Releases
 
 Pull requests and pushes to `main` run linting, formatting checks, unit tests,

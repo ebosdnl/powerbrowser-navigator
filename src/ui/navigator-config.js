@@ -3,6 +3,10 @@
     { artifactData, siteType, identifier, applicationFamily = null },
   ) {
     if (!identifier) {
+      reportPowerBrowserHealthIssue(
+        "navigator",
+        "The current application identifier is unavailable; navigation links cannot be configured.",
+      );
       return;
     }
 
@@ -251,6 +255,53 @@
 
     const currentSandboxName =
       currentApplication?.name || currentIdentifier || "Unknown";
+    const environmentKind = currentApplication
+      ? !currentApplication.parentId && !currentApplication.parent
+        ? "production"
+        : currentApplication.isBranch
+          ? "branch"
+          : "sandbox"
+      : "unknown";
+    navigator.navigatorBar.dataset.currentEnvironment = environmentKind;
+    const showEnvironmentBadge = Boolean(
+      getSettingValue("environmentSafetyBadge"),
+    );
+    navigator.environmentBadge.hidden = !showEnvironmentBadge;
+    if (showEnvironmentBadge) {
+      navigator.navigatorBar.dataset.environment = environmentKind;
+    } else {
+      delete navigator.navigatorBar.dataset.environment;
+    }
+    navigator.environmentBadge.textContent =
+      environmentKind === "production"
+        ? "PROD"
+        : environmentKind === "branch"
+          ? "BRANCH"
+          : environmentKind === "sandbox"
+            ? "SANDBOX"
+            : "UNKNOWN";
+
+    const knownApplications = GM_getValue(
+      "powerBrowserKnownApplications",
+      {},
+    );
+    orderedApplications.forEach(({ application }) => {
+      knownApplications[application.identifier] = {
+        identifier: application.identifier,
+        name: application.name || application.identifier,
+        url: application.url || "",
+        lastSeenAt: new Date().toISOString(),
+      };
+    });
+    GM_setValue("powerBrowserKnownApplications", knownApplications);
+    const recentApplications = GM_getValue(
+      "powerBrowserRecentApplications",
+      [],
+    ).filter((value) => value !== currentIdentifier);
+    GM_setValue("powerBrowserRecentApplications", [
+      currentIdentifier,
+      ...recentApplications,
+    ].slice(0, 12));
     navigator.stateToggleLabel.textContent = currentSandboxName;
     navigator.stateToggle.setAttribute(
       "aria-label",
@@ -301,6 +352,48 @@
 
       navigator.stateMenu.appendChild(option);
     });
+
+    const familyIdentifiers = new Set(
+      orderedApplications.map(({ application }) => application.identifier),
+    );
+    const externalIdentifiers = recentApplications
+      .filter(
+        (identifier, index, values) =>
+          identifier &&
+          !familyIdentifiers.has(identifier) &&
+          values.indexOf(identifier) === index &&
+          knownApplications[identifier],
+      )
+      .slice(0, 8);
+    if (externalIdentifiers.length && siteType !== SiteType.PLAYGROUND) {
+      const heading = document.createElement("small");
+      heading.className = "power-browser-state-group-v2";
+      heading.textContent = "Recent applications";
+      navigator.stateMenu.appendChild(heading);
+      externalIdentifiers.forEach((identifier) => {
+        const known = knownApplications[identifier];
+        const option = document.createElement("button");
+        option.type = "button";
+        option.className = "power-browser-state-option-v2";
+        const label = document.createElement("span");
+        label.textContent = known.name || identifier;
+        const meta = document.createElement("small");
+        meta.textContent = "Recent";
+        option.append(label, meta);
+        option.addEventListener("click", () => {
+          const target = new URL(location.href);
+          if (target.hostname.startsWith(`${currentIdentifier}.`)) {
+            target.hostname =
+              identifier +
+              target.hostname.slice(currentIdentifier.length);
+            location.assign(target.href);
+          } else if (known.url) {
+            location.assign(known.url);
+          }
+        });
+        navigator.stateMenu.appendChild(option);
+      });
+    }
 
     updateApplicationSwitcherStatus(
       "ready",

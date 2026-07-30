@@ -138,6 +138,15 @@
       defaultValue: false,
     },
     {
+      key: "environmentSafetyBadge",
+      tab: "general",
+      section: "Environment safety",
+      label: "Environment badge",
+      description: "Show whether the current application is production, sandbox, or branch.",
+      type: "toggle",
+      defaultValue: false,
+    },
+    {
       key: "buttonBackOfficeHidden",
       tab: "betty5",
       section: "Navigation visibility",
@@ -392,6 +401,14 @@
       description: "Open or close model and property search.",
       type: "shortcut",
       defaultValue: "Ctrl+Shift+K",
+    },
+    {
+      key: "extraCommandPaletteShortcut",
+      tab: "shortcuts",
+      label: "Command palette",
+      description: "Search navigation destinations and Power Browser actions.",
+      type: "shortcut",
+      defaultValue: "Ctrl+Shift+P",
     },
     {
       key: "extraDialogCloseShortcut",

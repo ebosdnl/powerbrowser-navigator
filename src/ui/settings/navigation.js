@@ -9,7 +9,13 @@
     }
 
     if (tabId === "settings") {
-      return ["Appearance", "Data", "Danger zone"];
+      return [
+        "Appearance",
+        "Updates",
+        "Data",
+        "Application profiles",
+        "Danger zone",
+      ];
     }
 
     return [
