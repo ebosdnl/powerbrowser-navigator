@@ -1567,6 +1567,345 @@
       text-align: center;
     }
 
+    .power-browser-education-overlay-v2 {
+      position: fixed;
+      inset: 0;
+      display: none;
+      background: rgba(19, 23, 34, 0.5);
+      backdrop-filter: blur(4px);
+      z-index: 2147483646;
+    }
+
+    .power-browser-education-overlay-v2.open {
+      display: block;
+    }
+
+    .power-browser-education-dialog-v2 {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      display: none;
+      width: min(680px, calc(100vw - 32px));
+      max-height: min(760px, calc(100vh - 32px));
+      overflow: hidden;
+      transform: translate(-50%, -50%);
+      color: #2d3140;
+      background: #f7f7f9;
+      border: 1px solid rgba(233, 0, 76, 0.24);
+      border-radius: 16px;
+      box-shadow: 0 32px 100px rgba(15, 18, 28, 0.34);
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI",
+        sans-serif;
+      z-index: 2147483647;
+    }
+
+    .power-browser-education-dialog-v2.open {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .power-browser-education-header-v2 {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 24px 26px 20px;
+      color: #fff;
+      background: #292d3d;
+    }
+
+    .power-browser-education-eyebrow-v2 {
+      display: block;
+      margin-bottom: 6px;
+      color: #ff8eb3;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+    }
+
+    .power-browser-education-header-v2 h2 {
+      margin: 0;
+      padding: 0;
+      color: inherit;
+      font-size: 24px;
+      letter-spacing: -0.03em;
+    }
+
+    .power-browser-education-header-v2 p {
+      max-width: 520px;
+      margin: 7px 0 0;
+      color: #c4c8d3;
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    .power-browser-education-close-v2 {
+      flex: 0 0 auto;
+      width: 34px;
+      height: 34px;
+      padding: 0;
+      color: #e0e2e8;
+      background: rgba(255, 255, 255, 0.08);
+      border: 0;
+      border-radius: 8px;
+      font-size: 22px;
+      line-height: 1;
+      cursor: pointer;
+    }
+
+    .power-browser-education-close-v2:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.16);
+    }
+
+    .power-browser-education-body-v2 {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      min-height: 0;
+      padding: 18px;
+      overflow-y: auto;
+    }
+
+    .power-browser-education-feature-v2 {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      align-items: start;
+      gap: 11px;
+      padding: 15px;
+      background: #fff;
+      border: 1px solid #e1e3e8;
+      border-radius: 11px;
+    }
+
+    .power-browser-education-icon-v2 {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      color: #9c1742;
+      background: #ffe3ec;
+      border-radius: 9px;
+      font-size: 13px;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .power-browser-education-feature-v2 > div > strong,
+    .power-browser-education-feature-v2 > div > span {
+      display: block;
+    }
+
+    .power-browser-education-feature-v2 strong {
+      color: #303442;
+      font-size: 12px;
+    }
+
+    .power-browser-education-feature-v2 div > span {
+      margin-top: 5px;
+      color: #737986;
+      font-size: 10px;
+      line-height: 1.5;
+    }
+
+    .power-browser-education-footer-v2 {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      padding: 14px 18px;
+      background: #fff;
+      border-top: 1px solid #e1e3e8;
+    }
+
+    .power-browser-education-primary-v2,
+    .power-browser-education-secondary-v2 {
+      min-height: 38px;
+      padding: 9px 14px;
+      border: 1px solid #d4d6dd;
+      border-radius: 8px;
+      font: 700 11px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI",
+        sans-serif;
+      cursor: pointer;
+    }
+
+    .power-browser-education-secondary-v2 {
+      color: #444a58;
+      background: #fff;
+    }
+
+    .power-browser-education-secondary-v2:hover {
+      color: #e9004c;
+      background: #fff7fa;
+      border-color: #ef9db9;
+    }
+
+    .power-browser-education-primary-v2 {
+      color: #fff;
+      background: #e9004c;
+      border-color: #e9004c;
+    }
+
+    .power-browser-education-primary-v2:hover {
+      background: #c90042;
+      border-color: #c90042;
+    }
+
+    .power-browser-sr-only-v2 {
+      position: fixed !important;
+      width: 1px !important;
+      height: 1px !important;
+      padding: 0 !important;
+      overflow: hidden !important;
+      clip: rect(0, 0, 0, 0) !important;
+      white-space: nowrap !important;
+      border: 0 !important;
+    }
+
+    .power-browser-dark-v2.power-browser-command-dialog-v2,
+    .power-browser-dark-v2.power-browser-education-dialog-v2 {
+      color: #f4f5f7;
+      background: #1f2330;
+      border-color: #494f60;
+    }
+
+    .power-browser-dark-v2 .power-browser-command-input-v2,
+    .power-browser-dark-v2 .power-browser-command-result-v2 {
+      color: #f4f5f7;
+      background: #282d3b;
+      border-color: #404657;
+    }
+
+    .power-browser-dark-v2 .power-browser-command-result-v2:hover,
+    .power-browser-dark-v2 .power-browser-command-result-v2.active {
+      color: #fff;
+      background: #343949;
+    }
+
+    .power-browser-dark-v2 .power-browser-command-empty-v2,
+    .power-browser-dark-v2 .power-browser-education-feature-v2 div > span {
+      color: #aeb4c2;
+    }
+
+    .power-browser-dark-v2 .power-browser-education-feature-v2,
+    .power-browser-dark-v2 .power-browser-education-footer-v2 {
+      color: #f4f5f7;
+      background: #282d3b;
+      border-color: #404657;
+    }
+
+    .power-browser-dark-v2
+      .power-browser-education-feature-v2
+      strong {
+      color: #f4f5f7;
+    }
+
+    .power-browser-dark-v2 .power-browser-education-icon-v2 {
+      color: #ff9cbd;
+      background: #4b2838;
+    }
+
+    .power-browser-dark-v2 .power-browser-education-secondary-v2 {
+      color: #d5d8e0;
+      background: #282d3b;
+      border-color: #565c6d;
+    }
+
+    .power-browser-betty-theme-v2.power-browser-command-dialog-v2,
+    .power-browser-betty-theme-v2.power-browser-education-dialog-v2 {
+      border-color: #7189ff;
+      box-shadow: 0 28px 90px rgba(57, 90, 252, 0.28);
+    }
+
+    .power-browser-betty-theme-v2
+      .power-browser-education-header-v2 {
+      background: linear-gradient(
+        259deg,
+        rgb(233, 0, 76) 0%,
+        rgb(57, 90, 252) 52%,
+        rgb(17, 171, 209) 100%
+      );
+    }
+
+    .power-browser-betty-theme-v2
+      .power-browser-education-eyebrow-v2,
+    .power-browser-betty-theme-v2
+      .power-browser-education-header-v2
+      p {
+      color: rgba(255, 255, 255, 0.86);
+    }
+
+    .power-browser-betty-theme-v2
+      .power-browser-command-result-v2:hover,
+    .power-browser-betty-theme-v2
+      .power-browser-command-result-v2.active {
+      color: #233fc4;
+      background: linear-gradient(
+        90deg,
+        rgba(233, 0, 76, 0.08),
+        rgba(57, 90, 252, 0.12),
+        rgba(17, 171, 209, 0.1)
+      );
+    }
+
+    .power-browser-betty-theme-v2
+      .power-browser-education-icon-v2 {
+      color: #314fcf;
+      background: #e8edff;
+    }
+
+    :is(
+        .power-browser-settings-dialog-v2,
+        .power-browser-model-search-dialog-v2,
+        .power-browser-artifact-dialog-v2,
+        .power-browser-command-dialog-v2,
+        .power-browser-education-dialog-v2
+      )
+      :is(button, a, input, select, textarea):focus-visible {
+      outline: 2px solid #e9004c;
+      outline-offset: 2px;
+    }
+
+    :is(
+        .power-browser-settings-dialog-v2,
+        .power-browser-model-search-dialog-v2,
+        .power-browser-artifact-dialog-v2,
+        .power-browser-command-dialog-v2,
+        .power-browser-education-dialog-v2
+      )
+      :is(button, a, input, select, textarea) {
+      transition:
+        color 140ms ease,
+        background-color 140ms ease,
+        border-color 140ms ease,
+        box-shadow 140ms ease;
+    }
+
+    :is(
+        .power-browser-settings-dialog-v2,
+        .power-browser-model-search-dialog-v2,
+        .power-browser-artifact-dialog-v2,
+        .power-browser-command-dialog-v2,
+        .power-browser-education-dialog-v2
+      )
+      :is(button, input, select, textarea):disabled {
+      opacity: 0.62;
+    }
+
+    :is(
+        .power-browser-dark-v2,
+        .power-browser-betty-theme-v2
+      )
+      :is(button, a, input, select, textarea):focus-visible {
+      outline-color: #ff5c91;
+    }
+
+    .power-browser-betty-theme-v2
+      :is(button, a, input, select, textarea):focus-visible {
+      outline-color: #395afc;
+    }
+
     .power-browser-settings-info-title-v2 {
       display: flex;
       align-items: center;
@@ -2956,5 +3295,53 @@
 
       .power-browser-settings-size-picker-v2 {
         width: 100%;
+      }
+
+      .power-browser-education-body-v2 {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .power-browser-education-header-v2 {
+        padding: 20px;
+      }
+
+      .power-browser-education-footer-v2 {
+        align-items: stretch;
+        flex-direction: column-reverse;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      :is(
+          .power-browser-settings-dialog-v2,
+          .power-browser-model-search-dialog-v2,
+          .power-browser-artifact-dialog-v2,
+          .power-browser-command-dialog-v2,
+          .power-browser-education-dialog-v2,
+          .nav-container-1c7b2759-c793-4d17-b89b-1da6c5c5cf5b
+        )
+        *,
+      :is(
+          .power-browser-settings-dialog-v2,
+          .power-browser-model-search-dialog-v2,
+          .power-browser-artifact-dialog-v2,
+          .power-browser-command-dialog-v2,
+          .power-browser-education-dialog-v2,
+          .nav-container-1c7b2759-c793-4d17-b89b-1da6c5c5cf5b
+        )
+        *::before,
+      :is(
+          .power-browser-settings-dialog-v2,
+          .power-browser-model-search-dialog-v2,
+          .power-browser-artifact-dialog-v2,
+          .power-browser-command-dialog-v2,
+          .power-browser-education-dialog-v2,
+          .nav-container-1c7b2759-c793-4d17-b89b-1da6c5c5cf5b
+        )
+        *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
       }
     }

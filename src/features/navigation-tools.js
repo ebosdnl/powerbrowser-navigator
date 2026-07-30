@@ -397,6 +397,8 @@
     dialog.setAttribute("role", "dialog");
     dialog.setAttribute("aria-modal", "true");
     dialog.setAttribute("aria-label", "Search models and properties");
+    dialog.setAttribute("aria-hidden", "true");
+    overlay.setAttribute("aria-hidden", "true");
 
     const header = document.createElement("div");
     header.className = "power-browser-model-search-header-v2";
@@ -638,13 +640,18 @@
       return;
     }
 
-    modelSearchState.lastFocusedElement = document.activeElement;
     modelSearchState.input.value = "";
     modelSearchState.shortcut.textContent = getModelSearchShortcut();
     modelSearchState.overlay.classList.add("open");
     modelSearchState.dialog.classList.add("open");
     renderModelSearchResults();
-    setTimeout(() => modelSearchState?.input.focus(), 0);
+    openPowerBrowserModal({
+      dialog: modelSearchState.dialog,
+      overlay: modelSearchState.overlay,
+      close: closeModelSearch,
+      initialFocus: modelSearchState.input,
+      announcement: "Model search opened.",
+    });
   }
 
   function closeModelSearch() {
@@ -654,10 +661,7 @@
 
     modelSearchState.overlay.classList.remove("open");
     modelSearchState.dialog.classList.remove("open");
-
-    if (modelSearchState.lastFocusedElement instanceof window.HTMLElement) {
-      modelSearchState.lastFocusedElement.focus();
-    }
+    closePowerBrowserModal(modelSearchState.dialog);
   }
 
   function toggleModelSearch() {

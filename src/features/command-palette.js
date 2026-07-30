@@ -125,7 +125,7 @@
     }
 
     if (getCurrentArtifact()) {
-      buildArtifactSearchEntries(getCurrentArtifact())
+      getArtifactExplorerEntries()
         .filter(
           (entry) =>
             !["models", "properties", "pages"].includes(
@@ -183,6 +183,9 @@
     );
     commandPaletteState.results.replaceChildren();
     if (!commandPaletteState.filtered.length) {
+      commandPaletteState.input.removeAttribute(
+        "aria-activedescendant",
+      );
       const empty = document.createElement("div");
       empty.className = "power-browser-command-empty-v2";
       empty.textContent = "No matching commands.";
@@ -193,9 +196,15 @@
       const button = document.createElement("button");
       button.type = "button";
       button.className = "power-browser-command-result-v2";
+      button.id = `power-browser-command-result-${index}-v2`;
+      button.setAttribute("role", "option");
       button.classList.toggle(
         "active",
         index === commandPaletteState.activeIndex,
+      );
+      button.setAttribute(
+        "aria-selected",
+        String(index === commandPaletteState.activeIndex),
       );
       button.textContent = command.label;
       button.addEventListener("mouseenter", () => {
@@ -210,6 +219,10 @@
       );
       commandPaletteState.results.appendChild(button);
     });
+    commandPaletteState.input.setAttribute(
+      "aria-activedescendant",
+      `power-browser-command-result-${commandPaletteState.activeIndex}-v2`,
+    );
   }
 
   function executeCommandPaletteCommand(command) {
@@ -228,13 +241,22 @@
     dialog.setAttribute("role", "dialog");
     dialog.setAttribute("aria-modal", "true");
     dialog.setAttribute("aria-label", "Power Browser command palette");
+    dialog.setAttribute("aria-hidden", "true");
+    overlay.setAttribute("aria-hidden", "true");
     const input = document.createElement("input");
     input.type = "search";
     input.className = "power-browser-command-input-v2";
     input.placeholder = "Type a command or destination…";
     input.setAttribute("aria-label", "Search commands");
+    input.setAttribute(
+      "aria-controls",
+      "power-browser-command-results-v2",
+    );
     const results = document.createElement("div");
     results.className = "power-browser-command-results-v2";
+    results.id = "power-browser-command-results-v2";
+    results.setAttribute("role", "listbox");
+    results.setAttribute("aria-label", "Available commands");
     dialog.append(input, results);
     document.body.append(overlay, dialog);
     commandPaletteState = {
@@ -261,14 +283,28 @@
     closeSettings();
     closeModelSearch();
     closeArtifactExplorer();
-    state.lastFocusedElement = document.activeElement;
+    const theme = getPowerBrowserTheme();
+    state.dialog.classList.toggle(
+      "power-browser-dark-v2",
+      theme === "dark",
+    );
+    state.dialog.classList.toggle(
+      "power-browser-betty-theme-v2",
+      theme === "betty",
+    );
     state.commands = buildPowerBrowserCommands(navigator);
     state.input.value = "";
     state.activeIndex = 0;
     state.overlay.classList.add("open");
     state.dialog.classList.add("open");
     renderCommandPaletteResults();
-    setTimeout(() => state.input.focus(), 0);
+    openPowerBrowserModal({
+      dialog: state.dialog,
+      overlay: state.overlay,
+      close: closeCommandPalette,
+      initialFocus: state.input,
+      announcement: "Command palette opened.",
+    });
   }
 
   function closeCommandPalette() {
@@ -277,7 +313,7 @@
     }
     commandPaletteState.overlay.classList.remove("open");
     commandPaletteState.dialog.classList.remove("open");
-    commandPaletteState.lastFocusedElement?.focus?.();
+    closePowerBrowserModal(commandPaletteState.dialog);
   }
 
   function handleCommandPaletteKeydown(event, navigator) {

@@ -53,6 +53,14 @@ The sandbox switcher uses a shared authentication state and offers Retry and
 Open My Betty actions when automatic recovery cannot load the application
 family.
 
+## Privacy and security
+
+Power Browser runs locally without analytics, telemetry, advertising, or a
+Power Browser-operated backend. It stores preferences, application overrides,
+cached update metadata, diagnostics, and artifact snapshots in the userscript
+manager. See [PRIVACY.md](PRIVACY.md) for network access, credential handling,
+local storage, and safe diagnostic-sharing details.
+
 ## Settings schema
 
 `npm run validate:settings` validates the real settings configuration for
@@ -70,6 +78,8 @@ descriptions, and invalid toggle defaults. It is included in `npm run check`.
   can be returned to their inherited value individually.
 - `Ctrl+Shift+U` opens a command palette for navigation, sandbox switching,
   model search, and common actions.
+- First-time users receive a compact feature guide, while each newly installed
+  version shows its What’s New summary once.
 - The command palette indexes artifact pages, endpoints, actions, models,
   properties, forms, variables, partials, and file assets.
 - Artifact Explorer provides ID-based relationship inspection, structural
@@ -78,6 +88,8 @@ descriptions, and invalid toggle defaults. It is included in `npm run check`.
 - Published GitHub Releases are checked for updates and can be installed
   through the userscript manager.
 - Extension health issues are recorded in the redacted diagnostics timeline.
+- Artifact search indexes are built on demand and reused until the loaded
+  artifact changes.
 
 ## Releases
 

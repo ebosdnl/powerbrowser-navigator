@@ -153,6 +153,8 @@
       navigator.navigatorBar,
       modelSearchState?.dialog,
       artifactExplorerState?.dialog,
+      commandPaletteState?.dialog,
+      powerBrowserEducationState?.dialog,
       settingsState?.dialog,
     ].filter(Boolean);
 

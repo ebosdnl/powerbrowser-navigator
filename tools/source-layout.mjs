@@ -1,5 +1,6 @@
 export const sourceLayout = [
   "src/core/bootstrap.js",
+  "src/ui/dialog-accessibility.js",
   "src/config/definitions.js",
   "src/api/platform.js",
   "src/ui/navigator-shell.js",
@@ -20,6 +21,7 @@ export const sourceLayout = [
   "src/features/navigation-tools.js",
   "src/features/artifact-explorer.js",
   "src/features/release-updates.js",
+  "src/features/product-education.js",
   "src/features/command-palette.js",
   "src/ui/navigator-config.js",
   "src/main.js",

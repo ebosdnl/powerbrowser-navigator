@@ -19,9 +19,15 @@
    * @param {string} title
    * @param {Array<[string, unknown]>} entries
    * @param {string} [status]
+   * @param {boolean} [copyable]
    * @returns {HTMLElement}
    */
-  function createSettingsInfoCard(title, entries, status = "") {
+  function createSettingsInfoCard(
+    title,
+    entries,
+    status = "",
+    copyable = true,
+  ) {
     const card = document.createElement("div");
     card.className =
       "power-browser-settings-card-v2 power-browser-settings-info-card-v2";
@@ -58,7 +64,7 @@
         : "Unavailable";
       value.textContent = displayValue;
       valueRow.appendChild(value);
-      if (hasValue) {
+      if (hasValue && copyable) {
         const copyButton = document.createElement("button");
         copyButton.type = "button";
         copyButton.className =
@@ -376,6 +382,8 @@
     const status = document.createElement("span");
     status.className =
       "power-browser-settings-operation-status-v2";
+    status.setAttribute("role", "status");
+    status.setAttribute("aria-live", "polite");
     if (settingsState.infoOperationStatus) {
       status.dataset.status =
         settingsState.infoOperationStatus.status;
@@ -398,6 +406,7 @@
           status: "success",
           message: "Data refreshed.",
         };
+        announcePowerBrowser("Power Browser data refreshed.");
         status.dataset.status = "success";
         status.textContent = "Data refreshed.";
         renderSettingsTab(navigator);
@@ -413,6 +422,10 @@
         status.textContent =
           settingsState.infoOperationStatus.message;
         refreshButton.disabled = false;
+        announcePowerBrowser(
+          settingsState.infoOperationStatus.message,
+          "assertive",
+        );
       }
     });
     copyButton.addEventListener("click", () => {
@@ -429,6 +442,9 @@
       };
       status.dataset.status = "success";
       status.textContent = "Diagnostics copied.";
+      announcePowerBrowser(
+        "Redacted Power Browser diagnostics copied.",
+      );
     });
     actions.append(
       refreshButton,
@@ -441,8 +457,44 @@
     appendSettingsSectionHeading(
       settingsState.list,
       "info",
-      "Event timeline",
+      "Privacy & security",
       4,
+    );
+    settingsState.list.appendChild(
+      createSettingsInfoCard(
+        "Local-first operation",
+        [
+          [
+            "Network",
+            "Betty Blocks hosts provide application data; GitHub Releases provides update metadata.",
+          ],
+          [
+            "Local storage",
+            "Preferences, application overrides, update metadata, diagnostics, and artifact snapshots stay in the userscript manager.",
+          ],
+          [
+            "Credentials",
+            "Existing session credentials are used only for requested Betty Blocks features and are not sent to a Power Browser service.",
+          ],
+          [
+            "Diagnostics",
+            "Common authorization, cookie, CSRF, password, secret, and token fields are redacted before copying.",
+          ],
+          [
+            "Analytics",
+            "No analytics, advertising, or Power Browser telemetry is included.",
+          ],
+        ],
+        "",
+        false,
+      ),
+    );
+
+    appendSettingsSectionHeading(
+      settingsState.list,
+      "info",
+      "Event timeline",
+      5,
     );
     const timeline = document.createElement("ol");
     timeline.className = "power-browser-settings-timeline-v2";

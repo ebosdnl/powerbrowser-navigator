@@ -125,7 +125,7 @@
       description:
         "Keep the current application name visible while Icons only is enabled.",
       type: "toggle",
-      defaultValue: false,
+      defaultValue: true,
       enabledWhenIconOnly: true,
     },
     {

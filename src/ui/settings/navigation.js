@@ -5,6 +5,8 @@
         "Sandboxes",
         "Artifact",
         "Diagnostics",
+        "Privacy & security",
+        "Event timeline",
       ];
     }
 

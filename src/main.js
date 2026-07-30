@@ -223,6 +223,7 @@
   subscribePowerBrowserNavigation(() =>
     synchronizePowerBrowserRoute(navigator),
   );
+  initializePowerBrowserEducation(navigator);
 
   // Keep this result easy to inspect and reuse while v2 is being developed.
   const powerBrowser = Object.freeze({

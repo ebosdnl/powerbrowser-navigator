@@ -68,6 +68,7 @@
           buttonSections.length > 0,
         );
         button.setAttribute("aria-selected", String(isActive));
+        button.tabIndex = isActive ? 0 : -1;
         button.setAttribute(
           "aria-expanded",
           String(
@@ -383,6 +384,8 @@
     dialog.setAttribute("role", "dialog");
     dialog.setAttribute("aria-modal", "true");
     dialog.setAttribute("aria-label", "Power Browser settings");
+    dialog.setAttribute("aria-hidden", "true");
+    overlay.setAttribute("aria-hidden", "true");
 
     const sidebar = document.createElement("aside");
     sidebar.className = "power-browser-settings-sidebar-v2";
@@ -401,6 +404,33 @@
       button.dataset.tab = tab.id;
       button.textContent = tab.label;
       button.setAttribute("role", "tab");
+      button.addEventListener("keydown", (event) => {
+        if (
+          !["ArrowUp", "ArrowDown", "Home", "End"].includes(
+            event.key,
+          )
+        ) {
+          return;
+        }
+        event.preventDefault();
+        const buttons = [
+          ...tabs.querySelectorAll(
+            ".power-browser-settings-tab-v2",
+          ),
+        ];
+        const currentIndex = buttons.indexOf(button);
+        const nextIndex =
+          event.key === "Home"
+            ? 0
+            : event.key === "End"
+              ? buttons.length - 1
+              : (currentIndex +
+                    (event.key === "ArrowDown" ? 1 : -1) +
+                    buttons.length) %
+                buttons.length;
+        buttons[nextIndex].click();
+        buttons[nextIndex].focus();
+      });
       button.addEventListener("click", () => {
         settingsState.searchQuery = "";
         settingsState.searchInput.value = "";
@@ -622,12 +652,17 @@
 
   function openSettings(navigator) {
     const state = ensureSettingsDialog(navigator);
-    state.lastFocusedElement = document.activeElement;
     state.sectionsExpanded = true;
     renderSettingsTab(navigator);
     state.overlay.classList.add("open");
     state.dialog.classList.add("open");
-    state.tabs.querySelector(".active")?.focus();
+    openPowerBrowserModal({
+      dialog: state.dialog,
+      overlay: state.overlay,
+      close: closeSettings,
+      initialFocus: () => state.tabs.querySelector(".active"),
+      announcement: "Power Browser settings opened.",
+    });
   }
 
   function toggleSettings(navigator) {
@@ -645,7 +680,7 @@
 
     settingsState.overlay.classList.remove("open");
     settingsState.dialog.classList.remove("open");
-    settingsState.lastFocusedElement?.focus?.();
+    closePowerBrowserModal(settingsState.dialog);
   }
 
   function handleSettingsGlobalShortcut(event, navigator) {

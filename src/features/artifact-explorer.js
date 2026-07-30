@@ -1,9 +1,27 @@
+  let powerBrowserArtifactIndexSource = null;
+  let powerBrowserArtifactIndex = [];
+
   function getCurrentArtifact() {
     return currentPowerBrowserContext?.artifactData || null;
   }
 
   function getArtifactExplorerEntries() {
-    return buildArtifactSearchEntries(getCurrentArtifact());
+    const artifact = getCurrentArtifact();
+    if (!artifact) {
+      powerBrowserArtifactIndexSource = null;
+      powerBrowserArtifactIndex = [];
+      return powerBrowserArtifactIndex;
+    }
+    if (artifact !== powerBrowserArtifactIndexSource) {
+      powerBrowserArtifactIndexSource = artifact;
+      powerBrowserArtifactIndex = buildArtifactSearchEntries(artifact);
+      diagnosticTimeline.add({
+        source: "artifact-index",
+        status: "success",
+        message: `Indexed ${powerBrowserArtifactIndex.length} artifact entries on demand.`,
+      });
+    }
+    return powerBrowserArtifactIndex;
   }
 
   function createArtifactExplorerButton(label, className = "") {
@@ -63,9 +81,10 @@
       "Copy JSON",
       "power-browser-artifact-action-v2",
     );
-    copyJson.addEventListener("click", () =>
-      GM_setClipboard(JSON.stringify(entry.record, null, 2)),
-    );
+    copyJson.addEventListener("click", () => {
+      GM_setClipboard(JSON.stringify(entry.record, null, 2));
+      announcePowerBrowser(`${entry.label} JSON copied.`);
+    });
     actions.append(relationships, copyJson);
     heading.append(copy, actions);
     const data = document.createElement("pre");
@@ -303,9 +322,10 @@
         "power-browser-artifact-action-v2",
       );
       copyMutation.disabled = !selected.record.mutation;
-      copyMutation.addEventListener("click", () =>
-        GM_setClipboard(String(selected.record.mutation || "")),
-      );
+      copyMutation.addEventListener("click", () => {
+        GM_setClipboard(String(selected.record.mutation || ""));
+        announcePowerBrowser(`${selected.label} mutation copied.`);
+      });
       const relationships = createArtifactExplorerButton(
         "Relationships",
         "power-browser-artifact-action-v2",
@@ -520,6 +540,7 @@
           button.dataset.tab === artifactExplorerState.activeTab;
         button.classList.toggle("active", active);
         button.setAttribute("aria-selected", String(active));
+        button.tabIndex = active ? 0 : -1;
       });
     artifactExplorerState.body.replaceChildren();
     if (!getCurrentArtifact()) {
@@ -555,6 +576,8 @@
     dialog.setAttribute("role", "dialog");
     dialog.setAttribute("aria-modal", "true");
     dialog.setAttribute("aria-label", "Power Browser Artifact Explorer");
+    dialog.setAttribute("aria-hidden", "true");
+    overlay.setAttribute("aria-hidden", "true");
     const header = document.createElement("header");
     header.className = "power-browser-artifact-header-v2";
     const title = document.createElement("div");
@@ -579,6 +602,29 @@
       const button = createArtifactExplorerButton(label);
       button.dataset.tab = id;
       button.setAttribute("role", "tab");
+      button.addEventListener("keydown", (event) => {
+        if (
+          !["ArrowLeft", "ArrowRight", "Home", "End"].includes(
+            event.key,
+          )
+        ) {
+          return;
+        }
+        event.preventDefault();
+        const buttons = [...tabs.querySelectorAll('[role="tab"]')];
+        const currentIndex = buttons.indexOf(button);
+        const nextIndex =
+          event.key === "Home"
+            ? 0
+            : event.key === "End"
+              ? buttons.length - 1
+              : (currentIndex +
+                    (event.key === "ArrowRight" ? 1 : -1) +
+                    buttons.length) %
+                buttons.length;
+        buttons[nextIndex].click();
+        buttons[nextIndex].focus();
+      });
       button.addEventListener("click", () => {
         artifactExplorerState.activeTab = id;
         renderArtifactExplorer();
@@ -622,7 +668,6 @@
     const state = ensureArtifactExplorer(navigator);
     closeSettings();
     closeModelSearch();
-    state.lastFocusedElement = document.activeElement;
     if (entry) {
       state.selectedEntry = entry;
       if (entry.collection === "actions") {
@@ -635,6 +680,15 @@
     state.overlay.classList.add("open");
     state.dialog.classList.add("open");
     renderArtifactExplorer();
+    openPowerBrowserModal({
+      dialog: state.dialog,
+      overlay: state.overlay,
+      close: closeArtifactExplorer,
+      initialFocus: () =>
+        state.body.querySelector("input, button") ||
+        state.tabs.querySelector(".active"),
+      announcement: "Artifact Explorer opened.",
+    });
   }
 
   function closeArtifactExplorer() {
@@ -643,7 +697,7 @@
     }
     artifactExplorerState.overlay.classList.remove("open");
     artifactExplorerState.dialog.classList.remove("open");
-    artifactExplorerState.lastFocusedElement?.focus?.();
+    closePowerBrowserModal(artifactExplorerState.dialog);
   }
 
   function initializeArtifactExplorer(navigator) {
