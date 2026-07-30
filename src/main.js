@@ -117,6 +117,11 @@
   applyNextgenActionPlaygroundSetting();
 
   const navigator = initializeNavigator();
+  activePowerBrowserNavigator = navigator;
+  updateApplicationSwitcherStatus(
+    "loading",
+    "Loading sandbox information…",
+  );
   initializeSettings(navigator);
   initializeHoldToHideMenu(navigator);
   let artifactData = await fetchArtifact();

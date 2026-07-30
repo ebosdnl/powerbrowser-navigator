@@ -283,6 +283,10 @@
    * @returns {Promise<void>}
    */
   function refreshMyBettySession(cookieHeader) {
+    updateApplicationSwitcherStatus(
+      "reauthenticating",
+      "Trying to re-authenticate with My Betty Blocks…",
+    );
     return new Promise((resolve, reject) => {
       GM_xmlhttpRequest({
         method: "GET",
@@ -296,6 +300,10 @@
         onload: (response) => {
           if (response.status >= 200 && response.status < 300) {
             logger.debug("My Betty session refreshed.");
+            updateApplicationSwitcherStatus(
+              "loading",
+              "Re-authentication succeeded. Loading sandbox information…",
+            );
             resolve();
             return;
           }
@@ -304,12 +312,26 @@
             `My Betty session refresh failed with status ${response.status}.`,
           );
           refreshError.status = response.status;
+          updateApplicationSwitcherStatus(
+            "manual-login-required",
+            "Automatic re-authentication failed. Visit my.bettyblocks.com, then reload this page.",
+          );
           reject(refreshError);
         },
-        onerror: () =>
-          reject(new Error("Unable to refresh the My Betty session.")),
-        ontimeout: () =>
-          reject(new Error("My Betty session refresh timed out.")),
+        onerror: () => {
+          updateApplicationSwitcherStatus(
+            "manual-login-required",
+            "Automatic re-authentication failed. Visit my.bettyblocks.com, then reload this page.",
+          );
+          reject(new Error("Unable to refresh the My Betty session."));
+        },
+        ontimeout: () => {
+          updateApplicationSwitcherStatus(
+            "manual-login-required",
+            "Automatic re-authentication timed out. Visit my.bettyblocks.com, then reload this page.",
+          );
+          reject(new Error("My Betty session refresh timed out."));
+        },
       });
     });
   }
@@ -428,6 +450,10 @@
             "loading",
             "Loading application-family data…",
           );
+          updateApplicationSwitcherStatus(
+            "loading",
+            "Loading sandbox information…",
+          );
           const requestApplicationFamily = (authContext) =>
             requestGraphQL({
               url: "https://my.bettyblocks.com/api/graphql",
@@ -479,6 +505,12 @@
               ? `Loaded ${Array.isArray(applicationFamily) ? applicationFamily.length : 1} application-family entries.`
               : "No application-family data was returned.",
           );
+          if (!applicationFamily) {
+            updateApplicationSwitcherStatus(
+              "manual-login-required",
+              "No sandbox information was returned. Visit my.bettyblocks.com, then reload this page.",
+            );
+          }
           return applicationFamily;
         },
         force,
@@ -491,6 +523,10 @@
           ? error.message
           : "Unable to retrieve application-family data.",
         error,
+      );
+      updateApplicationSwitcherStatus(
+        "manual-login-required",
+        "Sandbox information could not be loaded automatically. Visit my.bettyblocks.com, then reload this page.",
       );
       console.warn(
         "[Power Browser v2] Unable to retrieve application-family data.",

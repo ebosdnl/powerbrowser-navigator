@@ -38,14 +38,16 @@
       if (item.id === "organizationButton") {
         stateSwitcher = document.createElement("div");
         stateSwitcher.className = "power-browser-state-switcher-v2";
+        stateSwitcher.title = "Loading sandbox information…";
 
         stateToggle = document.createElement("button");
         stateToggle.type = "button";
         stateToggle.className = `power-browser-state-toggle-v2 ${NAV_DISABLED_CLASS}`;
         stateToggle.disabled = true;
         stateToggle.setAttribute("aria-expanded", "false");
+        stateToggle.setAttribute("aria-disabled", "true");
         stateToggle.setAttribute("aria-label", "Sandbox switcher");
-        stateToggle.title = "Switch sandbox";
+        stateToggle.title = "Loading sandbox information…";
         stateToggle.innerHTML = `${SvgIcons.switch}<span class="power-browser-state-toggle-label-v2">Sandbox switcher</span>`;
         stateToggleLabel = stateToggle.querySelector(
           ".power-browser-state-toggle-label-v2",

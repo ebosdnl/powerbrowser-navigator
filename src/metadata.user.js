@@ -2,7 +2,7 @@
 // @name         Power Browser Navigator V2
 // @description  Easier navigation to the playground, page-builder and backoffice. Feature flag setter and extra productivity scripts.
 // @tag          Productivity
-// @version      3.0.2
+// @version      3.0.3
 // @author       Enrique Bos, Menno Weijling (OG grondlegger), Sven Truschel, Hacker
 // @match        https://*.betty.app/*
 // @match        https://*.betty.services/*

@@ -2,7 +2,7 @@
 // @name         Power Browser Navigator V2
 // @description  Easier navigation to the playground, page-builder and backoffice. Feature flag setter and extra productivity scripts.
 // @tag          Productivity
-// @version      3.0.2
+// @version      3.0.3
 // @author       Enrique Bos, Menno Weijling (OG grondlegger), Sven Truschel, Hacker
 // @match        https://*.betty.app/*
 // @match        https://*.betty.services/*
@@ -300,6 +300,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
   let settingsState = null;
   let settingsSectionScrollFrame = null;
   let currentPowerBrowserContext = null;
+  let activePowerBrowserNavigator = null;
   let betty5HighlightRetry = null;
   let betty5PasswordObserver = null;
   let betty5PasswordRetry = null;
@@ -348,6 +349,17 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     },
     lastError: null,
   };
+
+  function updateApplicationSwitcherStatus(status, message) {
+    if (!activePowerBrowserNavigator) {
+      return;
+    }
+    setApplicationSwitcherStatus(
+      activePowerBrowserNavigator,
+      status,
+      message,
+    );
+  }
 
   /**
    * Updates a diagnostic data source and refreshes an open Info tab.
@@ -1221,6 +1233,10 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
    * @returns {Promise<void>}
    */
   function refreshMyBettySession(cookieHeader) {
+    updateApplicationSwitcherStatus(
+      "reauthenticating",
+      "Trying to re-authenticate with My Betty Blocks…",
+    );
     return new Promise((resolve, reject) => {
       GM_xmlhttpRequest({
         method: "GET",
@@ -1234,6 +1250,10 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
         onload: (response) => {
           if (response.status >= 200 && response.status < 300) {
             logger.debug("My Betty session refreshed.");
+            updateApplicationSwitcherStatus(
+              "loading",
+              "Re-authentication succeeded. Loading sandbox information…",
+            );
             resolve();
             return;
           }
@@ -1242,12 +1262,26 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
             `My Betty session refresh failed with status ${response.status}.`,
           );
           refreshError.status = response.status;
+          updateApplicationSwitcherStatus(
+            "manual-login-required",
+            "Automatic re-authentication failed. Visit my.bettyblocks.com, then reload this page.",
+          );
           reject(refreshError);
         },
-        onerror: () =>
-          reject(new Error("Unable to refresh the My Betty session.")),
-        ontimeout: () =>
-          reject(new Error("My Betty session refresh timed out.")),
+        onerror: () => {
+          updateApplicationSwitcherStatus(
+            "manual-login-required",
+            "Automatic re-authentication failed. Visit my.bettyblocks.com, then reload this page.",
+          );
+          reject(new Error("Unable to refresh the My Betty session."));
+        },
+        ontimeout: () => {
+          updateApplicationSwitcherStatus(
+            "manual-login-required",
+            "Automatic re-authentication timed out. Visit my.bettyblocks.com, then reload this page.",
+          );
+          reject(new Error("My Betty session refresh timed out."));
+        },
       });
     });
   }
@@ -1366,6 +1400,10 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
             "loading",
             "Loading application-family data…",
           );
+          updateApplicationSwitcherStatus(
+            "loading",
+            "Loading sandbox information…",
+          );
           const requestApplicationFamily = (authContext) =>
             requestGraphQL({
               url: "https://my.bettyblocks.com/api/graphql",
@@ -1417,6 +1455,12 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
               ? `Loaded ${Array.isArray(applicationFamily) ? applicationFamily.length : 1} application-family entries.`
               : "No application-family data was returned.",
           );
+          if (!applicationFamily) {
+            updateApplicationSwitcherStatus(
+              "manual-login-required",
+              "No sandbox information was returned. Visit my.bettyblocks.com, then reload this page.",
+            );
+          }
           return applicationFamily;
         },
         force,
@@ -1429,6 +1473,10 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
           ? error.message
           : "Unable to retrieve application-family data.",
         error,
+      );
+      updateApplicationSwitcherStatus(
+        "manual-login-required",
+        "Sandbox information could not be loaded automatically. Visit my.bettyblocks.com, then reload this page.",
       );
       console.warn(
         "[Power Browser v2] Unable to retrieve application-family data.",
@@ -1676,14 +1724,16 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       if (item.id === "organizationButton") {
         stateSwitcher = document.createElement("div");
         stateSwitcher.className = "power-browser-state-switcher-v2";
+        stateSwitcher.title = "Loading sandbox information…";
 
         stateToggle = document.createElement("button");
         stateToggle.type = "button";
         stateToggle.className = `power-browser-state-toggle-v2 ${NAV_DISABLED_CLASS}`;
         stateToggle.disabled = true;
         stateToggle.setAttribute("aria-expanded", "false");
+        stateToggle.setAttribute("aria-disabled", "true");
         stateToggle.setAttribute("aria-label", "Sandbox switcher");
-        stateToggle.title = "Switch sandbox";
+        stateToggle.title = "Loading sandbox information…";
         stateToggle.innerHTML = `${SvgIcons.switch}<span class="power-browser-state-toggle-label-v2">Sandbox switcher</span>`;
         stateToggleLabel = stateToggle.querySelector(
           ".power-browser-state-toggle-label-v2",
@@ -7427,6 +7477,11 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     const orderedApplications = sortApplicationFamily(applicationFamily);
 
     if (!orderedApplications.length) {
+      setApplicationSwitcherStatus(
+        navigator,
+        "manual-login-required",
+        "Sandbox data is unavailable. Visit my.bettyblocks.com, then reload this page.",
+      );
       return;
     }
 
@@ -7444,6 +7499,8 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       `Sandbox switcher. Current sandbox: ${currentSandboxName}`,
     );
     navigator.stateToggle.title = "Switch sandbox";
+    navigator.stateSwitcher.title = "Switch sandbox";
+    navigator.stateSwitcher.dataset.status = "ready";
     navigator.stateMenu.replaceChildren();
 
     orderedApplications.forEach(({ application, depth }) => {
@@ -7491,7 +7548,23 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     });
 
     navigator.stateToggle.disabled = false;
+    navigator.stateToggle.setAttribute("aria-disabled", "false");
     navigator.stateToggle.classList.remove(NAV_DISABLED_CLASS);
+  }
+
+  function setApplicationSwitcherStatus(navigator, status, message) {
+    navigator.stateSwitcher.dataset.status = status;
+    navigator.stateSwitcher.title = message;
+    navigator.stateToggle.title = message;
+    navigator.stateToggle.disabled = true;
+    navigator.stateToggle.setAttribute("aria-disabled", "true");
+    navigator.stateToggle.setAttribute(
+      "aria-label",
+      `Sandbox switcher unavailable. ${message}`,
+    );
+    navigator.stateToggle.classList.add(NAV_DISABLED_CLASS);
+    navigator.stateSwitcher.classList.remove("open");
+    navigator.stateToggle.setAttribute("aria-expanded", "false");
   }
 
   /**
@@ -7619,6 +7692,11 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
   applyNextgenActionPlaygroundSetting();
 
   const navigator = initializeNavigator();
+  activePowerBrowserNavigator = navigator;
+  updateApplicationSwitcherStatus(
+    "loading",
+    "Loading sandbox information…",
+  );
   initializeSettings(navigator);
   initializeHoldToHideMenu(navigator);
   let artifactData = await fetchArtifact();

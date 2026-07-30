@@ -66,6 +66,7 @@
   let settingsState = null;
   let settingsSectionScrollFrame = null;
   let currentPowerBrowserContext = null;
+  let activePowerBrowserNavigator = null;
   let betty5HighlightRetry = null;
   let betty5PasswordObserver = null;
   let betty5PasswordRetry = null;
@@ -114,6 +115,17 @@
     },
     lastError: null,
   };
+
+  function updateApplicationSwitcherStatus(status, message) {
+    if (!activePowerBrowserNavigator) {
+      return;
+    }
+    setApplicationSwitcherStatus(
+      activePowerBrowserNavigator,
+      status,
+      message,
+    );
+  }
 
   /**
    * Updates a diagnostic data source and refreshes an open Info tab.

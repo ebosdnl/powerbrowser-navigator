@@ -236,6 +236,11 @@
     const orderedApplications = sortApplicationFamily(applicationFamily);
 
     if (!orderedApplications.length) {
+      setApplicationSwitcherStatus(
+        navigator,
+        "manual-login-required",
+        "Sandbox data is unavailable. Visit my.bettyblocks.com, then reload this page.",
+      );
       return;
     }
 
@@ -253,6 +258,8 @@
       `Sandbox switcher. Current sandbox: ${currentSandboxName}`,
     );
     navigator.stateToggle.title = "Switch sandbox";
+    navigator.stateSwitcher.title = "Switch sandbox";
+    navigator.stateSwitcher.dataset.status = "ready";
     navigator.stateMenu.replaceChildren();
 
     orderedApplications.forEach(({ application, depth }) => {
@@ -300,7 +307,23 @@
     });
 
     navigator.stateToggle.disabled = false;
+    navigator.stateToggle.setAttribute("aria-disabled", "false");
     navigator.stateToggle.classList.remove(NAV_DISABLED_CLASS);
+  }
+
+  function setApplicationSwitcherStatus(navigator, status, message) {
+    navigator.stateSwitcher.dataset.status = status;
+    navigator.stateSwitcher.title = message;
+    navigator.stateToggle.title = message;
+    navigator.stateToggle.disabled = true;
+    navigator.stateToggle.setAttribute("aria-disabled", "true");
+    navigator.stateToggle.setAttribute(
+      "aria-label",
+      `Sandbox switcher unavailable. ${message}`,
+    );
+    navigator.stateToggle.classList.add(NAV_DISABLED_CLASS);
+    navigator.stateSwitcher.classList.remove("open");
+    navigator.stateToggle.setAttribute("aria-expanded", "false");
   }
 
   /**
