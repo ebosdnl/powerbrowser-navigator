@@ -408,7 +408,7 @@
       label: "Command palette",
       description: "Search navigation destinations and Power Browser actions.",
       type: "shortcut",
-      defaultValue: "Ctrl+Shift+P",
+      defaultValue: "Ctrl+Shift+U",
     },
     {
       key: "extraDialogCloseShortcut",

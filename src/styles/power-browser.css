@@ -522,6 +522,469 @@
       font-size: 11px;
     }
 
+    .power-browser-artifact-overlay-v2 {
+      position: fixed;
+      inset: 0;
+      display: none;
+      background: rgba(19, 23, 34, 0.5);
+      backdrop-filter: blur(4px);
+      z-index: 2147483646;
+    }
+
+    .power-browser-artifact-overlay-v2.open {
+      display: block;
+    }
+
+    .power-browser-artifact-dialog-v2 {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      display: none;
+      width: min(1120px, calc(100vw - 32px));
+      height: min(800px, calc(100vh - 32px));
+      overflow: hidden;
+      transform: translate(-50%, -50%);
+      color: #282c3a;
+      background: #f7f7f9;
+      border: 1px solid rgba(233, 0, 76, 0.2);
+      border-radius: 16px;
+      box-shadow: 0 32px 100px rgba(15, 18, 28, 0.34);
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      z-index: 2147483647;
+    }
+
+    .power-browser-artifact-dialog-v2.open {
+      display: grid;
+      grid-template-rows: auto auto minmax(0, 1fr);
+    }
+
+    .power-browser-artifact-header-v2 {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 17px 20px;
+      color: #fff;
+      background: #262a3a;
+    }
+
+    .power-browser-artifact-header-v2 strong,
+    .power-browser-artifact-header-v2 span {
+      display: block;
+    }
+
+    .power-browser-artifact-header-v2 strong {
+      font-size: 17px;
+    }
+
+    .power-browser-artifact-header-v2 span {
+      margin-top: 3px;
+      color: #adb2c1;
+      font-size: 10px;
+    }
+
+    .power-browser-artifact-close-v2 {
+      width: 32px;
+      height: 32px;
+      color: #d9dce5;
+      background: rgba(255, 255, 255, 0.08);
+      border: 0;
+      border-radius: 7px;
+      font-size: 21px;
+      cursor: pointer;
+    }
+
+    .power-browser-artifact-tabs-v2 {
+      display: flex;
+      gap: 4px;
+      padding: 8px 14px;
+      background: #fff;
+      border-bottom: 1px solid #e2e4e9;
+    }
+
+    .power-browser-artifact-tabs-v2 button {
+      padding: 8px 11px;
+      color: #5c6270;
+      background: transparent;
+      border: 0;
+      border-radius: 7px;
+      font-size: 11px;
+      font-weight: 650;
+      cursor: pointer;
+    }
+
+    .power-browser-artifact-tabs-v2 button:hover,
+    .power-browser-artifact-tabs-v2 button.active {
+      color: #8d1238;
+      background: #fff0f5;
+    }
+
+    .power-browser-artifact-body-v2 {
+      min-height: 0;
+      padding: 16px;
+      overflow: auto;
+    }
+
+    .power-browser-artifact-split-v2 {
+      display: grid;
+      grid-template-columns: minmax(300px, 0.8fr) minmax(0, 1.2fr);
+      gap: 14px;
+      height: 100%;
+      min-height: 0;
+    }
+
+    .power-browser-artifact-browser-v2,
+    .power-browser-artifact-details-v2 {
+      min-height: 0;
+      overflow: hidden;
+      background: #fff;
+      border: 1px solid #e1e3e8;
+      border-radius: 10px;
+    }
+
+    .power-browser-artifact-browser-v2 {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+    }
+
+    .power-browser-artifact-details-v2 {
+      padding: 14px;
+      overflow: auto;
+    }
+
+    .power-browser-artifact-search-v2 {
+      box-sizing: border-box;
+      width: calc(100% - 20px);
+      margin: 10px;
+      padding: 9px 11px;
+      color: #303442;
+      background: #f8f8fa;
+      border: 1px solid #d8dae1;
+      border-radius: 7px;
+      outline: none;
+      font-size: 11px;
+    }
+
+    .power-browser-artifact-search-v2:focus {
+      background: #fff;
+      border-color: #e9004c;
+      box-shadow: 0 0 0 3px rgba(233, 0, 76, 0.1);
+    }
+
+    .power-browser-artifact-results-v2 {
+      display: flex;
+      min-height: 0;
+      flex-direction: column;
+      gap: 3px;
+      padding: 0 7px 8px;
+      overflow: auto;
+    }
+
+    .power-browser-artifact-entry-v2 {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      align-items: center;
+      gap: 9px;
+      width: 100%;
+      padding: 9px 10px;
+      color: #303442;
+      background: transparent;
+      border: 0;
+      border-radius: 7px;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .power-browser-artifact-entry-v2:hover,
+    .power-browser-artifact-entry-v2.active {
+      background: #fff0f5;
+    }
+
+    .power-browser-artifact-entry-v2 strong,
+    .power-browser-artifact-entry-v2 small {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .power-browser-artifact-entry-v2 strong {
+      font-size: 11px;
+    }
+
+    .power-browser-artifact-entry-v2 small {
+      margin-top: 3px;
+      color: #858a97;
+      font-size: 9px;
+    }
+
+    .power-browser-artifact-kind-v2 {
+      padding: 3px 6px;
+      color: #603047;
+      background: #ffe0eb;
+      border-radius: 999px;
+      font-size: 8px;
+      font-weight: 750;
+      text-transform: uppercase;
+    }
+
+    .power-browser-artifact-detail-heading-v2,
+    .power-browser-artifact-section-header-v2 {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .power-browser-artifact-detail-heading-v2 h3 {
+      margin: 0;
+      font-size: 15px;
+    }
+
+    .power-browser-artifact-detail-heading-v2 span,
+    .power-browser-artifact-section-header-v2 span,
+    .power-browser-artifact-snapshot-v2 span {
+      display: block;
+      margin-top: 4px;
+      color: #7c818e;
+      font-size: 9px;
+    }
+
+    .power-browser-artifact-detail-heading-v2 > div:last-child,
+    .power-browser-artifact-snapshot-v2 > div:last-child {
+      display: flex;
+      gap: 6px;
+    }
+
+    .power-browser-artifact-action-v2,
+    .power-browser-artifact-primary-v2 {
+      padding: 7px 9px;
+      color: #4e5360;
+      background: #fff;
+      border: 1px solid #d7d9df;
+      border-radius: 6px;
+      font-size: 9px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .power-browser-artifact-primary-v2 {
+      color: #fff;
+      background: #e9004c;
+      border-color: #e9004c;
+    }
+
+    .power-browser-artifact-action-v2.danger {
+      color: #a12840;
+      border-color: #efbdc7;
+    }
+
+    .power-browser-artifact-action-v2:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .power-browser-artifact-code-v2 {
+      box-sizing: border-box;
+      max-height: 55vh;
+      margin: 0;
+      padding: 13px;
+      overflow: auto;
+      color: #e8e9ee;
+      background: #20232e;
+      border-radius: 8px;
+      font: 10px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .power-browser-artifact-code-secondary-v2 {
+      max-height: 220px;
+      margin-top: 10px;
+      color: #424755;
+      background: #f2f3f6;
+    }
+
+    .power-browser-artifact-empty-v2 {
+      padding: 30px 18px;
+      color: #7c818e;
+      font-size: 11px;
+      text-align: center;
+    }
+
+    .power-browser-artifact-relationship-list-v2,
+    .power-browser-artifact-health-list-v2 {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .power-browser-artifact-relationship-list-v2
+      .power-browser-artifact-entry-v2 {
+      grid-template-columns: 150px auto minmax(0, 1fr);
+      background: #fff;
+      border: 1px solid #e1e3e8;
+    }
+
+    .power-browser-artifact-relationship-direction-v2 {
+      color: #6b7080;
+      font-size: 9px;
+    }
+
+    .power-browser-artifact-health-summary-v2 {
+      display: flex;
+      gap: 7px;
+      margin-bottom: 12px;
+    }
+
+    .power-browser-artifact-health-summary-v2 span {
+      padding: 5px 8px;
+      color: #4e5360;
+      background: #fff;
+      border: 1px solid #dfe1e7;
+      border-radius: 999px;
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .power-browser-artifact-health-summary-v2
+      span[data-severity="error"] {
+      color: #a12840;
+      background: #fff0f2;
+      border-color: #efbdc7;
+    }
+
+    .power-browser-artifact-health-summary-v2
+      span[data-severity="warning"] {
+      color: #76510a;
+      background: #fff8dd;
+      border-color: #edda94;
+    }
+
+    .power-browser-artifact-health-item-v2 {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      padding: 10px 12px;
+      color: #343844;
+      background: #fff;
+      border: 1px solid #e0e2e7;
+      border-left: 3px solid #9ca1ad;
+      border-radius: 7px;
+      text-align: left;
+    }
+
+    .power-browser-artifact-health-item-v2:not(:disabled) {
+      cursor: pointer;
+    }
+
+    .power-browser-artifact-health-item-v2[data-severity="error"] {
+      border-left-color: #c8324f;
+    }
+
+    .power-browser-artifact-health-item-v2[data-severity="warning"] {
+      border-left-color: #d19416;
+    }
+
+    .power-browser-artifact-health-item-v2 span {
+      color: #858a97;
+      font-size: 8px;
+      text-transform: uppercase;
+    }
+
+    .power-browser-artifact-health-item-v2 strong {
+      font-size: 10px;
+    }
+
+    .power-browser-artifact-snapshot-layout-v2 {
+      display: grid;
+      grid-template-columns: minmax(280px, 0.7fr) minmax(0, 1.3fr);
+      gap: 14px;
+      min-height: 0;
+    }
+
+    .power-browser-artifact-snapshot-list-v2 {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .power-browser-artifact-snapshot-v2 {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 11px;
+      background: #fff;
+      border: 1px solid #e0e2e7;
+      border-radius: 8px;
+    }
+
+    .power-browser-artifact-snapshot-v2 strong {
+      font-size: 10px;
+    }
+
+    .power-browser-artifact-snapshot-diff-v2 {
+      min-width: 0;
+    }
+
+    .power-browser-artifact-snapshot-diff-v2 h3 {
+      margin: 0 0 10px;
+      font-size: 13px;
+    }
+
+    .power-browser-artifact-diff-group-v2 {
+      margin-bottom: 8px;
+      padding: 10px;
+      background: #fff;
+      border: 1px solid #e0e2e7;
+      border-radius: 8px;
+    }
+
+    .power-browser-artifact-diff-group-v2 strong {
+      font-size: 10px;
+      text-transform: capitalize;
+    }
+
+    .power-browser-artifact-diff-group-v2 ul {
+      margin: 7px 0 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .power-browser-artifact-diff-group-v2 li {
+      padding: 2px 0;
+      color: #505563;
+      font: 9px/1.4 ui-monospace, SFMono-Regular, Consolas, monospace;
+      overflow-wrap: anywhere;
+    }
+
+    .power-browser-artifact-diff-group-v2 li[data-change="+"] {
+      color: #197044;
+    }
+
+    .power-browser-artifact-diff-group-v2 li[data-change="−"] {
+      color: #a12840;
+    }
+
+    @media (max-width: 760px) {
+      .power-browser-artifact-split-v2,
+      .power-browser-artifact-snapshot-layout-v2 {
+        grid-template-columns: 1fr;
+        height: auto;
+      }
+
+      .power-browser-artifact-browser-v2 {
+        min-height: 300px;
+      }
+
+      .power-browser-artifact-tabs-v2 {
+        overflow-x: auto;
+      }
+    }
+
     .power-browser-settings-overlay-v2 {
       position: fixed;
       inset: 0;
@@ -1787,6 +2250,44 @@
       background: #343949;
     }
 
+    .power-browser-dark-v2.power-browser-artifact-dialog-v2 {
+      color: #f4f5f7;
+      background: #1f2330;
+      border-color: #494f60;
+    }
+
+    .power-browser-dark-v2 .power-browser-artifact-tabs-v2,
+    .power-browser-dark-v2 .power-browser-artifact-browser-v2,
+    .power-browser-dark-v2 .power-browser-artifact-details-v2,
+    .power-browser-dark-v2 .power-browser-artifact-entry-v2,
+    .power-browser-dark-v2 .power-browser-artifact-health-item-v2,
+    .power-browser-dark-v2 .power-browser-artifact-snapshot-v2,
+    .power-browser-dark-v2 .power-browser-artifact-diff-group-v2 {
+      color: #f4f5f7;
+      background: #282d3b;
+      border-color: #404657;
+    }
+
+    .power-browser-dark-v2 .power-browser-artifact-search-v2,
+    .power-browser-dark-v2
+      .power-browser-artifact-code-secondary-v2 {
+      color: #f4f5f7;
+      background: #202431;
+      border-color: #4a5061;
+    }
+
+    .power-browser-dark-v2 .power-browser-artifact-entry-v2:hover,
+    .power-browser-dark-v2 .power-browser-artifact-entry-v2.active,
+    .power-browser-dark-v2
+      .power-browser-artifact-tabs-v2
+      button:hover,
+    .power-browser-dark-v2
+      .power-browser-artifact-tabs-v2
+      button.active {
+      color: #fff;
+      background: #343949;
+    }
+
     .power-browser-dark-v2.power-browser-settings-dialog-v2 .power-browser-settings-main-v2,
     .power-browser-dark-v2.power-browser-settings-dialog-v2 .power-browser-settings-content-v2 {
       background: #1f2330;
@@ -2028,6 +2529,41 @@
     .power-browser-betty-theme-v2.power-browser-model-search-dialog-v2 {
       border-color: #7189ff;
       box-shadow: 0 26px 80px rgba(57, 90, 252, 0.25);
+    }
+
+    .power-browser-betty-theme-v2.power-browser-artifact-dialog-v2 {
+      border-color: #7189ff;
+      box-shadow: 0 28px 90px rgba(57, 90, 252, 0.28);
+    }
+
+    .power-browser-betty-theme-v2
+      .power-browser-artifact-header-v2 {
+      background:
+        linear-gradient(
+          259deg,
+          rgb(233, 0, 76) 0%,
+          rgb(57, 90, 252) 52%,
+          rgb(17, 171, 209) 100%
+        );
+    }
+
+    .power-browser-betty-theme-v2
+      .power-browser-artifact-entry-v2:hover,
+    .power-browser-betty-theme-v2
+      .power-browser-artifact-entry-v2.active,
+    .power-browser-betty-theme-v2
+      .power-browser-artifact-tabs-v2
+      button:hover,
+    .power-browser-betty-theme-v2
+      .power-browser-artifact-tabs-v2
+      button.active {
+      color: #233fc4;
+      background: linear-gradient(
+        90deg,
+        rgba(233, 0, 76, 0.08),
+        rgba(57, 90, 252, 0.12),
+        rgba(17, 171, 209, 0.1)
+      );
     }
 
     .power-browser-betty-theme-v2

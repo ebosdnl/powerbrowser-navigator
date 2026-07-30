@@ -364,6 +364,15 @@
     copyButton.type = "button";
     copyButton.className = "power-browser-settings-action-v2";
     copyButton.textContent = "Copy diagnostics";
+    const artifactButton = document.createElement("button");
+    artifactButton.type = "button";
+    artifactButton.className = "power-browser-settings-action-v2";
+    artifactButton.textContent = "Artifact Explorer";
+    artifactButton.disabled = !currentPowerBrowserContext?.artifactData;
+    artifactButton.addEventListener("click", () => {
+      closeSettings();
+      openArtifactExplorer(navigator);
+    });
     const status = document.createElement("span");
     status.className =
       "power-browser-settings-operation-status-v2";
@@ -421,7 +430,12 @@
       status.dataset.status = "success";
       status.textContent = "Diagnostics copied.";
     });
-    actions.append(refreshButton, copyButton, status);
+    actions.append(
+      refreshButton,
+      copyButton,
+      artifactButton,
+      status,
+    );
     settingsState.list.appendChild(actions);
 
     appendSettingsSectionHeading(

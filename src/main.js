@@ -155,6 +155,7 @@
   );
   initializeSettings(navigator);
   initializeHoldToHideMenu(navigator);
+  initializeArtifactExplorer(navigator);
   initializeCommandPalette(navigator);
   void initializeReleaseUpdateChecker(navigator);
   let artifactData = await fetchArtifact();

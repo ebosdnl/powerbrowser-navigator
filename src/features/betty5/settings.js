@@ -152,6 +152,7 @@
     const themedSurfaces = [
       navigator.navigatorBar,
       modelSearchState?.dialog,
+      artifactExplorerState?.dialog,
       settingsState?.dialog,
     ].filter(Boolean);
 

@@ -660,6 +660,14 @@
     }
   }
 
+  function toggleModelSearch() {
+    if (modelSearchState?.dialog.classList.contains("open")) {
+      closeModelSearch();
+    } else {
+      openModelSearch();
+    }
+  }
+
   function handleModelSearchKeydown(event) {
     const isOpen = modelSearchState?.dialog.classList.contains("open");
     const target = event.target;
@@ -722,7 +730,7 @@
 
     if (!button.dataset.powerBrowserListener) {
       button.dataset.powerBrowserListener = "true";
-      button.addEventListener("click", openModelSearch);
+      button.addEventListener("click", toggleModelSearch);
     }
 
     if (!document.documentElement.dataset.powerBrowserModelSearchShortcut) {

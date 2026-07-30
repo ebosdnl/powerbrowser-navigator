@@ -24,12 +24,17 @@
   "use strict";
 
   const {
+    auditArtifact,
+    buildArtifactSearchEntries,
     createApplicationContext,
+    createArtifactSnapshot,
     createAuthStateMachine,
     createDiagnosticTimeline,
     createFeatureRegistry,
     createLogger,
     csvCell: powerBrowserCsvCell,
+    diffArtifactSnapshots,
+    getArtifactRelationships,
     hasApplicationOverride,
     isAuthenticationError: isPowerBrowserAuthenticationError,
     isVersionNewer,
@@ -38,6 +43,7 @@
     removeApplicationProfile,
     resolveEditableSetting,
     resolveEffectiveSetting,
+    searchArtifactEntries,
     selectors: PowerBrowserSelectors,
     setApplicationOverride,
   } = globalThis.PowerBrowserCore;
@@ -97,6 +103,7 @@
   let modelSearchDebounce = null;
   let settingsState = null;
   let commandPaletteState = null;
+  let artifactExplorerState = null;
   let powerBrowserUpdateState = null;
   let settingsSectionScrollFrame = null;
   let currentPowerBrowserContext = null;

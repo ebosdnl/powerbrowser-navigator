@@ -1,12 +1,12 @@
 {
   "name": "powerbrowser-navigator",
-  "version": "3.2.7",
+  "version": "3.3.7",
   "private": true,
   "type": "module",
   "scripts": {
     "build": "node tools/build.mjs",
     "check:bundle": "node tools/build.mjs --check",
-    "lint": "biome lint src/core/auth-state.ts src/core/context.ts src/core/diagnostic-timeline.ts src/core/domain-utils.ts src/core/feature-registry.ts src/core/index.ts src/core/logger.ts src/core/selectors.ts src/core/settings-profiles.ts src/core/settings-validation.ts src/core/types.ts src/core/version.ts tests tools",
+    "lint": "biome lint src/core/artifact-insights.ts src/core/auth-state.ts src/core/context.ts src/core/diagnostic-timeline.ts src/core/domain-utils.ts src/core/feature-registry.ts src/core/index.ts src/core/logger.ts src/core/selectors.ts src/core/settings-profiles.ts src/core/settings-validation.ts src/core/types.ts src/core/version.ts tests tools",
     "typecheck": "tsc --noEmit",
     "validate:settings": "tsx tools/validate-settings.mts",
     "format": "prettier --write .",

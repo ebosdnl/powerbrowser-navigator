@@ -68,8 +68,13 @@ descriptions, and invalid toggle defaults. It is included in `npm run check`.
 - Settings can be edited globally or as named overrides for the current
   application. Overrides remain effective while viewing the global layer and
   can be returned to their inherited value individually.
-- `Ctrl+Shift+P` opens a command palette for navigation, sandbox switching,
+- `Ctrl+Shift+U` opens a command palette for navigation, sandbox switching,
   model search, and common actions.
+- The command palette indexes artifact pages, endpoints, actions, models,
+  properties, forms, variables, partials, and file assets.
+- Artifact Explorer provides ID-based relationship inspection, structural
+  health checks, action mutation details, and compact local snapshots with
+  collection-level diffs.
 - Published GitHub Releases are checked for updates and can be installed
   through the userscript manager.
 - Extension health issues are recorded in the redacted diagnostics timeline.

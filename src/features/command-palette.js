@@ -1,7 +1,7 @@
   function getCommandPaletteShortcut() {
     return String(
       getSettingValue("extraCommandPaletteShortcut") ||
-        "Ctrl+Shift+P",
+        "Ctrl+Shift+U",
     );
   }
 
@@ -16,13 +16,33 @@
         label: "Open sandbox switcher",
         keywords: "application environment branch production",
         available: !navigator.stateToggle.disabled,
-        action: () => navigator.stateToggle.click(),
+        action: () => {
+          setTimeout(() => {
+            navigator.stateSwitcher.classList.add("open");
+            navigator.stateToggle.setAttribute(
+              "aria-expanded",
+              "true",
+            );
+            navigator.stateMenu
+              .querySelector(
+                ".power-browser-state-option-v2:not(:disabled)",
+              )
+              ?.focus();
+          }, 0);
+        },
       },
       {
         label: "Search models and properties",
         keywords: "runtime model relation field",
         available: Boolean(modelSearchState?.entries.length),
         action: openModelSearch,
+      },
+      {
+        label: "Open Artifact Explorer",
+        keywords:
+          "artifact pages endpoints actions models properties relationships health snapshots",
+        available: Boolean(getCurrentArtifact()),
+        action: () => openArtifactExplorer(navigator),
       },
       {
         label: "Refresh Power Browser data",
@@ -102,6 +122,40 @@
         action: () =>
           openPowerBrowserTab(powerBrowserUpdateState.releaseUrl),
       });
+    }
+
+    if (getCurrentArtifact()) {
+      buildArtifactSearchEntries(getCurrentArtifact())
+        .filter(
+          (entry) =>
+            !["models", "properties", "pages"].includes(
+              entry.collection,
+            ) &&
+            !(
+              ["endpoints", "fileAssets"].includes(
+                entry.collection,
+              ) &&
+              !entry.record.url
+            ),
+        )
+        .forEach((entry) => {
+          commands.push({
+            label: `${entry.kind}: ${entry.label}`,
+            keywords: `artifact ${entry.searchText}`,
+            action:
+              ["endpoints", "fileAssets"].includes(
+                entry.collection,
+              )
+                ? () =>
+                    openPowerBrowserTab(
+                      new URL(
+                        String(entry.record.url),
+                        location.origin,
+                      ).href,
+                    )
+                : () => openArtifactExplorer(navigator, entry),
+          });
+        });
     }
 
     return commands.filter(
@@ -206,6 +260,7 @@
     const state = ensureCommandPalette(navigator);
     closeSettings();
     closeModelSearch();
+    closeArtifactExplorer();
     state.lastFocusedElement = document.activeElement;
     state.commands = buildPowerBrowserCommands(navigator);
     state.input.value = "";

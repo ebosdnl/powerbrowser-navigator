@@ -15,6 +15,15 @@ export {
 } from "./domain-utils.js";
 export { validateSettingsDefinitions } from "./settings-validation.js";
 export {
+  ARTIFACT_COLLECTIONS,
+  auditArtifact,
+  buildArtifactSearchEntries,
+  createArtifactSnapshot,
+  diffArtifactSnapshots,
+  getArtifactRelationships,
+  searchArtifactEntries,
+} from "./artifact-insights.js";
+export {
   hasApplicationOverride,
   removeApplicationOverride,
   removeApplicationProfile,
