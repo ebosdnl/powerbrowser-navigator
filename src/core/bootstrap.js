@@ -118,6 +118,8 @@
   let nextgenActionPlaygroundTimer = null;
   let nextgenActionValidationTimer = null;
   let nextgenActionValidationSequence = 0;
+  let nextgenActionClipboardSequence = 0;
+  let nextgenActionClipboardFocusAttached = false;
   let nextgenLogDownloaderObserver = null;
   let nextgenLogDownloaderOriginalFetch = null;
   let nextgenLogDownloaderPatchedFetch = null;

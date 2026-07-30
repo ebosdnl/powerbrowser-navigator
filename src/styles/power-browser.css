@@ -58,6 +58,146 @@
       display: block;
     }
 
+    .power-browser-action-logs-panel-v350 {
+      min-height: 260px;
+      padding: 12px 2px 4px;
+      color: #343844;
+      font: 13px/1.4 Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .power-browser-action-logs-toolbar-v350,
+    .power-browser-action-logs-toolbar-v350 > div {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .power-browser-action-logs-toolbar-v350 button {
+      padding: 6px 9px;
+      border: 1px solid #d1d5db;
+      border-radius: 5px;
+      background: #fff;
+      cursor: pointer;
+    }
+
+    .power-browser-action-logs-toolbar-v350 button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .power-browser-action-logs-list-v350 {
+      margin-top: 12px;
+      overflow: hidden;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+    }
+
+    .power-browser-action-log-row-v350 {
+      display: grid;
+      grid-template-columns: 16px 70px minmax(0, 1fr) 120px auto;
+      align-items: center;
+      gap: 12px;
+      padding: 9px 10px;
+      border-bottom: 1px solid #e5e7eb;
+      border-left: 4px solid #6b7280;
+      color: inherit;
+      cursor: pointer;
+      text-decoration: none;
+    }
+
+    .power-browser-action-log-item-v350:last-child
+      .power-browser-action-log-row-v350 {
+      border-bottom: 0;
+    }
+
+    .power-browser-action-log-row-v350:focus-visible {
+      outline: 2px solid #f97316;
+      outline-offset: -2px;
+    }
+
+    .power-browser-action-log-chevron-v350 {
+      color: #6b7280;
+      font-size: 18px;
+      line-height: 1;
+      text-align: center;
+    }
+
+    .power-browser-action-log-row-v350[data-level="error"] {
+      border-left-color: #b91c1c;
+      background: #fff7f7;
+    }
+
+    .power-browser-action-log-row-v350[data-level="warning"],
+    .power-browser-action-log-row-v350[data-level="warn"] {
+      border-left-color: #b45309;
+    }
+
+    .power-browser-action-log-row-v350[data-level="info"] {
+      border-left-color: #15803d;
+    }
+
+    .power-browser-action-log-level-v350 {
+      padding: 3px 6px;
+      border-radius: 4px;
+      background: #f3f4f6;
+      font-size: 11px;
+      text-align: center;
+      text-transform: capitalize;
+    }
+
+    .power-browser-action-log-message-v350 {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .power-browser-action-log-service-v350,
+    .power-browser-action-log-row-v350 time {
+      color: #6b7280;
+      font-size: 11px;
+      white-space: nowrap;
+    }
+
+    .power-browser-action-logs-empty-v350 {
+      padding: 30px;
+      color: #6b7280;
+      text-align: center;
+    }
+
+    .power-browser-action-log-details-v350 {
+      padding: 10px 12px 14px 28px;
+      color: #4b5563;
+      background: #fafafa;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .power-browser-action-local-log-v350
+      .power-browser-action-log-row-v350 {
+      border-left-color: #ea580c;
+      background: #fff7ed;
+    }
+
+    .power-browser-action-response-v350 > strong {
+      display: block;
+      margin-bottom: 7px;
+      color: #374151;
+    }
+
+    .power-browser-action-response-v350 > pre {
+      max-height: 360px;
+      margin: 0;
+      padding: 10px;
+      overflow: auto;
+      color: #e5e7eb;
+      background: #1f2937;
+      border-radius: 5px;
+      font: 11px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
     .nav-container-1c7b2759-c793-4d17-b89b-1da6c5c5cf5b {
       position: fixed;
       margin: 0;

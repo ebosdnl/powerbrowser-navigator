@@ -136,27 +136,27 @@
         : "Updated";
       state.title.textContent = "What’s new";
       state.description.textContent =
-        "This release focuses on a calmer, faster, and more accessible workspace.";
+        "Version 3.5 brings authentication and action logs directly into the Action Playground.";
       [
         [
-          "⌨",
-          "Accessible dialogs",
-          "Keyboard focus now stays inside open dialogs and returns to where you started.",
-        ],
-        [
-          "⚡",
-          "Faster artifact tools",
-          "Artifact search indexes are created on demand and reused while the artifact is unchanged.",
-        ],
-        [
-          "◐",
-          "Consistent interface",
-          "Controls, focus states, empty states, and themes now share one visual language.",
+          "⎘",
+          "Automatic request headers",
+          "Open an action’s Playground with a valid Bearer headers object on your clipboard and Power Browser fills the Headers field automatically.",
         ],
         [
           "✓",
-          "Clearer privacy",
-          "The project now documents network access, local storage, and credential handling.",
+          "Bearer validation",
+          "Clipboard contents are accepted only when they contain a JSON Authorization header with a decodable Bearer JWT.",
+        ],
+        [
+          "☷",
+          "Action logs",
+          "A new Logs tab shows the current action’s grouped logs without leaving the test-values dialog.",
+        ],
+        [
+          "↻",
+          "Refresh and pagination",
+          "Browse log pages, refresh results, and quickly scan levels, services, summaries, and timestamps.",
         ],
       ].forEach((feature) =>
         state.body.appendChild(

@@ -45,18 +45,30 @@
 
       const playgroundTab = tabs.find(
         (tab) =>
-          tab.textContent.trim() === "Playground" &&
-          tab.getAttribute("aria-selected") === "true" &&
-          tab.dataset.state === "active",
+          tab.textContent.trim() === "Playground",
       );
+      const logsTab = tabs.find((tab) =>
+        tab.hasAttribute(
+          "data-power-browser-action-logs-tab-v350",
+        ),
+      );
+      const playgroundOrLogsActive =
+        (playgroundTab?.getAttribute("aria-selected") === "true" &&
+          playgroundTab.dataset.state === "active") ||
+        (logsTab?.getAttribute("aria-selected") === "true" &&
+          logsTab.dataset.state === "active");
+      if (!playgroundOrLogsActive) {
+        continue;
+      }
       const panelId = playgroundTab?.getAttribute("aria-controls");
       const panel = Array.from(
         dialog.querySelectorAll(PowerBrowserSelectors.actionPlaygroundPanel),
       ).find(
         (candidate) =>
           candidate.id === panelId &&
-          candidate.dataset.state === "active" &&
-          !candidate.hidden,
+          (logsTab?.dataset.state === "active" ||
+            (candidate.dataset.state === "active" &&
+              !candidate.hidden)),
       );
       if (!panel) {
         continue;
@@ -131,6 +143,107 @@
       ([key]) => key.toLowerCase() === "authorization",
     );
     return entry?.[1] == null ? "" : String(entry[1]).trim();
+  }
+
+  /**
+   * Accepts clipboard contents only when they are a JSON headers object with
+   * a Bearer value containing a decodable JWT.
+   *
+   * @param {string} clipboardText
+   * @returns {string|null}
+   */
+  function getValidClipboardHeadersJson(clipboardText) {
+    try {
+      const headers = JSON.parse(String(clipboardText || "").trim());
+      if (
+        !headers ||
+        Array.isArray(headers) ||
+        typeof headers !== "object"
+      ) {
+        return null;
+      }
+
+      const authorization = getAuthorizationHeader(headers);
+      if (!/^Bearer\s+\S+$/i.test(authorization)) {
+        return null;
+      }
+      decodeActionPlaygroundJwt(authorization);
+      return JSON.stringify(headers, null, 2);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Reads a valid JSON Bearer object from the clipboard into the Headers field.
+   * Clipboard permission failures are intentionally silent.
+   *
+   * @param {Element} dialog
+   * @param {Element} panel
+   * @param {boolean} [force]
+   * @returns {Promise<void>}
+   */
+  async function autoPasteActionPlaygroundHeaders(
+    dialog,
+    panel,
+    force = false,
+  ) {
+    const textarea = getActionPlaygroundTextarea(panel, "Headers");
+    if (
+      !textarea ||
+      textarea.dataset.powerBrowserHeadersUserEditedV350 === "true" ||
+      (!force &&
+        textarea.dataset.powerBrowserClipboardAppliedV350 ===
+          "true") ||
+      (!force &&
+        textarea.dataset.powerBrowserClipboardCheckedV350 ===
+          "true") ||
+      typeof window.navigator.clipboard?.readText !== "function"
+    ) {
+      return;
+    }
+
+    if (force) {
+      delete textarea.dataset.powerBrowserClipboardCheckedV350;
+    }
+    textarea.dataset.powerBrowserClipboardCheckedV350 = "true";
+    const sequence = ++nextgenActionClipboardSequence;
+    try {
+      const clipboardHeaders = getValidClipboardHeadersJson(
+        await window.navigator.clipboard.readText(),
+      );
+      if (
+        !clipboardHeaders ||
+        sequence !== nextgenActionClipboardSequence ||
+        !dialog.isConnected ||
+        !panel.contains(textarea)
+      ) {
+        return;
+      }
+
+      textarea.value = clipboardHeaders;
+      textarea.dataset.powerBrowserClipboardAppliedV350 = "true";
+      delete textarea.dataset.authorizationValidatedValue;
+      textarea.dispatchEvent(
+        new Event("input", { bubbles: true }),
+      );
+    } catch {
+      delete textarea.dataset.powerBrowserClipboardCheckedV350;
+      // Reading the clipboard can be denied when the browser requires a
+      // user gesture. The editable field remains available for manual paste.
+    }
+  }
+
+  /**
+   * Returns the action identifier from the current Next-gen route.
+   *
+   * @returns {string|null}
+   */
+  function getCurrentActionId() {
+    return (
+      location.pathname.match(/\/app\/actions\/([^/?#]+)/i)?.[1] ||
+      null
+    );
   }
 
   /**

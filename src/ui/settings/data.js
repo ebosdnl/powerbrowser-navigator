@@ -392,6 +392,20 @@
         openPowerBrowserTab(powerBrowserUpdateState.releaseUrl),
       );
       actions.appendChild(latestRelease);
+
+      const whatsNew = document.createElement("button");
+      whatsNew.type = "button";
+      whatsNew.textContent = "Show what’s new";
+      whatsNew.addEventListener("click", () =>
+        openPowerBrowserEducation(navigator, "updated"),
+      );
+      const welcome = document.createElement("button");
+      welcome.type = "button";
+      welcome.textContent = "Show welcome";
+      welcome.addEventListener("click", () =>
+        openPowerBrowserEducation(navigator, "welcome"),
+      );
+      actions.append(whatsNew, welcome);
     }
     const check = document.createElement("button");
     check.type = "button";
