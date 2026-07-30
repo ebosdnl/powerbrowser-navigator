@@ -1171,6 +1171,7 @@
 
     .power-browser-settings-heading-v2 h2 {
       margin: 0;
+      padding-left: 0;
       color: #262a3a;
       font-size: 20px;
       letter-spacing: -0.02em;
@@ -1292,7 +1293,8 @@
     }
 
     .power-browser-settings-section-v2 {
-      margin: 12px 4px 0;
+      margin: 12px 4px 0 0;
+      padding-left: 0;
       color: #656b79;
       font-size: 11px;
       font-weight: 700;
