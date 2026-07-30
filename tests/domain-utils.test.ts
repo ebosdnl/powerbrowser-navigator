@@ -22,7 +22,8 @@ describe("domain utilities", () => {
   it("decodes URL-safe JWT payloads and rejects malformed tokens", () => {
     const payload = { application_id: "app-1" };
     const encoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
-    const decode = (value) => Buffer.from(value, "base64").toString("utf8");
+    const decode = (value: string) =>
+      Buffer.from(value, "base64").toString("utf8");
     expect(decodeJwtPayload(`Bearer x.${encoded}.y`, decode)).toEqual(payload);
     expect(decodeJwtPayload("invalid", decode)).toBeNull();
   });

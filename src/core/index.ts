@@ -14,3 +14,13 @@ export {
   normalizeEndpoints,
 } from "./domain-utils.js";
 export { validateSettingsDefinitions } from "./settings-validation.js";
+export type {
+  AuthSnapshot,
+  AuthStatus,
+  DiagnosticEntry,
+  Feature,
+  Logger,
+  LogLevel,
+  SettingDefinition,
+  SettingsTab,
+} from "./types.js";

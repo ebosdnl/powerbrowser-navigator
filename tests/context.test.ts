@@ -3,7 +3,10 @@ import { createApplicationContext } from "../src/core/context.js";
 
 describe("createApplicationContext", () => {
   it("publishes immutable snapshots and previous state", () => {
-    const context = createApplicationContext({ identifier: "one" });
+    const context = createApplicationContext<{
+      identifier: string;
+      siteType?: string;
+    }>({ identifier: "one" });
     const subscriber = vi.fn();
     context.subscribe(subscriber);
 

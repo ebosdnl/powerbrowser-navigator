@@ -12,7 +12,7 @@ const css = normalizeLineEndings(
   await readFile("src/styles/power-browser.css", "utf8"),
 );
 const coreBuild = await build({
-  entryPoints: ["src/core/index.js"],
+  entryPoints: ["src/core/index.ts"],
   bundle: true,
   format: "iife",
   globalName: "PowerBrowserCore",

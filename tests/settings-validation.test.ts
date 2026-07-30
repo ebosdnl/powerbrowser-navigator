@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { validateSettingsDefinitions } from "../src/core/settings-validation.js";
+import type { SettingDefinition } from "../src/core/types.js";
 
 describe("settings validation", () => {
   it("accepts a valid setting and rejects schema mistakes", () => {
     const tabs = [{ id: "general", label: "General" }];
-    const valid = [
+    const valid: SettingDefinition[] = [
       {
         key: "enabled",
         tab: "general",

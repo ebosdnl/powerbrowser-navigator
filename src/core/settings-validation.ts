@@ -1,9 +1,19 @@
-const VALID_TYPES = new Set(["toggle", "shortcut", "theme", "size"]);
+import type { SettingDefinition, SettingsTab, SettingType } from "./types.js";
 
-export function validateSettingsDefinitions(tabs, definitions) {
-  const errors = [];
-  const tabIds = new Set();
-  const keys = new Set();
+const VALID_TYPES = new Set<SettingType>([
+  "toggle",
+  "shortcut",
+  "theme",
+  "size",
+]);
+
+export function validateSettingsDefinitions(
+  tabs: readonly Partial<SettingsTab>[],
+  definitions: readonly Partial<SettingDefinition>[],
+): string[] {
+  const errors: string[] = [];
+  const tabIds = new Set<string | undefined>();
+  const keys = new Set<string | undefined>();
 
   for (const tab of tabs) {
     if (!tab?.id || !tab?.label)
@@ -27,7 +37,7 @@ export function validateSettingsDefinitions(tabs, definitions) {
         `Setting "${definition?.key}" needs a label and description.`,
       );
     }
-    if (!VALID_TYPES.has(definition?.type)) {
+    if (!definition?.type || !VALID_TYPES.has(definition.type)) {
       errors.push(
         `Setting "${definition?.key}" has unsupported type "${definition?.type}".`,
       );

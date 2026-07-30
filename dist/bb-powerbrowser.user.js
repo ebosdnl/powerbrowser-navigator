@@ -2,7 +2,7 @@
 // @name         Power Browser Navigator V2
 // @description  Easier navigation to the playground, page-builder and backoffice. Feature flag setter and extra productivity scripts.
 // @tag          Productivity
-// @version      3.0.5
+// @version      3.1.5
 // @author       Enrique Bos, Menno Weijling (OG grondlegger), Sven Truschel, Hacker
 // @match        https://*.betty.app/*
 // @match        https://*.betty.services/*
@@ -49,6 +49,7 @@
 // @run-at       document-start
 // ==/UserScript==
 
+"use strict";
 var PowerBrowserCore = (() => {
   var __defProp = Object.defineProperty;
   var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
@@ -68,7 +69,7 @@ var PowerBrowserCore = (() => {
   };
   var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-  // src/core/index.js
+  // src/core/index.ts
   var index_exports = {};
   __export(index_exports, {
     AUTH_STATES: () => AUTH_STATES,
@@ -87,7 +88,7 @@ var PowerBrowserCore = (() => {
     validateSettingsDefinitions: () => validateSettingsDefinitions
   });
 
-  // src/core/context.js
+  // src/core/context.ts
   function createApplicationContext(initial = {}) {
     let snapshot = Object.freeze({ ...initial });
     const subscribers = /* @__PURE__ */ new Set();
@@ -110,7 +111,7 @@ var PowerBrowserCore = (() => {
     });
   }
 
-  // src/core/auth-state.js
+  // src/core/auth-state.ts
   var AUTH_STATES = Object.freeze([
     "idle",
     "loading",
@@ -161,7 +162,7 @@ var PowerBrowserCore = (() => {
     });
   }
 
-  // src/core/diagnostic-timeline.js
+  // src/core/diagnostic-timeline.ts
   var SENSITIVE_KEY = /authorization|bearer|cookie|csrf|xsrf|password|secret|token/i;
   var SENSITIVE_VALUE = /\bBearer\s+[A-Za-z0-9._~+/-]+=*|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/gi;
   function redactDiagnosticValue(value, key = "") {
@@ -193,7 +194,7 @@ var PowerBrowserCore = (() => {
           timestamp: clock(),
           source: String(source || "general"),
           status: String(status || "info"),
-          message: redactDiagnosticValue(String(message || "")),
+          message: String(redactDiagnosticValue(String(message || ""))),
           ...details === void 0 ? {} : { details: redactDiagnosticValue(details) }
         });
         entries.push(entry);
@@ -209,13 +210,14 @@ var PowerBrowserCore = (() => {
     });
   }
 
-  // src/core/feature-registry.js
+  // src/core/feature-registry.ts
   function createFeatureRegistry(logger) {
     const features = /* @__PURE__ */ new Map();
     async function invoke(feature, method, context) {
-      if (typeof feature[method] !== "function") return;
+      const hook = feature[method];
+      if (typeof hook !== "function") return;
       try {
-        await feature[method](context);
+        await hook(context);
       } catch (error) {
         logger?.error(`${feature.name}.${method} failed`, error);
       }
@@ -247,7 +249,7 @@ var PowerBrowserCore = (() => {
     });
   }
 
-  // src/core/logger.js
+  // src/core/logger.ts
   var LEVELS = Object.freeze({
     debug: 10,
     info: 20,
@@ -255,9 +257,13 @@ var PowerBrowserCore = (() => {
     error: 40,
     silent: Number.POSITIVE_INFINITY
   });
+  function isLogLevel(value) {
+    return typeof value === "string" && value in LEVELS;
+  }
   function resolveLevel() {
     try {
-      return globalThis.GM_getValue?.("powerBrowserLogLevel", "debug") ?? "warn";
+      const value = GM_getValue("powerBrowserLogLevel", "debug");
+      return isLogLevel(value) ? value : "warn";
     } catch {
       return "warn";
     }
@@ -282,7 +288,7 @@ var PowerBrowserCore = (() => {
     });
   }
 
-  // src/core/selectors.js
+  // src/core/selectors.ts
   var selectors = Object.freeze({
     csrfMeta: 'meta[name="csrf-token"]',
     actionPlaygroundDialog: '[role="dialog"][data-state="open"]',
@@ -298,7 +304,7 @@ var PowerBrowserCore = (() => {
     return root.querySelector(selector);
   }
 
-  // src/core/domain-utils.js
+  // src/core/domain-utils.ts
   function normalizeEndpoints(endpoints) {
     if (Array.isArray(endpoints)) return endpoints;
     if (endpoints && typeof endpoints === "object")
@@ -315,25 +321,32 @@ var PowerBrowserCore = (() => {
     try {
       const normalized = payload.replaceAll("-", "+").replaceAll("_", "/");
       const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
-      return JSON.parse(decode(padded));
+      const parsed = JSON.parse(decode(padded));
+      return parsed && typeof parsed === "object" ? parsed : null;
     } catch {
       return null;
     }
   }
   function isAuthenticationError(errors) {
     return (Array.isArray(errors) ? errors : [errors]).some((error) => {
+      const structured = error && typeof error === "object" ? error : void 0;
       const code = String(
-        error?.extensions?.code ?? error?.code ?? ""
+        structured?.extensions?.code ?? structured?.code ?? ""
       ).toUpperCase();
-      const message = String(error?.message ?? error ?? "");
+      const message = String(structured?.message ?? error ?? "");
       return ["UNAUTHENTICATED", "UNAUTHORIZED", "TOKEN_EXPIRED"].includes(code) || /(?:not authenticated|unauthenticated|authentication required|jwt expired|token (?:has )?expired|invalid (?:access )?token)/i.test(
         message
       );
     });
   }
 
-  // src/core/settings-validation.js
-  var VALID_TYPES = /* @__PURE__ */ new Set(["toggle", "shortcut", "theme", "size"]);
+  // src/core/settings-validation.ts
+  var VALID_TYPES = /* @__PURE__ */ new Set([
+    "toggle",
+    "shortcut",
+    "theme",
+    "size"
+  ]);
   function validateSettingsDefinitions(tabs, definitions) {
     const errors = [];
     const tabIds = /* @__PURE__ */ new Set();
@@ -359,7 +372,7 @@ var PowerBrowserCore = (() => {
           `Setting "${definition?.key}" needs a label and description.`
         );
       }
-      if (!VALID_TYPES.has(definition?.type)) {
+      if (!definition?.type || !VALID_TYPES.has(definition.type)) {
         errors.push(
           `Setting "${definition?.key}" has unsupported type "${definition?.type}".`
         );

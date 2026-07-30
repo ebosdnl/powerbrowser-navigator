@@ -3,17 +3,25 @@ import { createFeatureRegistry } from "../src/core/feature-registry.js";
 
 describe("createFeatureRegistry", () => {
   it("starts in registration order and stops in reverse order", async () => {
-    const calls = [];
+    const calls: string[] = [];
     const registry = createFeatureRegistry();
     registry.register({
       name: "first",
-      start: () => calls.push("start:first"),
-      stop: () => calls.push("stop:first"),
+      start: () => {
+        calls.push("start:first");
+      },
+      stop: () => {
+        calls.push("stop:first");
+      },
     });
     registry.register({
       name: "second",
-      start: () => calls.push("start:second"),
-      stop: () => calls.push("stop:second"),
+      start: () => {
+        calls.push("start:second");
+      },
+      stop: () => {
+        calls.push("stop:second");
+      },
     });
 
     await registry.start({});

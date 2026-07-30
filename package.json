@@ -6,17 +6,21 @@
   "scripts": {
     "build": "node tools/build.mjs",
     "check:bundle": "node tools/build.mjs --check",
-    "lint": "biome lint src/core/auth-state.js src/core/context.js src/core/diagnostic-timeline.js src/core/domain-utils.js src/core/feature-registry.js src/core/index.js src/core/logger.js src/core/selectors.js src/core/settings-validation.js tests tools",
-    "validate:settings": "node tools/validate-settings.mjs",
+    "lint": "biome lint src/core/auth-state.ts src/core/context.ts src/core/diagnostic-timeline.ts src/core/domain-utils.ts src/core/feature-registry.ts src/core/index.ts src/core/logger.ts src/core/selectors.ts src/core/settings-validation.ts src/core/types.ts tests tools",
+    "typecheck": "tsc --noEmit",
+    "validate:settings": "tsx tools/validate-settings.mts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
-    "check": "npm run lint && npm run format:check && npm run validate:settings && npm test && npm run build && npm run check:bundle"
+    "check": "npm run lint && npm run format:check && npm run typecheck && npm run validate:settings && npm test && npm run build && npm run check:bundle"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.6",
+    "@types/node": "^24.10.0",
     "esbuild": "^0.25.8",
     "prettier": "^3.6.2",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
     "vitest": "^3.2.7"
   }
 }

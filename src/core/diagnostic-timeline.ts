@@ -3,7 +3,7 @@ const SENSITIVE_KEY =
 const SENSITIVE_VALUE =
   /\bBearer\s+[A-Za-z0-9._~+/-]+=*|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/gi;
 
-export function redactDiagnosticValue(value, key = "") {
+export function redactDiagnosticValue(value: unknown, key = ""): unknown {
   if (SENSITIVE_KEY.test(key)) return "[REDACTED]";
   if (typeof value === "string") {
     return value.replace(SENSITIVE_VALUE, "[REDACTED]");
@@ -22,19 +22,30 @@ export function redactDiagnosticValue(value, key = "") {
   return value;
 }
 
+export interface DiagnosticTimelineOptions {
+  limit?: number;
+  clock?: () => string;
+}
+
+export interface DiagnosticTimeline {
+  add(input: DiagnosticEventInput): DiagnosticEntry;
+  entries(): DiagnosticEntry[];
+  clear(): void;
+}
+
 export function createDiagnosticTimeline({
   limit = 100,
   clock = () => new Date().toISOString(),
-} = {}) {
-  const entries = [];
+}: DiagnosticTimelineOptions = {}): Readonly<DiagnosticTimeline> {
+  const entries: DiagnosticEntry[] = [];
 
   return Object.freeze({
-    add({ source, status, message, details }) {
-      const entry = Object.freeze({
+    add({ source, status, message, details }: DiagnosticEventInput) {
+      const entry: DiagnosticEntry = Object.freeze({
         timestamp: clock(),
         source: String(source || "general"),
         status: String(status || "info"),
-        message: redactDiagnosticValue(String(message || "")),
+        message: String(redactDiagnosticValue(String(message || ""))),
         ...(details === undefined
           ? {}
           : { details: redactDiagnosticValue(details) }),
@@ -51,3 +62,4 @@ export function createDiagnosticTimeline({
     },
   });
 }
+import type { DiagnosticEntry, DiagnosticEventInput } from "./types.js";

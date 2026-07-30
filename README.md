@@ -17,9 +17,14 @@ feature-owned CSS, and composes the ordered browser feature files into
 `dist/bb-powerbrowser.user.js`. Userscript managers still receive one self-contained
 file with no runtime package dependencies.
 
+The reusable core, its tests, and the settings validator are written in strict
+TypeScript. Run `npm run typecheck` directly, or use `npm run check` to include
+type checking with linting, schema validation, tests, and bundle verification.
+
 ## Source layout
 
-- `src/core`: testable ES modules for context, lifecycle, logging, selectors, and utilities
+- `src/core`: strict TypeScript modules and shared domain contracts for context,
+  authentication, lifecycle, logging, diagnostics, selectors, and utilities
 - `src/config`: icons, navigator items, and settings definitions
 - `src/styles`: userscript styles
 - `src/api`: GraphQL, authentication, artifact, and application-family data
