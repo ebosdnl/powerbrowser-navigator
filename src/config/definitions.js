@@ -139,7 +139,7 @@
     },
     {
       key: "buttonBackOfficeHidden",
-      tab: "general",
+      tab: "betty5",
       section: "Navigation visibility",
       label: "Hide Backoffice",
       description: "Hide the Betty 5 back-office shortcut.",
@@ -148,7 +148,7 @@
     },
     {
       key: "buttonB5Models",
-      tab: "general",
+      tab: "betty5",
       section: "Navigation visibility",
       label: "Hide B5 models",
       description: "Hide the legacy model overview shortcut.",
@@ -157,7 +157,7 @@
     },
     {
       key: "buttonB5Monitoring",
-      tab: "general",
+      tab: "betty5",
       section: "Navigation visibility",
       label: "Hide Monitoring",
       description: "Hide the application monitoring shortcut.",

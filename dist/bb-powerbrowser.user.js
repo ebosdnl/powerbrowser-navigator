@@ -2,7 +2,7 @@
 // @name         Power Browser Navigator V2
 // @description  Easier navigation to the playground, page-builder and backoffice. Feature flag setter and extra productivity scripts.
 // @tag          Productivity
-// @version      3.0.3
+// @version      3.0.4
 // @author       Enrique Bos, Menno Weijling (OG grondlegger), Sven Truschel, Hacker
 // @match        https://*.betty.app/*
 // @match        https://*.betty.services/*
@@ -672,7 +672,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     },
     {
       key: "buttonBackOfficeHidden",
-      tab: "general",
+      tab: "betty5",
       section: "Navigation visibility",
       label: "Hide Backoffice",
       description: "Hide the Betty 5 back-office shortcut.",
@@ -681,7 +681,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     },
     {
       key: "buttonB5Models",
-      tab: "general",
+      tab: "betty5",
       section: "Navigation visibility",
       label: "Hide B5 models",
       description: "Hide the legacy model overview shortcut.",
@@ -690,7 +690,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     },
     {
       key: "buttonB5Monitoring",
-      tab: "general",
+      tab: "betty5",
       section: "Navigation visibility",
       label: "Hide Monitoring",
       description: "Hide the application monitoring shortcut.",
