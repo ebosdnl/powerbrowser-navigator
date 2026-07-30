@@ -136,12 +136,17 @@
         : "Updated";
       state.title.textContent = "What’s new";
       state.description.textContent =
-        "Version 3.5.1 brings authentication and action logs directly into the Action Playground.";
+        "Version 3.5.2 improves disabled-state clarity and recovery controls.";
       [
         [
+          "◐",
+          "Clear hotfix disabled states",
+          "Disabled navigation buttons remain visually distinct while Betty 5 hotfix mode is active.",
+        ],
+        [
           "↻",
-          "Placed Betty 5 mods into different category ",
-          "Placed Betty 5 mods into different category to make it easier to find the right mod.",
+          "Reliable sandbox recovery",
+          "The unavailable sandbox-switcher dialog stays open while moving to Retry or Open My Betty.",
         ],
       ].forEach((feature) =>
         state.body.appendChild(
