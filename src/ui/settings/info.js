@@ -240,6 +240,8 @@
       dataSources: JSON.parse(
         JSON.stringify(powerBrowserDiagnostics),
       ),
+      authentication: applicationAuthState.current,
+      timeline: diagnosticTimeline.entries(),
       csrfAvailable: Boolean(
         getCsrfToken() || getNextgenLogCsrfToken(),
       ),
@@ -419,6 +421,33 @@
     });
     actions.append(refreshButton, copyButton, status);
     settingsState.list.appendChild(actions);
+
+    appendSettingsSectionHeading(
+      settingsState.list,
+      "info",
+      "Event timeline",
+      4,
+    );
+    const timeline = document.createElement("ol");
+    timeline.className = "power-browser-settings-timeline-v2";
+    const entries = diagnosticTimeline.entries().slice(-50).reverse();
+    if (!entries.length) {
+      const empty = document.createElement("li");
+      empty.textContent = "No diagnostic events recorded yet.";
+      timeline.appendChild(empty);
+    } else {
+      entries.forEach((entry) => {
+        const item = document.createElement("li");
+        item.dataset.status = entry.status;
+        const metadata = document.createElement("span");
+        metadata.textContent = `${formatSettingsInfoDate(entry.timestamp)} · ${entry.source}`;
+        const message = document.createElement("strong");
+        message.textContent = entry.message;
+        item.append(metadata, message);
+        timeline.appendChild(item);
+      });
+    }
+    settingsState.list.appendChild(timeline);
   }
 
   /**

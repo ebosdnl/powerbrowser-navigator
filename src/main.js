@@ -6,6 +6,37 @@
     return currentPowerBrowserContext;
   }
 
+  async function retryApplicationSwitcherAuthentication() {
+    const identifier = currentPowerBrowserContext?.identifier;
+    if (!identifier) {
+      updateApplicationSwitcherStatus(
+        "manual-login-required",
+        "The current application could not be identified. Visit my.bettyblocks.com, then reload this page.",
+      );
+      return;
+    }
+
+    updateApplicationSwitcherStatus(
+      "loading",
+      "Retrying sandbox authentication…",
+    );
+    const applicationFamily = await fetchApplicationFamily(identifier, true);
+    const artifactData = await ensureArtifactFreshAfterFamilyMerge(
+      currentPowerBrowserContext?.artifactData,
+      applicationFamily,
+    );
+    updateCurrentPowerBrowserContext({
+      artifactData,
+      applicationFamily,
+    });
+    configureApplicationSwitcher(
+      activePowerBrowserNavigator,
+      applicationFamily,
+      identifier,
+      currentPowerBrowserContext?.siteType || SiteType.UNKNOWN,
+    );
+  }
+
   featureRegistry.register({
     name: "betty5-action-highlighting",
     start: applyBetty5ActionHighlighting,

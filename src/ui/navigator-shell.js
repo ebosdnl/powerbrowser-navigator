@@ -15,6 +15,9 @@
     let stateToggle;
     let stateToggleLabel;
     let stateMenu;
+    let stateStatusPopover;
+    let stateStatusMessage;
+    let stateRetryButton;
 
     NavigatorItems.forEach((item) => {
       const control = document.createElement(item.button ? "button" : "a");
@@ -38,7 +41,6 @@
       if (item.id === "organizationButton") {
         stateSwitcher = document.createElement("div");
         stateSwitcher.className = "power-browser-state-switcher-v2";
-        stateSwitcher.title = "Loading sandbox information…";
 
         stateToggle = document.createElement("button");
         stateToggle.type = "button";
@@ -47,7 +49,6 @@
         stateToggle.setAttribute("aria-expanded", "false");
         stateToggle.setAttribute("aria-disabled", "true");
         stateToggle.setAttribute("aria-label", "Sandbox switcher");
-        stateToggle.title = "Loading sandbox information…";
         stateToggle.innerHTML = `${SvgIcons.switch}<span class="power-browser-state-toggle-label-v2">Sandbox switcher</span>`;
         stateToggleLabel = stateToggle.querySelector(
           ".power-browser-state-toggle-label-v2",
@@ -56,13 +57,58 @@
         stateMenu = document.createElement("div");
         stateMenu.className = "power-browser-state-menu-v2";
 
+        stateStatusPopover = document.createElement("div");
+        stateStatusPopover.id = "power-browser-state-status-v2";
+        stateStatusPopover.className =
+          "power-browser-state-status-v2";
+        stateStatusPopover.setAttribute("role", "status");
+        stateStatusPopover.setAttribute("aria-live", "polite");
+        const statusHeading = document.createElement("strong");
+        statusHeading.textContent = "Sandbox switcher";
+        stateStatusMessage = document.createElement("span");
+        stateStatusMessage.textContent = "Loading sandbox information…";
+        const statusActions = document.createElement("div");
+        statusActions.className =
+          "power-browser-state-status-actions-v2";
+        stateRetryButton = document.createElement("button");
+        stateRetryButton.type = "button";
+        stateRetryButton.textContent = "Retry";
+        stateRetryButton.addEventListener("click", () => {
+          void retryApplicationSwitcherAuthentication();
+        });
+        const openMyBettyButton = document.createElement("button");
+        openMyBettyButton.type = "button";
+        openMyBettyButton.textContent = "Open My Betty";
+        openMyBettyButton.addEventListener("click", () => {
+          const url = "https://my.bettyblocks.com";
+          if (typeof globalThis.GM_openInTab === "function") {
+            globalThis.GM_openInTab(url, {
+              active: true,
+              insert: true,
+            });
+          } else {
+            window.open(url, "_blank", "noopener,noreferrer");
+          }
+        });
+        statusActions.append(stateRetryButton, openMyBettyButton);
+        stateStatusPopover.append(
+          statusHeading,
+          stateStatusMessage,
+          statusActions,
+        );
+
         stateToggle.addEventListener("click", () => {
           const isOpen = stateSwitcher.classList.toggle("open");
           stateToggle.setAttribute("aria-expanded", String(isOpen));
         });
+        stateToggle.setAttribute(
+          "aria-describedby",
+          stateStatusPopover.id,
+        );
 
         stateSwitcher.appendChild(stateToggle);
         stateSwitcher.appendChild(stateMenu);
+        stateSwitcher.appendChild(stateStatusPopover);
         dropdown.appendChild(stateSwitcher);
       }
     });
@@ -101,6 +147,9 @@
       stateToggle,
       stateToggleLabel,
       stateMenu,
+      stateStatusPopover,
+      stateStatusMessage,
+      stateRetryButton,
     };
   }
 

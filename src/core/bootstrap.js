@@ -25,6 +25,8 @@
 
   const {
     createApplicationContext,
+    createAuthStateMachine,
+    createDiagnosticTimeline,
     createFeatureRegistry,
     createLogger,
     csvCell: powerBrowserCsvCell,
@@ -33,6 +35,29 @@
     selectors: PowerBrowserSelectors,
   } = globalThis.PowerBrowserCore;
   const logger = createLogger("runtime");
+  const diagnosticTimeline = createDiagnosticTimeline();
+  const applicationAuthState = createAuthStateMachine({
+    onTransition(snapshot) {
+      diagnosticTimeline.add({
+        source: "authentication",
+        status: snapshot.status,
+        message: snapshot.message,
+      });
+      if (activePowerBrowserNavigator) {
+        renderApplicationSwitcherStatus(
+          activePowerBrowserNavigator,
+          snapshot,
+        );
+      }
+      if (
+        settingsState?.activeTab === "info" &&
+        settingsState.dialog.classList.contains("open") &&
+        settingsState.navigator
+      ) {
+        renderSettingsTab(settingsState.navigator);
+      }
+    },
+  });
 
   if (location.hostname === "my.bettyblocks.com") {
     return;
@@ -117,14 +142,7 @@
   };
 
   function updateApplicationSwitcherStatus(status, message) {
-    if (!activePowerBrowserNavigator) {
-      return;
-    }
-    setApplicationSwitcherStatus(
-      activePowerBrowserNavigator,
-      status,
-      message,
-    );
+    applicationAuthState.transition(status, message);
   }
 
   /**
@@ -147,6 +165,19 @@
       message,
       updatedAt: new Date().toISOString(),
     };
+    diagnosticTimeline.add({
+      source,
+      status,
+      message,
+      ...(error
+        ? {
+            details: {
+              error:
+                error instanceof Error ? error.message : String(error),
+            },
+          }
+        : {}),
+    });
     if (error) {
       powerBrowserDiagnostics.lastError = {
         source,

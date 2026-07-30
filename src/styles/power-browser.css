@@ -151,6 +151,65 @@
       display: inline-flex;
     }
 
+    .power-browser-state-status-v2 {
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      display: none;
+      flex-direction: column;
+      gap: 7px;
+      width: min(320px, calc(100vw - 24px));
+      padding: 12px;
+      color: #343844;
+      background: #fff;
+      border: 1px solid #d9dbe2;
+      border-radius: 8px;
+      box-shadow: 0 12px 30px rgba(20, 24, 35, 0.2);
+      font: 12px/1.45 Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      text-align: left;
+      white-space: normal;
+      z-index: 3;
+    }
+
+    .power-browser-state-switcher-v2:not([data-status="ready"]):hover
+      .power-browser-state-status-v2,
+    .power-browser-state-switcher-v2:not([data-status="ready"]):focus-within
+      .power-browser-state-status-v2 {
+      display: flex;
+    }
+
+    .power-browser-state-status-v2 strong {
+      color: #252936;
+      font-size: 13px;
+    }
+
+    .power-browser-state-status-actions-v2 {
+      display: flex;
+      gap: 7px;
+    }
+
+    .power-browser-state-status-actions-v2 button {
+      padding: 6px 9px;
+      color: #343844;
+      background: #fff;
+      border: 1px solid #cfd2da;
+      border-radius: 5px;
+      font: 600 11px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      cursor: pointer;
+    }
+
+    .power-browser-state-status-actions-v2 button:hover {
+      color: #e9004c;
+      border-color: #e9004c;
+    }
+
+    .power-browser-state-status-actions-v2 button:disabled {
+      color: #8c909b;
+      background: #f0f1f3;
+      border-color: #dddfe4;
+      cursor: wait;
+    }
+
     .power-browser-state-toggle-v2 {
       max-width: 210px;
     }
@@ -810,6 +869,10 @@
       margin-top: 14px;
     }
 
+    .power-browser-settings-file-input-v2 {
+      display: none !important;
+    }
+
     .power-browser-settings-info-title-v2 {
       display: flex;
       align-items: center;
@@ -895,6 +958,55 @@
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 10px;
+    }
+
+    .power-browser-settings-timeline-v2 {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .power-browser-settings-timeline-v2 li {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding: 9px 11px;
+      color: #343844;
+      background: #fff;
+      border: 1px solid #e0e2e7;
+      border-left: 3px solid #9ca1ad;
+      border-radius: 7px;
+    }
+
+    .power-browser-settings-timeline-v2 li[data-status="success"],
+    .power-browser-settings-timeline-v2 li[data-status="ready"] {
+      border-left-color: #24945f;
+    }
+
+    .power-browser-settings-timeline-v2 li[data-status="error"],
+    .power-browser-settings-timeline-v2
+      li[data-status="manual-login-required"] {
+      border-left-color: #d14343;
+    }
+
+    .power-browser-settings-timeline-v2
+      li[data-status="loading"],
+    .power-browser-settings-timeline-v2
+      li[data-status="reauthenticating"] {
+      border-left-color: #395afc;
+    }
+
+    .power-browser-settings-timeline-v2 li span {
+      color: #777d8c;
+      font-size: 10px;
+    }
+
+    .power-browser-settings-timeline-v2 li strong {
+      font-size: 11px;
+      font-weight: 550;
     }
 
     .power-browser-settings-diagnostic-v2 {
@@ -2038,4 +2150,3 @@
         width: 100%;
       }
     }
-  

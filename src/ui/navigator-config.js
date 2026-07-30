@@ -236,8 +236,7 @@
     const orderedApplications = sortApplicationFamily(applicationFamily);
 
     if (!orderedApplications.length) {
-      setApplicationSwitcherStatus(
-        navigator,
+      updateApplicationSwitcherStatus(
         "manual-login-required",
         "Sandbox data is unavailable. Visit my.bettyblocks.com, then reload this page.",
       );
@@ -257,9 +256,6 @@
       "aria-label",
       `Sandbox switcher. Current sandbox: ${currentSandboxName}`,
     );
-    navigator.stateToggle.title = "Switch sandbox";
-    navigator.stateSwitcher.title = "Switch sandbox";
-    navigator.stateSwitcher.dataset.status = "ready";
     navigator.stateMenu.replaceChildren();
 
     orderedApplications.forEach(({ application, depth }) => {
@@ -306,15 +302,29 @@
       navigator.stateMenu.appendChild(option);
     });
 
-    navigator.stateToggle.disabled = false;
-    navigator.stateToggle.setAttribute("aria-disabled", "false");
-    navigator.stateToggle.classList.remove(NAV_DISABLED_CLASS);
+    updateApplicationSwitcherStatus(
+      "ready",
+      `Loaded ${orderedApplications.length} sandbox environments.`,
+    );
   }
 
-  function setApplicationSwitcherStatus(navigator, status, message) {
+  function renderApplicationSwitcherStatus(navigator, snapshot) {
+    const { status, message } = snapshot;
     navigator.stateSwitcher.dataset.status = status;
-    navigator.stateSwitcher.title = message;
-    navigator.stateToggle.title = message;
+    navigator.stateStatusMessage.textContent = message;
+    navigator.stateStatusPopover.hidden = status === "ready";
+    navigator.stateRetryButton.disabled =
+      status === "loading" || status === "reauthenticating";
+
+    if (status === "ready") {
+      navigator.stateSwitcher.removeAttribute("tabindex");
+      navigator.stateToggle.disabled = false;
+      navigator.stateToggle.setAttribute("aria-disabled", "false");
+      navigator.stateToggle.classList.remove(NAV_DISABLED_CLASS);
+      return;
+    }
+
+    navigator.stateSwitcher.tabIndex = 0;
     navigator.stateToggle.disabled = true;
     navigator.stateToggle.setAttribute("aria-disabled", "true");
     navigator.stateToggle.setAttribute(

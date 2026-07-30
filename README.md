@@ -40,6 +40,20 @@ observers, patched APIs, and event listeners.
 Set the stored `powerBrowserLogLevel` value to `debug`, `info`, `warn`, `error`,
 or `silent`. Production defaults to `debug`.
 
+The Info tab includes a redacted event timeline for data loading,
+authentication, GraphQL, and feature failures. Authentication headers, cookies,
+CSRF values, passwords, secrets, and tokens are removed before display or copy.
+
+The sandbox switcher uses a shared authentication state and offers Retry and
+Open My Betty actions when automatic recovery cannot load the application
+family.
+
+## Settings schema
+
+`npm run validate:settings` validates the real settings configuration for
+duplicate keys, missing tabs, unsupported control types, missing labels or
+descriptions, and invalid toggle defaults. It is included in `npm run check`.
+
 ## Releases
 
 Pull requests and pushes to `main` run linting, formatting checks, unit tests,

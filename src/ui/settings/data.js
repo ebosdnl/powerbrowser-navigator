@@ -177,7 +177,9 @@
     const fileInput = document.createElement("input");
     fileInput.type = "file";
     fileInput.accept = "application/json,.json";
+    fileInput.className = "power-browser-settings-file-input-v2";
     fileInput.hidden = true;
+    fileInput.setAttribute("aria-hidden", "true");
     const status = document.createElement("span");
     status.className =
       "power-browser-settings-operation-status-v2";

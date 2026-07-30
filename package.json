@@ -6,11 +6,12 @@
   "scripts": {
     "build": "node tools/build.mjs",
     "check:bundle": "node tools/build.mjs --check",
-    "lint": "biome lint src/core/context.js src/core/domain-utils.js src/core/feature-registry.js src/core/index.js src/core/logger.js src/core/selectors.js tests tools",
+    "lint": "biome lint src/core/auth-state.js src/core/context.js src/core/diagnostic-timeline.js src/core/domain-utils.js src/core/feature-registry.js src/core/index.js src/core/logger.js src/core/selectors.js src/core/settings-validation.js tests tools",
+    "validate:settings": "node tools/validate-settings.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
-    "check": "npm run lint && npm run format:check && npm test && npm run build && npm run check:bundle"
+    "check": "npm run lint && npm run format:check && npm run validate:settings && npm test && npm run build && npm run check:bundle"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.6",
