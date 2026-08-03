@@ -679,7 +679,8 @@
   }
 
   /**
-   * Adds a Headers field by cloning the dialog's own Variables field.
+   * Adds a Headers field by cloning one of the dialog's native fields. Actions
+   * without inputs omit Variables, so Mutation is used as the fallback.
    *
    * @param {Element} panel
    * @returns {HTMLTextAreaElement|null}
@@ -707,15 +708,22 @@
       return existingTextarea;
     }
 
-    const variablesLabel = Array.from(
+    const fieldLabels = Array.from(
       panel.querySelectorAll("label"),
-    ).find((label) => label.textContent.trim() === "Variables");
-    const variablesField = variablesLabel?.parentElement;
-    if (!variablesField) {
+    );
+    const templateLabel =
+      fieldLabels.find(
+        (label) => label.textContent.trim() === "Variables",
+      ) ||
+      fieldLabels.find(
+        (label) => label.textContent.trim() === "Mutation",
+      );
+    const templateField = templateLabel?.parentElement;
+    if (!templateField) {
       return null;
     }
 
-    const headersField = variablesField.cloneNode(true);
+    const headersField = templateField.cloneNode(true);
     headersField.setAttribute(
       "data-power-browser-action-headers-v2",
       "",
@@ -742,7 +750,7 @@
         "Paste these JSON headers into the playground request headers field.";
     }
 
-    variablesField.after(headersField);
+    templateField.after(headersField);
     return textarea;
   }
 

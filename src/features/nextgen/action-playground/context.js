@@ -8,7 +8,8 @@
   /**
    * Locates the active "Enter test values" dialog and verifies its complete
    * Playground signature. Radix reuses dialog containers, so the title, tabs,
-   * selected tab, active panel and expected fields must all match.
+   * selected tab, active panel and Mutation field must all match. Actions
+   * without inputs do not render a Variables field.
    *
    * @returns {{dialog: Element, panel: Element}|null}
    */
@@ -81,8 +82,7 @@
       );
       if (
         !fieldNames.has("Mutation") ||
-        !fieldNames.has("Variables") ||
-        panel.querySelectorAll("textarea").length < 2
+        panel.querySelectorAll("textarea").length < 1
       ) {
         continue;
       }

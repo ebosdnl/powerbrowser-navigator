@@ -2,7 +2,7 @@
 // @name         Power Browser Navigator V2
 // @description  Easier navigation to the playground, page-builder and backoffice. Feature flag setter and extra productivity scripts.
 // @tag          Productivity
-// @version      3.5.2
+// @version      3.5.3
 // @updateURL    https://github.com/ebosdnl/powerbrowser-navigator/releases/latest/download/bb-powerbrowser.user.js
 // @downloadURL  https://github.com/ebosdnl/powerbrowser-navigator/releases/latest/download/bb-powerbrowser.user.js
 // @author       Enrique Bos, Menno Weijling (OG grondlegger), Sven Truschel, Hacker
@@ -3740,7 +3740,8 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
   /**
    * Locates the active "Enter test values" dialog and verifies its complete
    * Playground signature. Radix reuses dialog containers, so the title, tabs,
-   * selected tab, active panel and expected fields must all match.
+   * selected tab, active panel and Mutation field must all match. Actions
+   * without inputs do not render a Variables field.
    *
    * @returns {{dialog: Element, panel: Element}|null}
    */
@@ -3813,8 +3814,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       );
       if (
         !fieldNames.has("Mutation") ||
-        !fieldNames.has("Variables") ||
-        panel.querySelectorAll("textarea").length < 2
+        panel.querySelectorAll("textarea").length < 1
       ) {
         continue;
       }
@@ -4471,12 +4471,12 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
         panel.dataset.authorizationRequiredV2 = "false";
         textarea.dataset.authorizationValidatedValue = headersValue;
         setActionAuthorizationValidation(dialog, panel, {
-          state: "valid",
+          state: "invalid",
           required: false,
           message:
-            "This action has no authentication profile; Authorization is optional.",
+            "This private action has no authentication profile and cannot be run. Configure an authentication profile or make the action public.",
         });
-        return true;
+        return false;
       }
 
       const authorization = getAuthorizationHeader(parsedHeaders);
@@ -5320,7 +5320,8 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
   }
 
   /**
-   * Adds a Headers field by cloning the dialog's own Variables field.
+   * Adds a Headers field by cloning one of the dialog's native fields. Actions
+   * without inputs omit Variables, so Mutation is used as the fallback.
    *
    * @param {Element} panel
    * @returns {HTMLTextAreaElement|null}
@@ -5348,15 +5349,22 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       return existingTextarea;
     }
 
-    const variablesLabel = Array.from(
+    const fieldLabels = Array.from(
       panel.querySelectorAll("label"),
-    ).find((label) => label.textContent.trim() === "Variables");
-    const variablesField = variablesLabel?.parentElement;
-    if (!variablesField) {
+    );
+    const templateLabel =
+      fieldLabels.find(
+        (label) => label.textContent.trim() === "Variables",
+      ) ||
+      fieldLabels.find(
+        (label) => label.textContent.trim() === "Mutation",
+      );
+    const templateField = templateLabel?.parentElement;
+    if (!templateField) {
       return null;
     }
 
-    const headersField = variablesField.cloneNode(true);
+    const headersField = templateField.cloneNode(true);
     headersField.setAttribute(
       "data-power-browser-action-headers-v2",
       "",
@@ -5383,7 +5391,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
         "Paste these JSON headers into the playground request headers field.";
     }
 
-    variablesField.after(headersField);
+    templateField.after(headersField);
     return textarea;
   }
 
@@ -10601,17 +10609,17 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
         : "Updated";
       state.title.textContent = "What’s new";
       state.description.textContent =
-        "Version 3.5.2 improves disabled-state clarity and recovery controls.";
+        "Version 3.5.3 improves Action Playground support for scheduled and no-input actions.";
       [
         [
-          "◐",
-          "Clear hotfix disabled states",
-          "Disabled navigation buttons remain visually distinct while Betty 5 hotfix mode is active.",
+          "{ }",
+          "Support actions without variables",
+          "Action Playground enhancements now load when Betty Blocks omits the Variables field, including scheduled and no-input actions.",
         ],
         [
-          "↻",
-          "Reliable sandbox recovery",
-          "The unavailable sandbox-switcher dialog stays open while moving to Retry or Open My Betty.",
+          "⊘",
+          "Explain actions that cannot run",
+          "Private actions without an authentication profile keep Run request disabled and explain how to make the action runnable.",
         ],
       ].forEach((feature) =>
         state.body.appendChild(

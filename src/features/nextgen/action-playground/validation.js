@@ -176,12 +176,12 @@
         panel.dataset.authorizationRequiredV2 = "false";
         textarea.dataset.authorizationValidatedValue = headersValue;
         setActionAuthorizationValidation(dialog, panel, {
-          state: "valid",
+          state: "invalid",
           required: false,
           message:
-            "This action has no authentication profile; Authorization is optional.",
+            "This private action has no authentication profile and cannot be run. Configure an authentication profile or make the action public.",
         });
-        return true;
+        return false;
       }
 
       const authorization = getAuthorizationHeader(parsedHeaders);

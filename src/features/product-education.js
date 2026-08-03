@@ -136,17 +136,17 @@
         : "Updated";
       state.title.textContent = "What’s new";
       state.description.textContent =
-        "Version 3.5.2 improves disabled-state clarity and recovery controls.";
+        "Version 3.5.3 improves Action Playground support for scheduled and no-input actions.";
       [
         [
-          "◐",
-          "Clear hotfix disabled states",
-          "Disabled navigation buttons remain visually distinct while Betty 5 hotfix mode is active.",
+          "{ }",
+          "Support actions without variables",
+          "Action Playground enhancements now load when Betty Blocks omits the Variables field, including scheduled and no-input actions.",
         ],
         [
-          "↻",
-          "Reliable sandbox recovery",
-          "The unavailable sandbox-switcher dialog stays open while moving to Retry or Open My Betty.",
+          "⊘",
+          "Explain actions that cannot run",
+          "Private actions without an authentication profile keep Run request disabled and explain how to make the action runnable.",
         ],
       ].forEach((feature) =>
         state.body.appendChild(
