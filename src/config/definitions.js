@@ -261,6 +261,36 @@
       defaultValue: true,
     },
     {
+      key: "nextgenDuplicateActionStep",
+      tab: "nextgen",
+      section: "Actions",
+      label: "Duplicate action steps",
+      description:
+        "Add a Duplicate button to the action-step editor that copies the step and its configuration.",
+      type: "toggle",
+      defaultValue: true,
+    },
+    {
+      key: "nextgenActionStepQuickActions",
+      tab: "nextgen",
+      section: "Actions",
+      label: "Action step quick actions",
+      description:
+        "Show quick-action controls above an action step when hovering over it.",
+      type: "toggle",
+      defaultValue: true,
+    },
+    {
+      key: "nextgenActionStepCopyPaste",
+      tab: "nextgen",
+      section: "Actions",
+      label: "Action step copy and paste",
+      description:
+        "Add Copy and Paste to the action-step quick actions. Paste requires a matching function type, name and version.",
+      type: "toggle",
+      defaultValue: true,
+    },
+    {
       key: "buttonRuntimeHidden",
       tab: "nextgen",
       section: "Page builder",

@@ -136,8 +136,18 @@
         : "Updated";
       state.title.textContent = "What’s new";
       state.description.textContent =
-        "Version 3.5.4 adds function-type icons to Next-gen actions.";
+        "Version 3.5.5 adds action-step duplication and quick actions to Next-gen actions.";
       [
+        [
+          "▣",
+          "Copy and paste action steps",
+          "Copy a configured step from its hover menu and paste it after another step. Paste stays disabled unless the same function type, name and version are available.",
+        ],
+        [
+          "⊕",
+          "Duplicate configured action steps",
+          "Use Duplicate between Save and Cancel or the hover menu to copy an action step, including its options, paths and output variables.",
+        ],
         [
           "◈",
           "See each action step’s function type",

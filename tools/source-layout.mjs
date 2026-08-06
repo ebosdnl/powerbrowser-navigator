@@ -13,6 +13,7 @@ export const sourceLayout = [
   "src/features/nextgen/action-playground/validation.js",
   "src/features/nextgen/action-playground/ui.js",
   "src/features/nextgen/action-type-icons.js",
+  "src/features/nextgen/duplicate-action-step.js",
   "src/features/nextgen/log-downloader.js",
   "src/ui/settings/changes.js",
   "src/ui/settings/info.js",

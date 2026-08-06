@@ -79,6 +79,16 @@
     }
 
     if (
+      [
+        "nextgenDuplicateActionStep",
+        "nextgenActionStepQuickActions",
+        "nextgenActionStepCopyPaste",
+      ].includes(definition.key)
+    ) {
+      applyNextgenDuplicateActionStepSetting();
+    }
+
+    if (
       ["runtimeSearchIncludeKind", "runtimeSearchExcludeRelations"].includes(
         definition.key,
       ) &&

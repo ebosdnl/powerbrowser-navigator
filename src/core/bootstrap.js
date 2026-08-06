@@ -77,6 +77,71 @@
   }
 
   const pageWindow = globalThis.unsafeWindow || window;
+  const NEXTGEN_RUNTIME_BRIDGE_KEY = "__POWER_BROWSER_NEXTGEN_RUNTIME__";
+
+  function installNextgenRuntimeBridge() {
+    const bridge =
+      pageWindow[NEXTGEN_RUNTIME_BRIDGE_KEY] ||
+      (pageWindow[NEXTGEN_RUNTIME_BRIDGE_KEY] = {
+        apolloClients: [],
+        reduxStores: [],
+      });
+    const captureProviderProps = (props) => {
+      const client = props?.client;
+      if (
+        client?.cache &&
+        typeof client.refetchQueries === "function" &&
+        !bridge.apolloClients.includes(client)
+      ) {
+        bridge.apolloClients.push(client);
+      }
+      const store = props?.store;
+      if (
+        typeof store?.dispatch === "function" &&
+        typeof store?.getState === "function" &&
+        !bridge.reduxStores.includes(store)
+      ) {
+        try {
+          if ("action" in (store.getState() || {})) {
+            bridge.reduxStores.push(store);
+          }
+        } catch {
+          // Ignore provider stores that are not ready yet.
+        }
+      }
+    };
+    const hookReact = () => {
+      const react = pageWindow.React;
+      if (
+        typeof react?.createElement !== "function" ||
+        react.createElement.powerBrowserRuntimeBridge
+      ) {
+        return Boolean(react?.createElement?.powerBrowserRuntimeBridge);
+      }
+      const originalCreateElement = react.createElement;
+      function powerBrowserCreateElement(type, props, ...children) {
+        captureProviderProps(props);
+        return Reflect.apply(originalCreateElement, this, [
+          type,
+          props,
+          ...children,
+        ]);
+      }
+      powerBrowserCreateElement.powerBrowserRuntimeBridge = true;
+      powerBrowserCreateElement.powerBrowserOriginal = originalCreateElement;
+      react.createElement = powerBrowserCreateElement;
+      return true;
+    };
+    if (hookReact()) return;
+    const startedAt = Date.now();
+    const timer = pageWindow.setInterval(() => {
+      if (hookReact() || Date.now() - startedAt > 30000) {
+        pageWindow.clearInterval(timer);
+      }
+    }, 10);
+  }
+
+  installNextgenRuntimeBridge();
   const INITIALIZED_ATTRIBUTE = "data-power-browser-v2-initialized";
 
   // The DOM marker is shared between userscript sandboxes and prevents duplicate
@@ -125,6 +190,7 @@
   let nextgenActionTypeIconsRequest = 0;
   let nextgenActionTypeIconsRoute = "";
   let nextgenActionTypeIconsById = new Map();
+  let nextgenDuplicateActionStepObserver = null;
   let nextgenLogDownloaderObserver = null;
   let nextgenLogDownloaderOriginalFetch = null;
   let nextgenLogDownloaderPatchedFetch = null;

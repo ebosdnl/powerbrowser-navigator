@@ -103,6 +103,12 @@
     sync: applyNextgenActionTypeIconsSetting,
     stop: cleanupNextgenActionTypeIcons,
   });
+  featureRegistry.register({
+    name: "nextgen-duplicate-action-step",
+    start: applyNextgenDuplicateActionStepSetting,
+    sync: applyNextgenDuplicateActionStepSetting,
+    stop: cleanupNextgenDuplicateActionStep,
+  });
 
   function synchronizePowerBrowserRoute(navigator) {
     if (!currentPowerBrowserContext) {
@@ -153,6 +159,7 @@
   // finished, so its observer must start independently of main initialization.
   applyNextgenActionPlaygroundSetting();
   applyNextgenActionTypeIconsSetting();
+  applyNextgenDuplicateActionStepSetting();
 
   const navigator = initializeNavigator();
   activePowerBrowserNavigator = navigator;
