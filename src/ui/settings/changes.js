@@ -74,6 +74,10 @@
       applyNextgenActionPlaygroundSetting();
     }
 
+    if (definition.key === "nextgenActionTypeIcons") {
+      applyNextgenActionTypeIconsSetting();
+    }
+
     if (
       ["runtimeSearchIncludeKind", "runtimeSearchExcludeRelations"].includes(
         definition.key,

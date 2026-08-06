@@ -120,6 +120,11 @@
   let nextgenActionValidationSequence = 0;
   let nextgenActionClipboardSequence = 0;
   let nextgenActionClipboardFocusAttached = false;
+  let nextgenActionTypeIconsObserver = null;
+  let nextgenActionTypeIconsTimer = null;
+  let nextgenActionTypeIconsRequest = 0;
+  let nextgenActionTypeIconsRoute = "";
+  let nextgenActionTypeIconsById = new Map();
   let nextgenLogDownloaderObserver = null;
   let nextgenLogDownloaderOriginalFetch = null;
   let nextgenLogDownloaderPatchedFetch = null;

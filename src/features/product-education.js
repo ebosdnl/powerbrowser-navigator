@@ -136,8 +136,13 @@
         : "Updated";
       state.title.textContent = "What’s new";
       state.description.textContent =
-        "Version 3.5.3 improves Action Playground support for scheduled and no-input actions.";
+        "Version 3.5.4 adds function-type icons to Next-gen actions.";
       [
+        [
+          "◈",
+          "See each action step’s function type",
+          "Next-gen action steps and the action list now show whether they use an application, Block Store or native function. Control this under Next-gen → Actions in Settings.",
+        ],
         [
           "{ }",
           "Support actions without variables",

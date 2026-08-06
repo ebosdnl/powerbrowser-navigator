@@ -231,7 +231,7 @@
     {
       key: "featureFlagWorkflows",
       tab: "nextgen",
-      section: "Action",
+      section: "Actions",
       badge: "Feature flag",
       label: "Workflows",
       description: "workflows",
@@ -243,10 +243,20 @@
     {
       key: "nextgenEditableActionPlayground",
       tab: "nextgen",
-      section: "Action",
+      section: "Actions",
       label: "Editable action playground",
       description:
         "Make test-value playground fields editable and add runtime request headers.",
+      type: "toggle",
+      defaultValue: true,
+    },
+    {
+      key: "nextgenActionTypeIcons",
+      tab: "nextgen",
+      section: "Actions",
+      label: "Action type icons",
+      description:
+        "Show whether each action step uses an application, Block Store or native function.",
       type: "toggle",
       defaultValue: true,
     },

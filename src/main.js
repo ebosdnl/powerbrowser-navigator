@@ -97,6 +97,12 @@
       releaseNextgenLogGraphqlCapture();
     },
   });
+  featureRegistry.register({
+    name: "nextgen-action-type-icons",
+    start: applyNextgenActionTypeIconsSetting,
+    sync: applyNextgenActionTypeIconsSetting,
+    stop: cleanupNextgenActionTypeIcons,
+  });
 
   function synchronizePowerBrowserRoute(navigator) {
     if (!currentPowerBrowserContext) {
@@ -146,6 +152,7 @@
   // This dialog can open before artifact and application-family requests have
   // finished, so its observer must start independently of main initialization.
   applyNextgenActionPlaygroundSetting();
+  applyNextgenActionTypeIconsSetting();
 
   const navigator = initializeNavigator();
   activePowerBrowserNavigator = navigator;
