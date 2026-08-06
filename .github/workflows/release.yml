@@ -1,8 +1,10 @@
 name: Release userscript
 
 on:
-  release:
-    types: [published]
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
 
 permissions:
   contents: write
