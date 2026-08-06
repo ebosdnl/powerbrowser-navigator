@@ -285,6 +285,33 @@
           picker.appendChild(option);
         });
         card.appendChild(picker);
+      } else if (definition.type === "number") {
+        const input = document.createElement("input");
+        input.type = "number";
+        input.className = "power-browser-settings-shortcut-v2";
+        input.min = String(definition.min);
+        input.max = String(definition.max);
+        input.step = "1";
+        input.value = String(getEditableSettingValue(definition.key));
+        input.setAttribute("aria-label", definition.label);
+        input.addEventListener("change", () => {
+          const value = Math.min(
+            Number(definition.max),
+            Math.max(
+              Number(definition.min),
+              Math.floor(Number(input.value)),
+            ),
+          );
+          input.value = String(value);
+          setSettingValue(definition.key, value);
+          applySettingChange(
+            navigator,
+            definition,
+            getSettingValue(definition.key),
+          );
+          renderSettingsTab(navigator);
+        });
+        card.appendChild(input);
       } else if (definition.type === "toggle") {
         const wrapper = document.createElement("label");
         wrapper.className = "power-browser-settings-toggle-v2";

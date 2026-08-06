@@ -85,7 +85,105 @@
       (pageWindow[NEXTGEN_RUNTIME_BRIDGE_KEY] = {
         apolloClients: [],
         reduxStores: [],
+        actionMutationHooks: [],
+        suppressActionHistory: 0,
       });
+    bridge.actionMutationHooks ||= [];
+    bridge.suppressActionHistory ||= 0;
+    bridge.apolloActionHistoryDepth ||= 0;
+    const getActionMutationDetails = (mutation, variables = {}) => {
+      const operation = mutation?.definitions?.find(
+        (definition) => definition?.kind === "OperationDefinition",
+      );
+      if (operation?.operation !== "mutation") return null;
+      const fieldNames = new Set(
+        (operation.selectionSet?.selections || []).map(
+          (selection) => selection?.name?.value,
+        ),
+      );
+      const mutationType = fieldNames.has("createActionStep")
+        ? "create"
+        : fieldNames.has("updateActionStep")
+          ? "update"
+          : fieldNames.has("deleteActionStep")
+            ? "delete"
+            : null;
+      return mutationType
+        ? {
+            mutationType,
+            operationName: operation.name?.value || "",
+            query: "",
+            variables,
+          }
+        : null;
+    };
+    const runActionMutationHooks = async (phase, details, captures = []) =>
+      Promise.all(
+        (bridge.actionMutationHooks || []).map(async (hook, index) => {
+          try {
+            return phase === "before"
+              ? await hook.before?.(details)
+              : await hook.after?.(details, captures[index]);
+          } catch (error) {
+            console.error(
+              `[Power Browser] Unable to capture action history ${phase} mutation.`,
+              error,
+            );
+            return null;
+          }
+        }),
+      );
+    const hookApolloClient = (client) => {
+      if (
+        typeof client?.mutate !== "function" ||
+        client.mutate.powerBrowserActionHistoryBridge
+      ) {
+        return;
+      }
+      const originalMutate = client.mutate;
+      async function powerBrowserApolloMutate(options) {
+        const details = getActionMutationDetails(
+          options?.mutation,
+          options?.variables || {},
+        );
+        if (
+          !details ||
+          bridge.suppressActionHistory > 0 ||
+          !bridge.actionMutationHooks.length
+        ) {
+          return Reflect.apply(originalMutate, this, [options]);
+        }
+        const captures = await runActionMutationHooks("before", details);
+        bridge.apolloActionHistoryDepth += 1;
+        try {
+          const result = await Reflect.apply(originalMutate, this, [options]);
+          if (!result?.errors?.length) {
+            await runActionMutationHooks("after", details, captures);
+          }
+          return result;
+        } finally {
+          bridge.apolloActionHistoryDepth = Math.max(
+            0,
+            bridge.apolloActionHistoryDepth - 1,
+          );
+        }
+      }
+      powerBrowserApolloMutate.powerBrowserActionHistoryBridge = true;
+      powerBrowserApolloMutate.powerBrowserOriginal = originalMutate;
+      client.mutate = powerBrowserApolloMutate;
+      bridge.apolloHistoryHookCount =
+        (bridge.apolloHistoryHookCount || 0) + 1;
+      if (bridge.apolloHistoryHookCount === 1) {
+        console.info(
+          "[Power Browser] Action history Apollo mutation hook installed.",
+        );
+      } else {
+        console.debug(
+          "[Power Browser] Additional Apollo client connected to action history.",
+          { clientCount: bridge.apolloHistoryHookCount },
+        );
+      }
+    };
     const captureProviderProps = (props) => {
       const client = props?.client;
       if (
@@ -95,6 +193,7 @@
       ) {
         bridge.apolloClients.push(client);
       }
+      hookApolloClient(client);
       const store = props?.store;
       if (
         typeof store?.dispatch === "function" &&
@@ -132,6 +231,100 @@
       react.createElement = powerBrowserCreateElement;
       return true;
     };
+    const hookFetch = () => {
+      const currentFetch = pageWindow.fetch;
+      if (
+        typeof currentFetch !== "function" ||
+        currentFetch.powerBrowserActionHistoryBridge
+      ) {
+        return;
+      }
+      const originalFetch = currentFetch;
+      async function powerBrowserFetch(input, init) {
+        const hooks = bridge.actionMutationHooks || [];
+        const url =
+          typeof input === "string" || input instanceof URL
+            ? String(input)
+            : input?.url || "";
+        if (
+          !hooks.length ||
+          bridge.suppressActionHistory > 0 ||
+          bridge.apolloActionHistoryDepth > 0 ||
+          !url.includes("/api/meta/graphql")
+        ) {
+          return Reflect.apply(originalFetch, this, [input, init]);
+        }
+        let payload = null;
+        try {
+          const body =
+            typeof init?.body === "string"
+              ? init.body
+              : typeof input?.clone === "function"
+                ? await input.clone().text()
+                : "";
+          payload = body ? JSON.parse(body) : null;
+        } catch {
+          // Non-JSON GraphQL traffic is not part of action-step history.
+        }
+        const query = payload?.query || "";
+        const mutationType = query.includes("createActionStep(input:")
+          ? "create"
+          : query.includes("updateActionStep(input:")
+            ? "update"
+            : query.includes("deleteActionStep(input:")
+              ? "delete"
+              : null;
+        if (!mutationType) {
+          return Reflect.apply(originalFetch, this, [input, init]);
+        }
+        const details = {
+          mutationType,
+          operationName: payload.operationName || "",
+          query,
+          variables: payload.variables || {},
+        };
+        const captures = await Promise.all(
+          hooks.map(async (hook) => {
+            try {
+              return await hook.before?.(details);
+            } catch (error) {
+              console.error(
+                "[Power Browser] Unable to capture action history before mutation.",
+                error,
+              );
+              return null;
+            }
+          }),
+        );
+        const response = await Reflect.apply(originalFetch, this, [input, init]);
+        let succeeded = response.ok;
+        try {
+          const result = await response.clone().json();
+          succeeded = succeeded && !result.errors?.length;
+        } catch {
+          // Preserve the HTTP success result when the response is not JSON.
+        }
+        if (succeeded) {
+          await Promise.all(
+            hooks.map(async (hook, index) => {
+              try {
+                await hook.after?.(details, captures[index]);
+              } catch (error) {
+                console.error(
+                  "[Power Browser] Unable to capture action history after mutation.",
+                  error,
+                );
+              }
+            }),
+          );
+        }
+        return response;
+      }
+      powerBrowserFetch.powerBrowserActionHistoryBridge = true;
+      powerBrowserFetch.powerBrowserOriginal = originalFetch;
+      pageWindow.fetch = powerBrowserFetch;
+    };
+    hookFetch();
     if (hookReact()) return;
     const startedAt = Date.now();
     const timer = pageWindow.setInterval(() => {
@@ -191,6 +384,7 @@
   let nextgenActionTypeIconsRoute = "";
   let nextgenActionTypeIconsById = new Map();
   let nextgenDuplicateActionStepObserver = null;
+  let nextgenActionHistoryObserver = null;
   let nextgenLogDownloaderObserver = null;
   let nextgenLogDownloaderOriginalFetch = null;
   let nextgenLogDownloaderPatchedFetch = null;

@@ -89,6 +89,15 @@
     }
 
     if (
+      [
+        "nextgenActionStepHistory",
+        "nextgenActionStepHistoryLength",
+      ].includes(definition.key)
+    ) {
+      applyNextgenActionStepHistorySetting();
+    }
+
+    if (
       ["runtimeSearchIncludeKind", "runtimeSearchExcludeRelations"].includes(
         definition.key,
       ) &&

@@ -5,6 +5,7 @@ const VALID_TYPES = new Set<SettingType>([
   "shortcut",
   "theme",
   "size",
+  "number",
 ]);
 
 export function validateSettingsDefinitions(
@@ -47,6 +48,26 @@ export function validateSettingsDefinitions(
       typeof definition.defaultValue !== "boolean"
     ) {
       errors.push(`Toggle "${definition.key}" must have a boolean default.`);
+    }
+    if (definition?.type === "number") {
+      const min = Number(definition.min);
+      const max = Number(definition.max);
+      const defaultValue = Number(definition.defaultValue);
+      if (
+        !Number.isFinite(min) ||
+        !Number.isFinite(max) ||
+        !Number.isInteger(min) ||
+        !Number.isInteger(max) ||
+        min > max ||
+        !Number.isFinite(defaultValue) ||
+        !Number.isInteger(defaultValue) ||
+        defaultValue < min ||
+        defaultValue > max
+      ) {
+        errors.push(
+          `Number setting "${definition.key}" needs a default between its min and max.`,
+        );
+      }
     }
   }
 

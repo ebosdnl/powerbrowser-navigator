@@ -136,12 +136,27 @@
         : "Updated";
       state.title.textContent = "What’s new";
       state.description.textContent =
-        "Version 3.5.5 adds action-step duplication and quick actions to Next-gen actions.";
+        "Version 3.5.5 expands Next-gen actions with history, duplication and quick actions.";
       [
         [
           "▣",
+          "Save and load action versions",
+          "Create named snapshots of the complete action canvas and restore them later. Loading a version can itself be undone.",
+        ],
+        [
+          "↶",
+          "Undo and redo action-step changes",
+          "Undo, redo or selectively revert action-step creates, updates and deletes. History persists per action across reloads and browser restarts.",
+        ],
+        [
+          "▣",
           "Copy and paste action steps",
-          "Copy a configured step from its hover menu and paste it after another step. Paste stays disabled unless the same function type, name and version are available.",
+          "Copy a configured step from its hover menu, then paste it at any compatible insertion circle between canvas steps. Paste only appears when the same function type, name and version are available.",
+        ],
+        [
+          "◇",
+          "Copy, duplicate or delete complete scopes",
+          "Condition and loop steps with nested actions get a Scope menu to copy, duplicate or delete the complete nested scope as one undoable change.",
         ],
         [
           "⊕",

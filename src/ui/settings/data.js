@@ -85,7 +85,13 @@
       (definition.type === "theme" &&
         ["light", "dark", "betty"].includes(value)) ||
       (definition.type === "size" &&
-        SETTINGS_SIZE_VALUES.includes(value))
+        SETTINGS_SIZE_VALUES.includes(value)) ||
+      (definition.type === "number" &&
+        typeof value === "number" &&
+        Number.isFinite(value) &&
+        Number.isInteger(value) &&
+        value >= Number(definition.min) &&
+        value <= Number(definition.max))
     );
   }
 

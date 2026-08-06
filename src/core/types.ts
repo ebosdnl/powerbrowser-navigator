@@ -54,7 +54,7 @@ export interface SettingsTab {
   label: string;
 }
 
-export type SettingType = "toggle" | "shortcut" | "theme" | "size";
+export type SettingType = "toggle" | "shortcut" | "theme" | "size" | "number";
 
 export interface SettingDefinition {
   key: string;

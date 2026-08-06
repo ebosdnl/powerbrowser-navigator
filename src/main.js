@@ -109,6 +109,12 @@
     sync: applyNextgenDuplicateActionStepSetting,
     stop: cleanupNextgenDuplicateActionStep,
   });
+  featureRegistry.register({
+    name: "nextgen-action-step-history",
+    start: applyNextgenActionStepHistorySetting,
+    sync: applyNextgenActionStepHistorySetting,
+    stop: cleanupNextgenActionStepHistory,
+  });
 
   function synchronizePowerBrowserRoute(navigator) {
     if (!currentPowerBrowserContext) {

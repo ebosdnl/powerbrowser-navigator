@@ -29,4 +29,26 @@ describe("settings validation", () => {
       ]),
     );
   });
+
+  it("validates bounded integer settings", () => {
+    const tabs = [{ id: "nextgen", label: "Next-gen" }];
+    const numberSetting: SettingDefinition = {
+      key: "historyLength",
+      tab: "nextgen",
+      label: "History length",
+      description: "Maximum retained entries.",
+      type: "number",
+      defaultValue: 20,
+      min: 1,
+      max: 50,
+    };
+    expect(validateSettingsDefinitions(tabs, [numberSetting])).toEqual([]);
+    expect(
+      validateSettingsDefinitions(tabs, [
+        { ...numberSetting, defaultValue: 50.5 },
+      ]),
+    ).toContain(
+      'Number setting "historyLength" needs a default between its min and max.',
+    );
+  });
 });

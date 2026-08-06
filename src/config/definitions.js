@@ -291,6 +291,28 @@
       defaultValue: true,
     },
     {
+      key: "nextgenActionStepHistory",
+      tab: "nextgen",
+      section: "Actions",
+      label: "Action step undo and redo",
+      description:
+        "Record action-step creates, updates and deletes across reloads and browser restarts, with separate history for each action.",
+      type: "toggle",
+      defaultValue: true,
+    },
+    {
+      key: "nextgenActionStepHistoryLength",
+      tab: "nextgen",
+      section: "Actions",
+      label: "Action step history length",
+      description:
+        "Maximum number of action-step changes retained for Undo and Redo.",
+      type: "number",
+      defaultValue: 20,
+      min: 1,
+      max: 50,
+    },
+    {
       key: "buttonRuntimeHidden",
       tab: "nextgen",
       section: "Page builder",
@@ -470,6 +492,24 @@
       description: "Show or hide the Power Browser navigation bar.",
       type: "shortcut",
       defaultValue: "Ctrl+Shift+M",
+    },
+    {
+      key: "nextgenActionStepUndoShortcut",
+      tab: "shortcuts",
+      section: "Next-gen actions",
+      label: "Undo action-step change",
+      description: "Undo the latest recorded Next-gen action-step change.",
+      type: "shortcut",
+      defaultValue: "Ctrl+Z",
+    },
+    {
+      key: "nextgenActionStepRedoShortcut",
+      tab: "shortcuts",
+      section: "Next-gen actions",
+      label: "Redo action-step change",
+      description: "Redo the latest undone Next-gen action-step change.",
+      type: "shortcut",
+      defaultValue: "Ctrl+Shift+Z",
     },
   ]);
 
