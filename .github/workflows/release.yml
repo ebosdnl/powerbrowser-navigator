@@ -4,6 +4,11 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag to build and attach, for example v3.5.5
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -11,18 +16,19 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
-
+    env:
+      TARGET_TAG: ${{ github.event.release.tag_name || inputs.tag }}
     steps:
       - uses: actions/checkout@v6
-
+        with:
+          ref: ${{ env.TARGET_TAG }}
       - uses: actions/setup-node@v6
         with:
           node-version: 20
           cache: npm
-
       - run: npm ci
       - run: npm run check
-
       - uses: softprops/action-gh-release@v3
         with:
+          tag_name: ${{ env.TARGET_TAG }}
           files: dist/bb-powerbrowser.user.js
