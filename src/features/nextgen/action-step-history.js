@@ -7,6 +7,7 @@
   const NEXTGEN_ACTION_HISTORY_STORAGE_KEY =
     "powerBrowserNextgenActionHistoryV1";
   const nextgenActionHistoryByAction = new Map();
+  const nextgenNestedActionCanvasRefreshTimers = new Map();
   const nextgenActionHistoryHook = {
     before: captureNextgenActionHistoryBeforeMutation,
     after: captureNextgenActionHistoryAfterMutation,
@@ -125,6 +126,26 @@
       return variables.updateInput || null;
     }
     return variables.deleteActionStepInput || variables.deleteInput || null;
+  }
+
+  function scheduleNextgenNestedActionCanvasRefresh(actionId, stepId) {
+    clearTimeout(nextgenNestedActionCanvasRefreshTimers.get(actionId));
+    const timer = setTimeout(async () => {
+      nextgenNestedActionCanvasRefreshTimers.delete(actionId);
+      try {
+        await refreshNextgenActionCanvas(actionId, stepId, "added", false);
+        console.info(
+          "[Power Browser] Nested action step found in the refreshed canvas.",
+          { actionId, stepId },
+        );
+      } catch (error) {
+        console.error(
+          "[Power Browser] Unable to refresh the canvas after creating a nested action step.",
+          { actionId, stepId, error },
+        );
+      }
+    }, 0);
+    nextgenNestedActionCanvasRefreshTimers.set(actionId, timer);
   }
 
   function resolveNextgenActionHistoryActionId(stepId, explicitActionId) {
@@ -293,7 +314,10 @@
   }
 
   async function captureNextgenActionHistoryBeforeMutation(details) {
-    if (!getSettingValue("nextgenActionStepHistory")) return null;
+    const recordHistory = Boolean(
+      getSettingValue("nextgenActionStepHistory"),
+    );
+    if (!recordHistory && details.mutationType !== "create") return null;
     const input = getNextgenActionMutationInput(details);
     const stepId = input?.id;
     if (!stepId) return null;
@@ -301,54 +325,87 @@
       stepId,
       input.actionId,
     );
-    if (!actionId || getNextgenActionHistoryState(actionId).busy) return null;
-    const before =
-      details.mutationType === "create"
+    if (
+      !actionId ||
+      (recordHistory && getNextgenActionHistoryState(actionId).busy)
+    ) {
+      return null;
+    }
+    const before = recordHistory
+      ? details.mutationType === "create"
         ? []
         : details.mutationType === "delete"
           ? await captureNextgenActionStepTree(actionId, stepId)
           : [await captureNextgenActionStepSnapshot(actionId, stepId)].filter(
               Boolean,
-            );
+            )
+      : [];
     return {
       actionId,
       stepId,
       mutationType: details.mutationType,
       operationName: details.operationName,
       before,
+      recordHistory,
+      isNestedCreate:
+        details.mutationType === "create" &&
+        Boolean(input.parentId || input.actionStepPathId),
     };
   }
 
   async function captureNextgenActionHistoryAfterMutation(details, capture) {
-    if (!capture || !getSettingValue("nextgenActionStepHistory")) return;
-    const after =
-      details.mutationType === "delete"
-        ? []
-        : [
-            await captureNextgenActionStepSnapshot(
-              capture.actionId,
-              capture.stepId,
-            ),
-          ].filter(Boolean);
-    if (JSON.stringify(capture.before) === JSON.stringify(after)) return;
-    const state = getNextgenActionHistoryState(capture.actionId);
-    state.undo.push({
-      ...capture,
-      after,
-      recordedAt: Date.now(),
-    });
-    state.undo.splice(0, Math.max(0, state.undo.length - getNextgenActionHistoryLimit()));
-    state.redo.length = 0;
-    persistNextgenActionHistoryState(capture.actionId, state);
-    console.info("[Power Browser] Action-step history entry recorded.", {
-      actionId: capture.actionId,
-      stepId: capture.stepId,
-      mutationType: capture.mutationType,
-      operationName: capture.operationName,
-      undoDepth: state.undo.length,
-    });
-    updateNextgenActionHistoryControls();
-    renderNextgenActionHistoryDialog();
+    if (!capture) return;
+    try {
+      if (
+        !capture.recordHistory ||
+        !getSettingValue("nextgenActionStepHistory")
+      ) {
+        return;
+      }
+      const after =
+        details.mutationType === "delete"
+          ? []
+          : [
+              await captureNextgenActionStepSnapshot(
+                capture.actionId,
+                capture.stepId,
+              ),
+            ].filter(Boolean);
+      if (JSON.stringify(capture.before) === JSON.stringify(after)) return;
+      const state = getNextgenActionHistoryState(capture.actionId);
+      const {
+        recordHistory: _recordHistory,
+        isNestedCreate: _isNestedCreate,
+        ...historyCapture
+      } = capture;
+      state.undo.push({
+        ...historyCapture,
+        after,
+        recordedAt: Date.now(),
+      });
+      state.undo.splice(
+        0,
+        Math.max(0, state.undo.length - getNextgenActionHistoryLimit()),
+      );
+      state.redo.length = 0;
+      persistNextgenActionHistoryState(capture.actionId, state);
+      console.info("[Power Browser] Action-step history entry recorded.", {
+        actionId: capture.actionId,
+        stepId: capture.stepId,
+        mutationType: capture.mutationType,
+        operationName: capture.operationName,
+        undoDepth: state.undo.length,
+      });
+      updateNextgenActionHistoryControls();
+      renderNextgenActionHistoryDialog();
+    } finally {
+      if (capture.isNestedCreate) {
+        scheduleNextgenNestedActionCanvasRefresh(
+          capture.actionId,
+          capture.stepId,
+        );
+      }
+    }
   }
 
   function getNextgenHistorySnapshotParentId(snapshot, snapshotsById) {

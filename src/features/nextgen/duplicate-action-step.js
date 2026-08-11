@@ -10,6 +10,7 @@
     "power-browser-action-step-edge-paste-style";
   const NEXTGEN_ACTION_STEP_CLIPBOARD_KEY =
     "powerBrowserNextgenActionStepClipboardV1";
+  const NEXTGEN_RESERVED_ACTION_STEP_IDS = new Set(["start", "finish"]);
   let nextgenActionStepClipboard = GM_getValue(
     NEXTGEN_ACTION_STEP_CLIPBOARD_KEY,
     null,
@@ -18,6 +19,8 @@
   const nextgenAnimatedEdgePasteKeys = new Set();
   let nextgenEdgePasteClipboardKey = "";
   let nextgenScopeMenuDocumentListenerInstalled = false;
+  let nextgenScopeMenuCheckSequence = 0;
+  const nextgenScopeActionFetches = new Map();
   GM_addValueChangeListener(
     NEXTGEN_ACTION_STEP_CLIPBOARD_KEY,
     (_key, _oldValue, newValue) => {
@@ -48,7 +51,9 @@
     const match = location.pathname.match(
       /\/app\/actions\/([^/?#]+)\/steps\/([^/?#]+)/i,
     );
-    return match ? { actionId: match[1], stepId: match[2] } : null;
+    return match && !NEXTGEN_RESERVED_ACTION_STEP_IDS.has(match[2].toLowerCase())
+      ? { actionId: match[1], stepId: match[2] }
+      : null;
   }
 
   function createPowerBrowserUuid() {
@@ -127,6 +132,115 @@
     });
   }
 
+  function getNextgenGraphqlSelectionFieldNames(
+    document,
+    selectionSet,
+    visitedFragments = new Set(),
+  ) {
+    const fieldNames = new Set();
+    for (const selection of selectionSet?.selections || []) {
+      if (selection.kind === "Field") {
+        fieldNames.add(selection.name?.value);
+        for (const nestedName of getNextgenGraphqlSelectionFieldNames(
+          document,
+          selection.selectionSet,
+          visitedFragments,
+        )) {
+          fieldNames.add(nestedName);
+        }
+        continue;
+      }
+      if (selection.kind === "InlineFragment") {
+        for (const nestedName of getNextgenGraphqlSelectionFieldNames(
+          document,
+          selection.selectionSet,
+          visitedFragments,
+        )) {
+          fieldNames.add(nestedName);
+        }
+        continue;
+      }
+      if (selection.kind !== "FragmentSpread") continue;
+      const fragmentName = selection.name?.value;
+      if (!fragmentName || visitedFragments.has(fragmentName)) continue;
+      visitedFragments.add(fragmentName);
+      const fragment = document?.definitions?.find(
+        (definition) =>
+          definition.kind === "FragmentDefinition" &&
+          definition.name?.value === fragmentName,
+      );
+      for (const nestedName of getNextgenGraphqlSelectionFieldNames(
+        document,
+        fragment?.selectionSet,
+        visitedFragments,
+      )) {
+        fieldNames.add(nestedName);
+      }
+    }
+    return fieldNames;
+  }
+
+  function isNextgenActionCanvasObservableQuery(observableQuery, actionId) {
+    const document = observableQuery?.options?.query;
+    const operation = document?.definitions?.find(
+      (definition) =>
+        definition.kind === "OperationDefinition" &&
+        definition.operation === "query" &&
+        definition.name?.value === "Action",
+    );
+    const actionSelection = operation?.selectionSet?.selections?.find(
+      (selection) =>
+        selection.kind === "Field" && selection.name?.value === "action",
+    );
+    if (!actionSelection) return false;
+    const fieldNames = getNextgenGraphqlSelectionFieldNames(
+      document,
+      actionSelection.selectionSet,
+    );
+    if (!fieldNames.has("actionSteps") || !fieldNames.has("actionStepPaths")) {
+      return false;
+    }
+    const currentActionId = observableQuery.getCurrentResult?.()?.data?.action?.id;
+    const inputActionId = observableQuery.options?.variables?.input?.id;
+    return !currentActionId && !inputActionId
+      ? true
+      : currentActionId === actionId || inputActionId === actionId;
+  }
+
+  async function refetchNextgenActionCanvasApolloQueries(clients, actionId) {
+    let refetchedCount = 0;
+    for (const client of clients) {
+      if (typeof client?.getObservableQueries !== "function") continue;
+      let observableQueries = [];
+      try {
+        observableQueries = Array.from(
+          client.getObservableQueries("active")?.values?.() || [],
+        );
+      } catch (error) {
+        console.debug(
+          "[Power Browser] Unable to inspect active Apollo queries for the action canvas.",
+          error,
+        );
+        continue;
+      }
+      for (const observableQuery of observableQueries) {
+        if (!isNextgenActionCanvasObservableQuery(observableQuery, actionId)) {
+          continue;
+        }
+        try {
+          await observableQuery.refetch();
+          refetchedCount += 1;
+        } catch (error) {
+          console.debug(
+            "[Power Browser] Action canvas Apollo query refetch skipped.",
+            error,
+          );
+        }
+      }
+    }
+    return refetchedCount;
+  }
+
   async function refreshNextgenActionCanvas(
     actionId,
     stepId,
@@ -135,34 +249,31 @@
   ) {
     const bridge = getNextgenActionRuntimeBridge();
     const clients = bridge?.apolloClients || [];
+    const store = getNextgenActionReduxStore(bridge, actionId);
+    if (!store) {
+      throw new Error("The action-canvas Redux store was not found.");
+    }
+    const previousAction = store.getState()?.action?.action;
+    const previousActionStepIds = new Set(
+      (previousAction?.actionSteps || []).map((step) => step.id),
+    );
     console.info("[Power Browser] Apollo client found.", {
       found: clients.length > 0,
       clientCount: clients.length,
     });
 
-    let action = null;
-    let refetched = false;
-    for (const client of clients) {
-      try {
-        const results = await client.refetchQueries({ include: ["Action"] });
-        const resultList = Array.isArray(results) ? results : [];
-        action = resultList.find((result) => result?.data?.action)?.data?.action || null;
-        if (action?.id === actionId) {
-          refetched = true;
-          break;
-        }
-      } catch (error) {
-        console.debug("[Power Browser] Action query refetch skipped for an Apollo client.", error);
-      }
-    }
-
-    if (!action) {
-      const data = await requestNextgenActionStepGraphql(
-        "Action",
-        NEXTGEN_ACTION_CANVAS_QUERY,
-        { input: { id: actionId } },
-      );
-      action = data.action || null;
+    const refetchedCount = await refetchNextgenActionCanvasApolloQueries(
+      clients,
+      actionId,
+    );
+    const data = await requestNextgenActionStepGraphql(
+      "Action",
+      NEXTGEN_ACTION_CANVAS_QUERY,
+      { input: { id: actionId } },
+    );
+    const action = data.action || null;
+    if (action?.id !== actionId || !Array.isArray(action.actionSteps)) {
+      throw new Error("The full Action query returned an invalid canvas payload.");
     }
     const containsStep = action?.actionSteps?.some((step) => step.id === stepId);
     if (mode === "added" ? !containsStep : containsStep) {
@@ -172,15 +283,26 @@
           : "The refreshed Action query still returned the deleted step.",
       );
     }
-
-    const store = getNextgenActionReduxStore(bridge, actionId);
-    if (!store) {
-      throw new Error("The action-canvas Redux store was not found.");
+    if (mode === "added") {
+      const refreshedActionStepIds = new Set(
+        action.actionSteps.map((step) => step.id),
+      );
+      const missingExistingStepIds = Array.from(previousActionStepIds).filter(
+        (existingStepId) => !refreshedActionStepIds.has(existingStepId),
+      );
+      if (missingExistingStepIds.length) {
+        throw new Error(
+          `The full Action query omitted ${missingExistingStepIds.length} existing canvas step${missingExistingStepIds.length === 1 ? "" : "s"}; the canvas state was not replaced.`,
+        );
+      }
     }
     store.dispatch({ type: "action/setAction", payload: action });
     console.info("[Power Browser] Action canvas query refreshed and state updated.", {
       operationName: "Action",
-      apolloRefetched: refetched,
+      apolloRefetched: refetchedCount > 0,
+      apolloRefetchedQueryCount: refetchedCount,
+      previousActionStepCount: previousAction?.actionSteps?.length ?? null,
+      refreshedActionStepCount: action?.actionSteps?.length ?? null,
       actionStepsField: "action.actionSteps",
       actionStepPathsField: "action.actionStepPaths",
     });
@@ -214,6 +336,18 @@
   }
 
   async function fetchNextgenActionStepForDuplication(actionId, stepId) {
+    if (!stepId) {
+      return requestNextgenActionStepGraphql(
+        "PowerBrowserEmptyActionStepPlacement",
+        `query PowerBrowserEmptyActionStepPlacement($actionInput: ActionInput!) {
+          action(input: $actionInput) {
+            actionSteps { id index parentId actionStepPathId }
+            actionStepPaths { id actionStepId }
+          }
+        }`,
+        { actionInput: { id: actionId } },
+      );
+    }
     return requestNextgenActionStepGraphql(
       "PowerBrowserDuplicateActionStepSource",
       `query PowerBrowserDuplicateActionStepSource($actionInput: ActionInput!, $stepInput: ActionStepInput, $variablesInput: ActionStepVariablesInput) {
@@ -433,7 +567,73 @@
     sourceStepId,
     newStepId,
     placementPosition = "after",
+    actionStepPaths = [],
   ) {
+    const placement =
+      placementPosition && typeof placementPosition === "object"
+        ? placementPosition
+        : { position: placementPosition };
+    if (placement.position === "empty") {
+      if (actionSteps.length) {
+        throw new Error("The destination action is no longer empty.");
+      }
+      const duplicate = {
+        id: newStepId,
+        index: 1,
+        parentId: null,
+        actionStepPathId: null,
+      };
+      return { duplicate, moveActionStepInput: [duplicate] };
+    }
+    if (placement.position === "path-empty") {
+      const pathOwnerId = placement.pathOwnerId || null;
+      const actionStepPathId = placement.actionStepPathId || null;
+      const ownsPath = actionStepPaths.some(
+        (path) =>
+          path.id === actionStepPathId && path.actionStepId === pathOwnerId,
+      );
+      if (!pathOwnerId || !actionStepPathId || !ownsPath) {
+        throw new Error("The destination action path could not be resolved.");
+      }
+      if (
+        actionSteps.some(
+          (step) =>
+            (step.parentId || null) === null &&
+            (step.actionStepPathId || null) === actionStepPathId,
+        )
+      ) {
+        throw new Error("The destination action path is no longer empty.");
+      }
+      const duplicate = {
+        id: newStepId,
+        index: 1,
+        parentId: null,
+        actionStepPathId,
+      };
+      return { duplicate, moveActionStepInput: [duplicate] };
+    }
+    if (placement.position === "scope-empty") {
+      const parentId = placement.parentId || null;
+      if (!parentId || !actionSteps.some((step) => step.id === parentId)) {
+        throw new Error("The destination action scope could not be resolved.");
+      }
+      if (
+        actionSteps.some(
+          (step) =>
+            (step.parentId || null) === parentId &&
+            (step.actionStepPathId || null) === null,
+        )
+      ) {
+        throw new Error("The destination action scope is no longer empty.");
+      }
+      const duplicate = {
+        id: newStepId,
+        index: 1,
+        parentId,
+        actionStepPathId: null,
+      };
+      return { duplicate, moveActionStepInput: [duplicate] };
+    }
     const source = actionSteps.find((step) => step.id === sourceStepId);
     if (!source) throw new Error("The source step position could not be found.");
     const duplicateTemplate = {
@@ -455,7 +655,7 @@
       throw new Error("The source step was not found among its siblings.");
     }
     orderedSiblings.splice(
-      sourcePosition + (placementPosition === "before" ? 0 : 1),
+      sourcePosition + (placement.position === "before" ? 0 : 1),
       0,
       duplicateTemplate,
     );
@@ -612,11 +812,6 @@
   }
 
   function refreshNextgenPasteButtons() {
-    document
-      .querySelectorAll(
-        `.${NEXTGEN_ACTION_STEP_QUICK_ACTIONS_CLASS} button[data-test="power-browser-quick-paste-step"]`,
-      )
-      .forEach((button) => void updateNextgenPasteButtonAvailability(button));
     void installNextgenActionStepEdgePasteButtons();
   }
 
@@ -720,16 +915,21 @@
   }
 
   async function fetchNextgenActionForScope(actionId) {
-    const bridge = getNextgenActionRuntimeBridge();
-    const store = getNextgenActionReduxStore(bridge, actionId);
-    const cachedAction = store?.getState()?.action?.action;
-    if (cachedAction?.id === actionId) return cachedAction;
-    const data = await requestNextgenActionStepGraphql(
+    const existingFetch = nextgenScopeActionFetches.get(actionId);
+    if (existingFetch) return existingFetch;
+    const actionFetch = requestNextgenActionStepGraphql(
       "Action",
       NEXTGEN_ACTION_CANVAS_QUERY,
       { input: { id: actionId } },
-    );
-    return data.action || null;
+    ).then((data) => data.action || null);
+    nextgenScopeActionFetches.set(actionId, actionFetch);
+    try {
+      return await actionFetch;
+    } finally {
+      if (nextgenScopeActionFetches.get(actionId) === actionFetch) {
+        nextgenScopeActionFetches.delete(actionId);
+      }
+    }
   }
 
   function getNextgenScopeActionFunctions(snapshots) {
@@ -844,7 +1044,7 @@
         filter: {
           field: {
             actionId: { eq: actionId },
-            actionStepId: { eq: stepId },
+            ...(stepId ? { actionStepId: { eq: stepId } } : {}),
           },
         },
       },
@@ -1047,6 +1247,7 @@
       insertionStepId,
       root.actionStep.id,
       placementPosition,
+      action.actionStepPaths || [],
     );
     root.position = {
       ...root.position,
@@ -1282,13 +1483,6 @@
     }
   }
 
-  async function pasteNextgenActionStep(button, context) {
-    return pasteNextgenActionStepAtPlacement(button, context, {
-      stepId: context.stepId,
-      position: "after",
-    });
-  }
-
   async function pasteNextgenActionStepAtPlacement(
     button,
     context,
@@ -1324,7 +1518,7 @@
           matches,
           "PowerBrowserPasteActionScope",
           externalVariableReplacements,
-          placement.position,
+          placement,
         );
         if (pastedStepId) {
           console.info("[Power Browser] Copied action scope pasted.", {
@@ -1346,7 +1540,10 @@
         context.actionId,
         placement.stepId,
       );
-      if (!destination.action || !destination.actionStep) {
+      if (
+        !destination.action ||
+        (placement.position !== "empty" && !destination.actionStep)
+      ) {
         throw new Error("The destination action step was not returned.");
       }
       const pastedActionStep = structuredClone(clipboard.actionStep);
@@ -1363,7 +1560,7 @@
         placementContext,
         source,
         placement.stepId,
-        placement.position,
+        placement,
       );
       if (!pastedStepId) return;
       console.info("[Power Browser] Copied action step pasted.", {
@@ -1436,6 +1633,7 @@
         placementStepId || context.stepId,
         newStepId,
         placementPosition,
+        source.action.actionStepPaths || [],
       );
       const actionFunction = getNextgenActionStepFunctionDescriptor(
         source.actionStep,
@@ -1690,16 +1888,61 @@
     document.head.appendChild(style);
   }
 
-  function getNextgenActionStepEdgePlacement(edge, actionStepIds) {
+  function getNextgenActionStepEdgePlacement(
+    edge,
+    actionStepIds,
+    yieldsAllStepIds,
+    actionStepPathOwners,
+    edgeEndpoints,
+  ) {
     const label = edge.getAttribute("aria-label") || "";
     const endpoints = label.match(/^Edge from (.+?) to (.+)$/);
     if (!endpoints) return null;
     const [, sourceId, targetId] = endpoints;
+    if (
+      actionStepIds.size === 0 &&
+      sourceId === "start" &&
+      targetId === "finish"
+    ) {
+      return { stepId: null, position: "empty" };
+    }
+    if (yieldsAllStepIds.has(sourceId) && targetId.startsWith("phantom-")) {
+      return {
+        stepId: sourceId,
+        position: "scope-empty",
+        parentId: sourceId,
+        actionStepPathId: null,
+      };
+    }
     if (actionStepIds.has(targetId)) {
       return { stepId: targetId, position: "before" };
     }
     if (actionStepIds.has(sourceId)) {
       return { stepId: sourceId, position: "after" };
+    }
+    const pathOwnerId = actionStepPathOwners.get(sourceId);
+    if (pathOwnerId && targetId.startsWith("junction-")) {
+      return {
+        stepId: pathOwnerId,
+        position: "path-empty",
+        pathOwnerId,
+        parentId: null,
+        actionStepPathId: sourceId,
+      };
+    }
+    if (targetId === "finish" && sourceId.startsWith("junction-")) {
+      const ownerIds = new Set(
+        edgeEndpoints
+          .filter(
+            (candidate) =>
+              candidate.targetId === sourceId &&
+              actionStepPathOwners.has(candidate.sourceId),
+          )
+          .map((candidate) => actionStepPathOwners.get(candidate.sourceId)),
+      );
+      if (ownerIds.size === 1) {
+        return { stepId: ownerIds.values().next().value, position: "after" };
+      }
     }
     return null;
   }
@@ -1759,13 +2002,50 @@
           ".react-flow__node-step[data-id], .react-flow__node-yieldsAll[data-id]",
         ),
         (node) => node.getAttribute("data-id"),
+      ).filter(
+        (stepId) =>
+          stepId && !NEXTGEN_RESERVED_ACTION_STEP_IDS.has(stepId.toLowerCase()),
+      ),
+    );
+    const yieldsAllStepIds = new Set(
+      Array.from(
+        document.querySelectorAll(".react-flow__node-yieldsAll[data-id]"),
+        (node) => node.getAttribute("data-id"),
       ).filter(Boolean),
     );
-    document.querySelectorAll(".react-flow__edge").forEach((edge) => {
+    const edges = Array.from(document.querySelectorAll(".react-flow__edge"));
+    const edgeEndpoints = edges
+      .map((edge) => {
+        const label = edge.getAttribute("aria-label") || "";
+        const match = label.match(/^Edge from (.+?) to (.+)$/);
+        return match
+          ? { edge, sourceId: match[1], targetId: match[2] }
+          : null;
+      })
+      .filter(Boolean);
+    const actionStepPathIds = new Set(
+      Array.from(
+        document.querySelectorAll(".react-flow__node-path[data-id]"),
+        (node) => node.getAttribute("data-id"),
+      ).filter(Boolean),
+    );
+    const actionStepPathOwners = new Map();
+    edgeEndpoints.forEach(({ sourceId, targetId }) => {
+      if (actionStepIds.has(sourceId) && actionStepPathIds.has(targetId)) {
+        actionStepPathOwners.set(targetId, sourceId);
+      }
+    });
+    edges.forEach((edge) => {
       if (edge.querySelector(`:scope > .${NEXTGEN_ACTION_STEP_EDGE_PASTE_CLASS}`)) {
         return;
       }
-      const placement = getNextgenActionStepEdgePlacement(edge, actionStepIds);
+      const placement = getNextgenActionStepEdgePlacement(
+        edge,
+        actionStepIds,
+        yieldsAllStepIds,
+        actionStepPathOwners,
+        edgeEndpoints,
+      );
       const midpoint = Array.from(edge.children).find(
         (child) =>
           child.localName === "g" && child.hasAttribute("transform"),
@@ -1789,6 +2069,7 @@
         actionId,
         placement.stepId,
         placement.position,
+        placement.actionStepPathId,
       ].join(":");
       if (!nextgenAnimatedEdgePasteKeys.has(edgeAnimationKey)) {
         wrapper.classList.add("is-new");
@@ -1864,6 +2145,13 @@
   function removeNextgenActionScopeMenuForToolbar(toolbar) {
     const menuId = toolbar?.dataset.scopeMenuId;
     if (menuId) document.getElementById(menuId)?.remove();
+    toolbar
+      ?.querySelector('[data-test="power-browser-quick-scope-step"]')
+      ?.remove();
+    if (toolbar) {
+      delete toolbar.dataset.scopeMenuId;
+      delete toolbar.dataset.scopeSignature;
+    }
   }
 
   function createNextgenActionScopeMenu(toolbar, context, scopeInfo) {
@@ -1987,10 +2275,42 @@
   }
 
   async function installNextgenActionScopeMenu(toolbar, context) {
+    const checkSequence = String(++nextgenScopeMenuCheckSequence);
+    toolbar.dataset.scopeCheckSequence = checkSequence;
     try {
       const action = await fetchNextgenActionForScope(context.actionId);
+      if (
+        !toolbar.isConnected ||
+        toolbar.dataset.scopeCheckSequence !== checkSequence
+      ) {
+        return;
+      }
       const scopeInfo = getNextgenActionScopeInfo(action, context.stepId);
-      if (scopeInfo) createNextgenActionScopeMenu(toolbar, context, scopeInfo);
+      if (!scopeInfo) {
+        removeNextgenActionScopeMenuForToolbar(toolbar);
+        return;
+      }
+      const scopeSignature = [
+        scopeInfo.label,
+        scopeInfo.pathCount,
+        ...Array.from(scopeInfo.stepIds).sort(),
+      ].join(":");
+      const existingTrigger = toolbar.querySelector(
+        '[data-test="power-browser-quick-scope-step"]',
+      );
+      const existingMenu = toolbar.dataset.scopeMenuId
+        ? document.getElementById(toolbar.dataset.scopeMenuId)
+        : null;
+      if (
+        toolbar.dataset.scopeSignature === scopeSignature &&
+        existingTrigger &&
+        existingMenu
+      ) {
+        return;
+      }
+      removeNextgenActionScopeMenuForToolbar(toolbar);
+      createNextgenActionScopeMenu(toolbar, context, scopeInfo);
+      toolbar.dataset.scopeSignature = scopeSignature;
     } catch (error) {
       console.debug("[Power Browser] Scope quick action unavailable.", {
         ...context,
@@ -2015,10 +2335,26 @@
         ".react-flow__node-step[data-id], .react-flow__node-yieldsAll[data-id]",
       )
       .forEach((node) => {
-        if (node.querySelector(`:scope > .${NEXTGEN_ACTION_STEP_QUICK_ACTIONS_CLASS}`)) return;
+        const existingToolbar = node.querySelector(
+          `:scope > .${NEXTGEN_ACTION_STEP_QUICK_ACTIONS_CLASS}`,
+        );
         const stepId = node.getAttribute("data-id");
-        if (!stepId) return;
+        if (
+          !stepId ||
+          NEXTGEN_RESERVED_ACTION_STEP_IDS.has(stepId.toLowerCase())
+        ) {
+          removeNextgenActionScopeMenuForToolbar(existingToolbar);
+          existingToolbar?.remove();
+          return;
+        }
         const context = { actionId, stepId };
+        if (existingToolbar) {
+          existingToolbar
+            .querySelector('[data-test="power-browser-quick-paste-step"]')
+            ?.remove();
+          void installNextgenActionScopeMenu(existingToolbar, context);
+          return;
+        }
         const toolbar = document.createElement("div");
         toolbar.className = NEXTGEN_ACTION_STEP_QUICK_ACTIONS_CLASS;
         const duplicate = createNextgenActionStepQuickAction(
@@ -2031,18 +2367,13 @@
           "power-browser-quick-copy-step",
           '<svg data-testid="icon_copy" aria-hidden="true" focusable="false" viewBox="0 0 14 14" stroke-width="0"><path d="M4.375 0A1.75 1.75 0 0 0 2.625 1.75v.875h1.75V1.75h7.875v7.875h-.875v1.75h.875A1.75 1.75 0 0 0 14 9.625V1.75A1.75 1.75 0 0 0 12.25 0H4.375Z"></path><path fill-rule="evenodd" clip-rule="evenodd" d="M1.75 3.5A1.75 1.75 0 0 0 0 5.25v7A1.75 1.75 0 0 0 1.75 14h7a1.75 1.75 0 0 0 1.75-1.75v-7A1.75 1.75 0 0 0 8.75 3.5h-7Zm0 1.75h7v7h-7v-7Z"></path></svg>',
         );
-        const paste = createNextgenActionStepQuickAction(
-          "Paste unavailable: copy an action step first",
-          "power-browser-quick-paste-step",
-          '<svg data-testid="icon_paste" aria-hidden="true" focusable="false" viewBox="0 0 14 14" stroke-width="0"><path d="M5.25 0A1.75 1.75 0 0 0 3.5 1.75H2.625A1.75 1.75 0 0 0 .875 3.5v8.75A1.75 1.75 0 0 0 2.625 14h5.25v-1.75h-5.25V3.5H3.5v.875h7V3.5h.875v3.063h1.75V3.5a1.75 1.75 0 0 0-1.75-1.75H10.5A1.75 1.75 0 0 0 8.75 0h-3.5Zm0 1.75h3.5v.875h-3.5V1.75Z"></path><path d="M10.5 7v2.625H7.875v1.75H10.5V14h1.75v-2.625h2.625v-1.75H12.25V7H10.5Z"></path></svg>',
-        );
         const remove = createNextgenActionStepQuickAction(
           "Delete action step",
           "power-browser-quick-delete-step",
           '<svg data-testid="icon_trash" aria-hidden="true" focusable="false" viewBox="0 0 14 14" stroke-width="0"><path d="M3.5 0.875V1.75H0.875C0.39175 1.75 0 2.14175 0 2.625C0 3.10825 0.39175 3.5 0.875 3.5H13.125C13.60826 3.5 14 3.10825 14 2.625C14 2.14175 13.60826 1.75 13.125 1.75H10.5V0.875C10.5 0.39175 10.10826 0 9.625 0H4.375C3.89175 0 3.5 0.39175 3.5 0.875Z"></path><path d="M12.25 5.25H1.75L2.48031 12.40846C2.56225 13.3098 3.31802 14 4.22313 14H9.7769C10.682 14 11.43774 13.3098 11.51972 12.40846L12.25 5.25Z"></path></svg>',
         );
         const actionButtons = copyPasteEnabled
-          ? [copy, paste, duplicate, remove]
+          ? [copy, duplicate, remove]
           : [duplicate, remove];
         actionButtons.forEach((button) => {
           button.addEventListener("pointerdown", (event) => event.stopPropagation());
@@ -2058,9 +2389,6 @@
           copy.addEventListener("click", () =>
             void copyNextgenActionStep(copy, context),
           );
-          paste.addEventListener("click", () =>
-            void pasteNextgenActionStep(paste, context),
-          );
         }
         remove.addEventListener("click", () =>
           void deleteNextgenActionStep(remove, context),
@@ -2068,9 +2396,6 @@
         toolbar.append(...actionButtons);
         node.appendChild(toolbar);
         void installNextgenActionScopeMenu(toolbar, context);
-        if (copyPasteEnabled) {
-          void updateNextgenPasteButtonAvailability(paste);
-        }
       });
   }
 
@@ -2119,7 +2444,12 @@
   }
 
   function installNextgenDuplicateActionStepButton() {
-    if (!getNextgenEditedActionStepContext()) return;
+    if (!getNextgenEditedActionStepContext()) {
+      document
+        .querySelectorAll(`[data-test="${NEXTGEN_DUPLICATE_STEP_BUTTON_TEST_ID}"]`)
+        .forEach((button) => button.remove());
+      return;
+    }
     const cancel = document.querySelector(
       '[role="dialog"] button[data-test="cancel-step"]',
     );

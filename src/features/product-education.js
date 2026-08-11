@@ -136,47 +136,22 @@
         : "Updated";
       state.title.textContent = "What’s new";
       state.description.textContent =
-        "Version 3.5.5 expands Next-gen actions with history, duplication and quick actions.";
+        "Version 3.5.6 improves action-canvas synchronization and makes paste placement clearer and more complete.";
       [
         [
-          "▣",
-          "Save and load action versions",
-          "Create named snapshots of the complete action canvas and restore them later. Loading a version can itself be undone.",
+          "↻",
+          "Keep every canvas step visible",
+          "Duplicating or pasting a step now refreshes only the complete action-canvas query and validates the full graph before updating it, preventing other steps from temporarily disappearing.",
         ],
         [
-          "↶",
-          "Undo and redo action-step changes",
-          "Undo, redo or selectively revert action-step creates, updates and deletes. History persists per action across reloads and browser restarts.",
+          "◎",
+          "Paste at every insertion point",
+          "Round paste buttons now appear in empty condition paths, loop bodies, and before Finish. Pasted steps keep the selected condition or loop scope, and the Paste button was removed from action-step quick actions in favor of these precise canvas insertion controls.",
         ],
         [
-          "▣",
-          "Copy and paste action steps",
-          "Copy a configured step from its hover menu, then paste it at any compatible insertion circle between canvas steps. Paste only appears when the same function type, name and version are available.",
-        ],
-        [
-          "◇",
-          "Copy, duplicate or delete complete scopes",
-          "Condition and loop steps with nested actions get a Scope menu to copy, duplicate or delete the complete nested scope as one undoable change.",
-        ],
-        [
-          "⊕",
-          "Duplicate configured action steps",
-          "Use Duplicate between Save and Cancel or the hover menu to copy an action step, including its options, paths and output variables.",
-        ],
-        [
-          "◈",
-          "See each action step’s function type",
-          "Next-gen action steps and the action list now show whether they use an application, Block Store or native function. Control this under Next-gen → Actions in Settings.",
-        ],
-        [
-          "{ }",
-          "Support actions without variables",
-          "Action Playground enhancements now load when Betty Blocks omits the Variables field, including scheduled and no-input actions.",
-        ],
-        [
-          "⊘",
-          "Explain actions that cannot run",
-          "Private actions without an authentication profile keep Run request disabled and explain how to make the action runnable.",
+          "⌘",
+          "Keep condition scope actions current",
+          "Condition scope actions now update when nested steps are added or deleted, so empty scopes lose their scope menu and populated scopes gain it immediately.",
         ],
       ].forEach((feature) =>
         state.body.appendChild(
