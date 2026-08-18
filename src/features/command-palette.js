@@ -32,8 +32,8 @@
         },
       },
       {
-        label: "Search models and properties",
-        keywords: "runtime model relation field",
+        label: "Open Quick switcher+",
+        keywords: "navigation page action model relation property field switcher",
         available: Boolean(modelSearchState?.entries.length),
         action: openModelSearch,
       },

@@ -32,6 +32,10 @@ export {
   setApplicationOverride,
 } from "./settings-profiles.js";
 export { compareVersions, isVersionNewer } from "./version.js";
+export {
+  getQuickSwitcherViewCachePolicy,
+  isQuickSwitcherViewCacheFresh,
+} from "./view-cache-policy.js";
 export type {
   AuthSnapshot,
   AuthStatus,

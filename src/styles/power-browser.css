@@ -479,6 +479,10 @@
       display: block;
     }
 
+    #searchbox[data-power-browser-quick-switcher-proxy="true"] {
+      display: none !important;
+    }
+
     .power-browser-model-search-dialog-v2 {
       position: fixed;
       top: clamp(55px, 10vh, 120px);
@@ -593,6 +597,26 @@
       background: #fff0b8;
     }
 
+    .power-browser-model-search-chip-v2.navigation {
+      color: #3d4050;
+      background: #e7e9ef;
+    }
+
+    .power-browser-model-search-chip-v2.page {
+      color: #31543a;
+      background: #dff2e3;
+    }
+
+    .power-browser-model-search-chip-v2.action {
+      color: #58398a;
+      background: #eadffd;
+    }
+
+    .power-browser-model-search-chip-v2.view {
+      color: #6b4521;
+      background: #f8e6ce;
+    }
+
     .power-browser-model-search-copy-v2 {
       min-width: 0;
     }
@@ -624,6 +648,15 @@
       color: #4e5360;
       background: #fff;
       font-size: 11px;
+      cursor: pointer;
+      appearance: none;
+    }
+
+    .power-browser-model-search-open-v2:hover,
+    .power-browser-model-search-open-v2:focus-visible {
+      border-color: #e9004c;
+      color: #e9004c;
+      outline: none;
     }
 
     .power-browser-model-search-backoffice-v2 {

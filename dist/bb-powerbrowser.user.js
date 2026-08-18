@@ -2,7 +2,7 @@
 // @name         Power Browser Navigator V2
 // @description  Easier navigation to the playground, page-builder and backoffice. Feature flag setter and extra productivity scripts.
 // @tag          Productivity
-// @version      3.5.6
+// @version      3.5.7
 // @updateURL    https://github.com/ebosdnl/powerbrowser-navigator/releases/latest/download/bb-powerbrowser.user.js
 // @downloadURL  https://github.com/ebosdnl/powerbrowser-navigator/releases/latest/download/bb-powerbrowser.user.js
 // @author       Enrique Bos, Menno Weijling (OG grondlegger), Sven Truschel, Hacker
@@ -90,8 +90,10 @@ var PowerBrowserCore = (() => {
     decodeJwtPayload: () => decodeJwtPayload,
     diffArtifactSnapshots: () => diffArtifactSnapshots,
     getArtifactRelationships: () => getArtifactRelationships,
+    getQuickSwitcherViewCachePolicy: () => getQuickSwitcherViewCachePolicy,
     hasApplicationOverride: () => hasApplicationOverride,
     isAuthenticationError: () => isAuthenticationError,
+    isQuickSwitcherViewCacheFresh: () => isQuickSwitcherViewCacheFresh,
     isVersionNewer: () => isVersionNewer,
     normalizeEndpoints: () => normalizeEndpoints,
     query: () => query,
@@ -859,11 +861,67 @@ var PowerBrowserCore = (() => {
   function isVersionNewer(candidate, current) {
     return compareVersions(candidate, current) > 0;
   }
+
+  // src/core/view-cache-policy.ts
+  var parseTimestamp = (value) => {
+    const timestamp = Date.parse(value || "");
+    return Number.isNaN(timestamp) ? 0 : timestamp;
+  };
+  function getQuickSwitcherViewCachePolicy(identifier, applicationFamily) {
+    const applications = (Array.isArray(applicationFamily) ? applicationFamily : applicationFamily ? [applicationFamily] : []).filter((application) => application?.id && application?.identifier);
+    const currentApplication = applications.find(
+      (application) => application.identifier === identifier
+    );
+    if (!currentApplication) {
+      return {
+        kind: "unknown",
+        cacheKey: "unknown",
+        lowerMergeVersions: {}
+      };
+    }
+    const currentId = String(currentApplication.id);
+    const lowerApplications = applications.filter((application) => {
+      const parentId = application.parentId ?? application.parent?.id;
+      return !application.isBranch && String(parentId || "") === currentId;
+    });
+    if (currentApplication.isBranch || !lowerApplications.length) {
+      return {
+        kind: "development",
+        cacheKey: "development",
+        lowerMergeVersions: {}
+      };
+    }
+    const lowerMergeVersions = Object.fromEntries(
+      lowerApplications.map(
+        (application) => [
+          String(application.id),
+          parseTimestamp(application.lastMerge?.insertedAt)
+        ]
+      ).sort(([left], [right]) => left.localeCompare(right))
+    );
+    return {
+      kind: "merge-aware",
+      cacheKey: `merge:${Object.entries(lowerMergeVersions).map(([id, timestamp]) => `${id}:${timestamp}`).join(",")}`,
+      lowerMergeVersions
+    };
+  }
+  function isQuickSwitcherViewCacheFresh(entry, policy, now = Date.now(), developmentTtl = 5 * 60 * 1e3) {
+    if (entry.environmentKind !== policy.kind) {
+      return false;
+    }
+    if (policy.kind === "merge-aware") {
+      const cachedMergeVersions = entry.lowerMergeVersions || {};
+      return Object.entries(policy.lowerMergeVersions).every(
+        ([applicationId, timestamp]) => Number(cachedMergeVersions[applicationId] || 0) >= timestamp
+      );
+    }
+    return now - Number(entry.savedAt || 0) <= developmentTtl;
+  }
   return __toCommonJS(index_exports);
 })();
 globalThis.PowerBrowserCore = PowerBrowserCore;
 
-GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px !important;\n      width: min(900px, calc(100vw - 48px)) !important;\n      max-width: min(900px, calc(100vw - 48px)) !important;\n      height: min(880px, calc(100vh - 88px)) !important;\n      min-height: min(720px, calc(100vh - 88px)) !important;\n      max-height: calc(100vh - 88px) !important;\n      grid-template-rows: auto minmax(0, 1fr) auto auto !important;\n      overflow: hidden !important;\n      transform: translateX(-50%) !important;\n    }\n\n    .power-browser-action-playground-dialog-v2\n      > .box-border.overflow-auto {\n      min-height: 0 !important;\n      overflow-x: hidden !important;\n      overflow-y: auto !important;\n      padding-right: 6px;\n    }\n\n    .power-browser-action-playground-dialog-v2\n      > .flex.flex-row.justify-between.gap-2 {\n      position: relative;\n      z-index: 1;\n      flex-shrink: 0;\n      background: white;\n    }\n\n    .power-browser-action-playground-dialog-v2\n      [data-power-browser-action-headers-v2] {\n      padding-bottom: 4px;\n    }\n\n    .power-browser-action-playground-dialog-v2\n      [data-power-browser-action-headers-v2]\n      textarea {\n      min-height: 112px;\n    }\n\n    .power-browser-action-playground-dialog-v2\n      textarea[data-power-browser-action-variables-v2] {\n      max-height: calc(12em + 16px) !important;\n    }\n\n    .power-browser-action-alert-v2 {\n      display: none;\n      margin: 4px 0 12px;\n      padding: 10px 12px;\n      color: #991b1b;\n      background: #fef2f2;\n      border: 1px solid #fecaca;\n      border-radius: 6px;\n      font: 500 12px/1.4 Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n    }\n\n    .power-browser-action-alert-v2.open {\n      display: block;\n    }\n\n    .power-browser-action-logs-panel-v350 {\n      min-height: 260px;\n      padding: 12px 2px 4px;\n      color: #343844;\n      font: 13px/1.4 Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n    }\n\n    .power-browser-action-logs-toolbar-v350,\n    .power-browser-action-logs-toolbar-v350 > div {\n      display: flex;\n      align-items: center;\n      justify-content: space-between;\n      gap: 8px;\n    }\n\n    .power-browser-action-logs-toolbar-v350 button {\n      padding: 6px 9px;\n      border: 1px solid #d1d5db;\n      border-radius: 5px;\n      background: #fff;\n      cursor: pointer;\n    }\n\n    .power-browser-action-logs-toolbar-v350 button:disabled {\n      opacity: 0.45;\n      cursor: not-allowed;\n    }\n\n    .power-browser-action-logs-list-v350 {\n      margin-top: 12px;\n      overflow: hidden;\n      border: 1px solid #e5e7eb;\n      border-radius: 6px;\n    }\n\n    .power-browser-action-log-row-v350 {\n      display: grid;\n      grid-template-columns: 16px 70px minmax(0, 1fr) 120px auto;\n      align-items: center;\n      gap: 12px;\n      padding: 9px 10px;\n      border-bottom: 1px solid #e5e7eb;\n      border-left: 4px solid #6b7280;\n      color: inherit;\n      cursor: pointer;\n      text-decoration: none;\n    }\n\n    .power-browser-action-log-item-v350:last-child\n      .power-browser-action-log-row-v350 {\n      border-bottom: 0;\n    }\n\n    .power-browser-action-log-row-v350:focus-visible {\n      outline: 2px solid #f97316;\n      outline-offset: -2px;\n    }\n\n    .power-browser-action-log-chevron-v350 {\n      color: #6b7280;\n      font-size: 18px;\n      line-height: 1;\n      text-align: center;\n    }\n\n    .power-browser-action-log-row-v350[data-level=\"error\"] {\n      border-left-color: #b91c1c;\n      background: #fff7f7;\n    }\n\n    .power-browser-action-log-row-v350[data-level=\"warning\"],\n    .power-browser-action-log-row-v350[data-level=\"warn\"] {\n      border-left-color: #b45309;\n    }\n\n    .power-browser-action-log-row-v350[data-level=\"info\"] {\n      border-left-color: #15803d;\n    }\n\n    .power-browser-action-log-level-v350 {\n      padding: 3px 6px;\n      border-radius: 4px;\n      background: #f3f4f6;\n      font-size: 11px;\n      text-align: center;\n      text-transform: capitalize;\n    }\n\n    .power-browser-action-log-message-v350 {\n      min-width: 0;\n      overflow: hidden;\n      text-overflow: ellipsis;\n      white-space: nowrap;\n    }\n\n    .power-browser-action-log-service-v350,\n    .power-browser-action-log-row-v350 time {\n      color: #6b7280;\n      font-size: 11px;\n      white-space: nowrap;\n    }\n\n    .power-browser-action-logs-empty-v350 {\n      padding: 30px;\n      color: #6b7280;\n      text-align: center;\n    }\n\n    .power-browser-action-log-details-v350 {\n      padding: 10px 12px 14px 28px;\n      color: #4b5563;\n      background: #fafafa;\n      border-bottom: 1px solid #e5e7eb;\n    }\n\n    .power-browser-action-local-log-v350\n      .power-browser-action-log-row-v350 {\n      border-left-color: #ea580c;\n      background: #fff7ed;\n    }\n\n    .power-browser-action-response-v350 > strong {\n      display: block;\n      margin-bottom: 7px;\n      color: #374151;\n    }\n\n    .power-browser-action-response-v350 > pre {\n      max-height: 360px;\n      margin: 0;\n      padding: 10px;\n      overflow: auto;\n      color: #e5e7eb;\n      background: #1f2937;\n      border-radius: 5px;\n      font: 11px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace;\n      white-space: pre-wrap;\n      word-break: break-word;\n    }\n\n    .nav-container-1c7b2759-c793-4d17-b89b-1da6c5c5cf5b {\n      position: fixed;\n      margin: 0;\n      top: 0;\n      left: 50%;\n      transform: translateX(-50%);\n      text-align: center;\n      padding: 6px 2px 2px;\n      width: 30%;\n      min-width: 250px;\n      z-index: 2147483647;\n      background: transparent !important;\n      box-shadow: none !important;\n      font-family: Arial, sans-serif;\n    }\n\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 {\n      position: absolute;\n      top: 50%;\n      left: 50%;\n      transform: translateX(-50%);\n      display: flex !important;\n      flex-direction: row;\n      align-items: stretch;\n      padding: 0;\n      opacity: 1;\n      white-space: nowrap;\n      background: white;\n      border-radius: 5px;\n      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);\n    }\n\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > a,\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > button,\n    .power-browser-state-toggle-v2 {\n      box-sizing: border-box;\n      display: inline-flex;\n      align-items: center;\n      gap: 5px;\n      min-height: 38px;\n      padding: 10px 20px;\n      border: 0;\n      border-radius: 0;\n      color: black;\n      background: white;\n      font: 14px Arial, sans-serif;\n      text-decoration: none;\n      cursor: pointer;\n    }\n\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > a:hover,\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > button:hover,\n    .power-browser-state-toggle-v2:hover {\n      background: #f0f0f0;\n    }\n\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > :first-child {\n      border-radius: 5px 0 0 5px;\n    }\n\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > :last-child {\n      border-radius: 0 5px 5px 0;\n    }\n\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 svg {\n      width: 16px;\n      height: 16px;\n      flex: 0 0 16px;\n      margin-bottom: 2px;\n      vertical-align: middle;\n      fill: currentColor;\n    }\n\n    .button-disabled-6b6a60d4-9e38-4279-84a5-5ef466dde62f {\n      color: #777 !important;\n      background-color: rgb(220, 220, 220) !important;\n      cursor: not-allowed !important;\n      pointer-events: none;\n    }\n\n    #buttonCopyBearer.button-disabled-6b6a60d4-9e38-4279-84a5-5ef466dde62f {\n      pointer-events: auto;\n    }\n\n    .power-browser-hidden-v2 {\n      display: none !important;\n    }\n\n    .power-browser-state-switcher-v2 {\n      position: relative;\n      display: inline-flex;\n    }\n\n    .power-browser-state-status-v2 {\n      position: absolute;\n      top: calc(100% + 8px);\n      right: 0;\n      display: none;\n      flex-direction: column;\n      gap: 7px;\n      width: min(320px, calc(100vw - 24px));\n      padding: 12px;\n      color: #343844;\n      background: #fff;\n      border: 1px solid #d9dbe2;\n      border-radius: 8px;\n      box-shadow: 0 12px 30px rgba(20, 24, 35, 0.2);\n      font: 12px/1.45 Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n      text-align: left;\n      white-space: normal;\n      z-index: 3;\n    }\n\n    .power-browser-state-status-v2::before {\n      position: absolute;\n      right: 0;\n      bottom: 100%;\n      width: 100%;\n      height: 8px;\n      content: \"\";\n    }\n\n    .power-browser-state-switcher-v2:not([data-status=\"ready\"]):hover\n      .power-browser-state-status-v2,\n    .power-browser-state-switcher-v2:not([data-status=\"ready\"]):focus-within\n      .power-browser-state-status-v2 {\n      display: flex;\n    }\n\n    .power-browser-state-status-v2 strong {\n      color: #252936;\n      font-size: 13px;\n    }\n\n    .power-browser-state-status-actions-v2 {\n      display: flex;\n      gap: 7px;\n    }\n\n    .power-browser-state-status-actions-v2 button {\n      padding: 6px 9px;\n      color: #343844;\n      background: #fff;\n      border: 1px solid #cfd2da;\n      border-radius: 5px;\n      font: 600 11px Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n      cursor: pointer;\n    }\n\n    .power-browser-state-status-actions-v2 button:hover {\n      color: #e9004c;\n      border-color: #e9004c;\n    }\n\n    .power-browser-state-status-actions-v2 button:disabled {\n      color: #8c909b;\n      background: #f0f1f3;\n      border-color: #dddfe4;\n      cursor: wait;\n    }\n\n    .power-browser-state-toggle-v2 {\n      max-width: 210px;\n    }\n\n    .power-browser-state-toggle-label-v2 {\n      overflow: hidden;\n      text-overflow: ellipsis;\n    }\n\n    .power-browser-state-menu-v2 {\n      position: absolute;\n      top: calc(100% + 5px);\n      left: 0;\n      display: none;\n      min-width: 240px;\n      padding: 5px;\n      background: white;\n      border: 1px solid #ddd;\n      border-radius: 5px;\n      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);\n      z-index: 1;\n    }\n\n    .power-browser-state-group-v2 {\n      padding: 8px 9px 4px;\n      color: #777d8c;\n      font-size: 10px;\n      font-weight: 700;\n      text-transform: uppercase;\n    }\n\n    .power-browser-environment-badge-v2 {\n      align-self: center;\n      margin: 0 7px;\n      padding: 3px 6px;\n      color: #fff;\n      background: #596070;\n      border-radius: 999px;\n      font: 700 9px/1 Arial, sans-serif;\n    }\n\n    .nav-container-1c7b2759-c793-4d17-b89b-1da6c5c5cf5b[data-environment=\"production\"]\n      .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 {\n      box-shadow: 0 0 0 2px #d14343, 0 4px 12px rgba(209, 67, 67, 0.25);\n    }\n\n    .nav-container-1c7b2759-c793-4d17-b89b-1da6c5c5cf5b[data-environment=\"production\"]\n      .power-browser-environment-badge-v2 {\n      background: #c83232;\n    }\n\n    .power-browser-state-switcher-v2.open .power-browser-state-menu-v2 {\n      display: flex;\n      flex-direction: column;\n    }\n\n    .power-browser-state-option-v2 {\n      display: flex;\n      align-items: center;\n      width: 100%;\n      padding: 9px 12px;\n      padding-left: calc(12px + var(--power-browser-depth, 0) * 16px);\n      border: 0;\n      border-radius: 3px;\n      color: #222;\n      background: white;\n      font: 14px Arial, sans-serif;\n      text-align: left;\n      cursor: pointer;\n    }\n\n    .power-browser-state-option-v2:hover {\n      background: #f0f0f0;\n    }\n\n    .power-browser-state-option-v2.current {\n      color: #e9004c;\n      font-weight: 600;\n      cursor: default;\n    }\n\n    .power-browser-state-option-v2.no-access {\n      color: #888;\n      background: #e7e7e7;\n      cursor: not-allowed;\n      opacity: 0.7;\n    }\n\n    .power-browser-state-option-v2.no-access:hover {\n      background: #e7e7e7;\n    }\n\n    .power-browser-state-option-v2 small {\n      margin-left: auto;\n      padding-left: 12px;\n      color: #777;\n      font-size: 11px;\n    }\n\n    .power-browser-bearer-copied-v2 {\n      background: rgba(202, 240, 181, 0.95) !important;\n    }\n\n    .power-browser-bearer-error-v2 {\n      background: rgba(255, 190, 190, 0.95) !important;\n    }\n\n    .power-browser-model-search-overlay-v2 {\n      position: fixed;\n      inset: 0;\n      display: none;\n      background: rgba(20, 24, 35, 0.45);\n      backdrop-filter: blur(2px);\n      z-index: 2147483646;\n    }\n\n    .power-browser-model-search-overlay-v2.open {\n      display: block;\n    }\n\n    .power-browser-model-search-dialog-v2 {\n      position: fixed;\n      top: clamp(55px, 10vh, 120px);\n      left: 50%;\n      display: none;\n      width: min(720px, calc(100vw - 32px));\n      max-height: min(720px, 80vh);\n      overflow: hidden;\n      transform: translateX(-50%);\n      color: #262a3a;\n      background: #fff;\n      border: 1px solid rgba(233, 0, 76, 0.2);\n      border-radius: 14px;\n      box-shadow: 0 28px 80px rgba(20, 24, 35, 0.28);\n      font-family: Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n      z-index: 2147483647;\n    }\n\n    .power-browser-model-search-dialog-v2.open {\n      display: flex;\n      flex-direction: column;\n    }\n\n    .power-browser-model-search-header-v2 {\n      display: flex;\n      align-items: center;\n      gap: 12px;\n      padding: 16px 18px;\n      border-bottom: 1px solid #e6e7eb;\n    }\n\n    .power-browser-model-search-header-v2 svg {\n      width: 20px;\n      height: 20px;\n      fill: #e9004c;\n    }\n\n    .power-browser-model-search-input-v2 {\n      flex: 1;\n      min-width: 0;\n      padding: 0;\n      border: 0;\n      outline: 0;\n      color: #262a3a;\n      background: transparent;\n      font: 500 17px Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n    }\n\n    .power-browser-model-search-shortcut-v2,\n    .power-browser-model-search-count-v2 {\n      color: #777d8c;\n      font-size: 12px;\n      white-space: nowrap;\n    }\n\n    .power-browser-model-search-results-v2 {\n      display: flex;\n      flex-direction: column;\n      gap: 4px;\n      margin: 0;\n      padding: 8px;\n      overflow-y: auto;\n      list-style: none;\n    }\n\n    .power-browser-model-search-result-row-v2 {\n      display: grid;\n      grid-template-columns: minmax(0, 1fr) auto;\n      align-items: stretch;\n      gap: 4px;\n    }\n\n    .power-browser-model-search-result-v2 {\n      display: grid;\n      grid-template-columns: auto minmax(0, 1fr) auto;\n      align-items: center;\n      gap: 12px;\n      width: 100%;\n      padding: 11px 12px;\n      border: 0;\n      border-radius: 8px;\n      color: #262a3a;\n      background: transparent;\n      text-align: left;\n      cursor: pointer;\n    }\n\n    .power-browser-model-search-result-v2:hover,\n    .power-browser-model-search-result-v2.active {\n      background: #fff0f5;\n    }\n\n    .power-browser-model-search-chip-v2 {\n      min-width: 58px;\n      padding: 4px 7px;\n      border-radius: 999px;\n      color: #6b2541;\n      background: #ffdbe8;\n      font-size: 10px;\n      font-weight: 700;\n      text-align: center;\n      text-transform: uppercase;\n    }\n\n    .power-browser-model-search-chip-v2.property {\n      color: #24546c;\n      background: #dceff8;\n    }\n\n    .power-browser-model-search-chip-v2.relation {\n      color: #614e13;\n      background: #fff0b8;\n    }\n\n    .power-browser-model-search-copy-v2 {\n      min-width: 0;\n    }\n\n    .power-browser-model-search-title-v2 {\n      display: block;\n      overflow: hidden;\n      color: #262a3a;\n      font-size: 14px;\n      font-weight: 650;\n      text-overflow: ellipsis;\n      white-space: nowrap;\n    }\n\n    .power-browser-model-search-meta-v2 {\n      display: block;\n      margin-top: 3px;\n      overflow: hidden;\n      color: #777d8c;\n      font-size: 11px;\n      text-overflow: ellipsis;\n      white-space: nowrap;\n    }\n\n    .power-browser-model-search-open-v2 {\n      padding: 5px 8px;\n      border: 1px solid #d9dbe2;\n      border-radius: 6px;\n      color: #4e5360;\n      background: #fff;\n      font-size: 11px;\n    }\n\n    .power-browser-model-search-backoffice-v2 {\n      display: inline-flex;\n      align-items: center;\n      justify-content: center;\n      width: 42px;\n      padding: 0;\n      border: 1px solid transparent;\n      border-radius: 8px;\n      color: #4e5360;\n      background: transparent;\n      cursor: pointer;\n    }\n\n    .power-browser-model-search-backoffice-v2:hover,\n    .power-browser-model-search-backoffice-v2:focus-visible {\n      color: #e9004c;\n      background: #fff0f5;\n      border-color: #ffd0df;\n      outline: none;\n    }\n\n    .power-browser-model-search-backoffice-v2 svg {\n      width: 18px;\n      height: 18px;\n      fill: currentColor;\n    }\n\n    .power-browser-model-search-empty-v2 {\n      padding: 32px 20px;\n      color: #777d8c;\n      font-size: 13px;\n      text-align: center;\n    }\n\n    .power-browser-model-search-footer-v2 {\n      display: flex;\n      justify-content: space-between;\n      gap: 12px;\n      padding: 9px 16px;\n      color: #777d8c;\n      background: #f7f7f9;\n      border-top: 1px solid #e6e7eb;\n      font-size: 11px;\n    }\n\n    .power-browser-artifact-overlay-v2 {\n      position: fixed;\n      inset: 0;\n      display: none;\n      background: rgba(19, 23, 34, 0.5);\n      backdrop-filter: blur(4px);\n      z-index: 2147483646;\n    }\n\n    .power-browser-artifact-overlay-v2.open {\n      display: block;\n    }\n\n    .power-browser-artifact-dialog-v2 {\n      position: fixed;\n      top: 50%;\n      left: 50%;\n      display: none;\n      width: min(1120px, calc(100vw - 32px));\n      height: min(800px, calc(100vh - 32px));\n      overflow: hidden;\n      transform: translate(-50%, -50%);\n      color: #282c3a;\n      background: #f7f7f9;\n      border: 1px solid rgba(233, 0, 76, 0.2);\n      border-radius: 16px;\n      box-shadow: 0 32px 100px rgba(15, 18, 28, 0.34);\n      font-family: Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n      z-index: 2147483647;\n    }\n\n    .power-browser-artifact-dialog-v2.open {\n      display: grid;\n      grid-template-rows: auto auto minmax(0, 1fr);\n    }\n\n    .power-browser-artifact-header-v2 {\n      display: flex;\n      align-items: center;\n      justify-content: space-between;\n      gap: 16px;\n      padding: 17px 20px;\n      color: #fff;\n      background: #262a3a;\n    }\n\n    .power-browser-artifact-header-v2 strong,\n    .power-browser-artifact-header-v2 span {\n      display: block;\n    }\n\n    .power-browser-artifact-header-v2 strong {\n      font-size: 17px;\n    }\n\n    .power-browser-artifact-header-v2 span {\n      margin-top: 3px;\n      color: #adb2c1;\n      font-size: 10px;\n    }\n\n    .power-browser-artifact-close-v2 {\n      width: 32px;\n      height: 32px;\n      color: #d9dce5;\n      background: rgba(255, 255, 255, 0.08);\n      border: 0;\n      border-radius: 7px;\n      font-size: 21px;\n      cursor: pointer;\n    }\n\n    .power-browser-artifact-tabs-v2 {\n      display: flex;\n      gap: 4px;\n      padding: 8px 14px;\n      background: #fff;\n      border-bottom: 1px solid #e2e4e9;\n    }\n\n    .power-browser-artifact-tabs-v2 button {\n      padding: 8px 11px;\n      color: #5c6270;\n      background: transparent;\n      border: 0;\n      border-radius: 7px;\n      font-size: 11px;\n      font-weight: 650;\n      cursor: pointer;\n    }\n\n    .power-browser-artifact-tabs-v2 button:hover,\n    .power-browser-artifact-tabs-v2 button.active {\n      color: #8d1238;\n      background: #fff0f5;\n    }\n\n    .power-browser-artifact-body-v2 {\n      min-height: 0;\n      padding: 16px;\n      overflow: auto;\n    }\n\n    .power-browser-artifact-split-v2 {\n      display: grid;\n      grid-template-columns: minmax(300px, 0.8fr) minmax(0, 1.2fr);\n      gap: 14px;\n      height: 100%;\n      min-height: 0;\n    }\n\n    .power-browser-artifact-browser-v2,\n    .power-browser-artifact-details-v2 {\n      min-height: 0;\n      overflow: hidden;\n      background: #fff;\n      border: 1px solid #e1e3e8;\n      border-radius: 10px;\n    }\n\n    .power-browser-artifact-browser-v2 {\n      display: grid;\n      grid-template-rows: auto minmax(0, 1fr);\n    }\n\n    .power-browser-artifact-details-v2 {\n      padding: 14px;\n      overflow: auto;\n    }\n\n    .power-browser-artifact-search-v2 {\n      box-sizing: border-box;\n      width: calc(100% - 20px);\n      margin: 10px;\n      padding: 9px 11px;\n      color: #303442;\n      background: #f8f8fa;\n      border: 1px solid #d8dae1;\n      border-radius: 7px;\n      outline: none;\n      font-size: 11px;\n    }\n\n    .power-browser-artifact-search-v2:focus {\n      background: #fff;\n      border-color: #e9004c;\n      box-shadow: 0 0 0 3px rgba(233, 0, 76, 0.1);\n    }\n\n    .power-browser-artifact-results-v2 {\n      display: flex;\n      min-height: 0;\n      flex-direction: column;\n      gap: 3px;\n      padding: 0 7px 8px;\n      overflow: auto;\n    }\n\n    .power-browser-artifact-entry-v2 {\n      display: grid;\n      grid-template-columns: auto minmax(0, 1fr);\n      align-items: center;\n      gap: 9px;\n      width: 100%;\n      padding: 9px 10px;\n      color: #303442;\n      background: transparent;\n      border: 0;\n      border-radius: 7px;\n      text-align: left;\n      cursor: pointer;\n    }\n\n    .power-browser-artifact-entry-v2:hover,\n    .power-browser-artifact-entry-v2.active {\n      background: #fff0f5;\n    }\n\n    .power-browser-artifact-entry-v2 strong,\n    .power-browser-artifact-entry-v2 small {\n      display: block;\n      overflow: hidden;\n      text-overflow: ellipsis;\n      white-space: nowrap;\n    }\n\n    .power-browser-artifact-entry-v2 strong {\n      font-size: 11px;\n    }\n\n    .power-browser-artifact-entry-v2 small {\n      margin-top: 3px;\n      color: #858a97;\n      font-size: 9px;\n    }\n\n    .power-browser-artifact-kind-v2 {\n      padding: 3px 6px;\n      color: #603047;\n      background: #ffe0eb;\n      border-radius: 999px;\n      font-size: 8px;\n      font-weight: 750;\n      text-transform: uppercase;\n    }\n\n    .power-browser-artifact-detail-heading-v2,\n    .power-browser-artifact-section-header-v2 {\n      display: flex;\n      align-items: center;\n      justify-content: space-between;\n      gap: 12px;\n      margin-bottom: 12px;\n    }\n\n    .power-browser-artifact-detail-heading-v2 h3 {\n      margin: 0;\n      font-size: 15px;\n    }\n\n    .power-browser-artifact-detail-heading-v2 span,\n    .power-browser-artifact-section-header-v2 span,\n    .power-browser-artifact-snapshot-v2 span {\n      display: block;\n      margin-top: 4px;\n      color: #7c818e;\n      font-size: 9px;\n    }\n\n    .power-browser-artifact-detail-heading-v2 > div:last-child,\n    .power-browser-artifact-snapshot-v2 > div:last-child {\n      display: flex;\n      gap: 6px;\n    }\n\n    .power-browser-artifact-action-v2,\n    .power-browser-artifact-primary-v2 {\n      padding: 7px 9px;\n      color: #4e5360;\n      background: #fff;\n      border: 1px solid #d7d9df;\n      border-radius: 6px;\n      font-size: 9px;\n      font-weight: 700;\n      cursor: pointer;\n    }\n\n    .power-browser-artifact-primary-v2 {\n      color: #fff;\n      background: #e9004c;\n      border-color: #e9004c;\n    }\n\n    .power-browser-artifact-action-v2.danger {\n      color: #a12840;\n      border-color: #efbdc7;\n    }\n\n    .power-browser-artifact-action-v2:disabled {\n      opacity: 0.45;\n      cursor: not-allowed;\n    }\n\n    .power-browser-artifact-code-v2 {\n      box-sizing: border-box;\n      max-height: 55vh;\n      margin: 0;\n      padding: 13px;\n      overflow: auto;\n      color: #e8e9ee;\n      background: #20232e;\n      border-radius: 8px;\n      font: 10px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace;\n      white-space: pre-wrap;\n      overflow-wrap: anywhere;\n    }\n\n    .power-browser-artifact-code-secondary-v2 {\n      max-height: 220px;\n      margin-top: 10px;\n      color: #424755;\n      background: #f2f3f6;\n    }\n\n    .power-browser-artifact-empty-v2 {\n      padding: 30px 18px;\n      color: #7c818e;\n      font-size: 11px;\n      text-align: center;\n    }\n\n    .power-browser-artifact-relationship-list-v2,\n    .power-browser-artifact-health-list-v2 {\n      display: flex;\n      flex-direction: column;\n      gap: 5px;\n    }\n\n    .power-browser-artifact-relationship-list-v2\n      .power-browser-artifact-entry-v2 {\n      grid-template-columns: 150px auto minmax(0, 1fr);\n      background: #fff;\n      border: 1px solid #e1e3e8;\n    }\n\n    .power-browser-artifact-relationship-direction-v2 {\n      color: #6b7080;\n      font-size: 9px;\n    }\n\n    .power-browser-artifact-health-summary-v2 {\n      display: flex;\n      gap: 7px;\n      margin-bottom: 12px;\n    }\n\n    .power-browser-artifact-health-summary-v2 span {\n      padding: 5px 8px;\n      color: #4e5360;\n      background: #fff;\n      border: 1px solid #dfe1e7;\n      border-radius: 999px;\n      font-size: 9px;\n      font-weight: 700;\n      text-transform: uppercase;\n    }\n\n    .power-browser-artifact-health-summary-v2\n      span[data-severity=\"error\"] {\n      color: #a12840;\n      background: #fff0f2;\n      border-color: #efbdc7;\n    }\n\n    .power-browser-artifact-health-summary-v2\n      span[data-severity=\"warning\"] {\n      color: #76510a;\n      background: #fff8dd;\n      border-color: #edda94;\n    }\n\n    .power-browser-artifact-health-item-v2 {\n      display: flex;\n      flex-direction: column;\n      gap: 3px;\n      padding: 10px 12px;\n      color: #343844;\n      background: #fff;\n      border: 1px solid #e0e2e7;\n      border-left: 3px solid #9ca1ad;\n      border-radius: 7px;\n      text-align: left;\n    }\n\n    .power-browser-artifact-health-item-v2:not(:disabled) {\n      cursor: pointer;\n    }\n\n    .power-browser-artifact-health-item-v2[data-severity=\"error\"] {\n      border-left-color: #c8324f;\n    }\n\n    .power-browser-artifact-health-item-v2[data-severity=\"warning\"] {\n      border-left-color: #d19416;\n    }\n\n    .power-browser-artifact-health-item-v2 span {\n      color: #858a97;\n      font-size: 8px;\n      text-transform: uppercase;\n    }\n\n    .power-browser-artifact-health-item-v2 strong {\n      font-size: 10px;\n    }\n\n    .power-browser-artifact-snapshot-layout-v2 {\n      display: grid;\n      grid-template-columns: minmax(280px, 0.7fr) minmax(0, 1.3fr);\n      gap: 14px;\n      min-height: 0;\n    }\n\n    .power-browser-artifact-snapshot-list-v2 {\n      display: flex;\n      flex-direction: column;\n      gap: 6px;\n    }\n\n    .power-browser-artifact-snapshot-v2 {\n      display: flex;\n      align-items: center;\n      justify-content: space-between;\n      gap: 10px;\n      padding: 11px;\n      background: #fff;\n      border: 1px solid #e0e2e7;\n      border-radius: 8px;\n    }\n\n    .power-browser-artifact-snapshot-v2 strong {\n      font-size: 10px;\n    }\n\n    .power-browser-artifact-snapshot-diff-v2 {\n      min-width: 0;\n    }\n\n    .power-browser-artifact-snapshot-diff-v2 h3 {\n      margin: 0 0 10px;\n      font-size: 13px;\n    }\n\n    .power-browser-artifact-diff-group-v2 {\n      margin-bottom: 8px;\n      padding: 10px;\n      background: #fff;\n      border: 1px solid #e0e2e7;\n      border-radius: 8px;\n    }\n\n    .power-browser-artifact-diff-group-v2 strong {\n      font-size: 10px;\n      text-transform: capitalize;\n    }\n\n    .power-browser-artifact-diff-group-v2 ul {\n      margin: 7px 0 0;\n      padding: 0;\n      list-style: none;\n    }\n\n    .power-browser-artifact-diff-group-v2 li {\n      padding: 2px 0;\n      color: #505563;\n      font: 9px/1.4 ui-monospace, SFMono-Regular, Consolas, monospace;\n      overflow-wrap: anywhere;\n    }\n\n    .power-browser-artifact-diff-group-v2 li[data-change=\"+\"] {\n      color: #197044;\n    }\n\n    .power-browser-artifact-diff-group-v2 li[data-change=\"−\"] {\n      color: #a12840;\n    }\n\n    @media (max-width: 760px) {\n      .power-browser-artifact-split-v2,\n      .power-browser-artifact-snapshot-layout-v2 {\n        grid-template-columns: 1fr;\n        height: auto;\n      }\n\n      .power-browser-artifact-browser-v2 {\n        min-height: 300px;\n      }\n\n      .power-browser-artifact-tabs-v2 {\n        overflow-x: auto;\n      }\n    }\n\n    .power-browser-settings-overlay-v2 {\n      position: fixed;\n      inset: 0;\n      display: none;\n      background: rgba(19, 23, 34, 0.48);\n      backdrop-filter: blur(4px);\n      z-index: 2147483646;\n    }\n\n    .power-browser-settings-overlay-v2.open {\n      display: block;\n    }\n\n    .power-browser-settings-dialog-v2 {\n      --power-browser-settings-flash-rgb: 233, 0, 76;\n      --pb-settings-font-micro: 9px;\n      --pb-settings-font-small: 11px;\n      --pb-settings-font-body: 13px;\n      --pb-settings-font-input: 12px;\n      --pb-settings-font-title: 20px;\n      --pb-settings-font-large: 15px;\n      position: fixed;\n      top: 50%;\n      left: 50%;\n      display: none;\n      grid-template-columns: 220px minmax(0, 1fr);\n      width: min(1000px, calc(100vw - 32px));\n      height: min(740px, calc(100vh - 32px));\n      overflow: hidden;\n      transform: translate(-50%, -50%);\n      color: #282c3a;\n      background: #fff;\n      border: 1px solid rgba(233, 0, 76, 0.18);\n      border-radius: 18px;\n      box-shadow: 0 32px 100px rgba(15, 18, 28, 0.32);\n      font-family: Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n      z-index: 2147483647;\n    }\n\n    .power-browser-settings-dialog-v2.open {\n      display: grid;\n    }\n\n    .power-browser-settings-sidebar-v2 {\n      display: flex;\n      flex-direction: column;\n      min-width: 0;\n      min-height: 0;\n      overflow: hidden;\n      padding: 24px 14px 14px;\n      color: #fff;\n      background: linear-gradient(165deg, #262a3a 0%, #171a25 100%);\n    }\n\n    .power-browser-settings-brand-v2 {\n      padding: 0 10px 22px;\n    }\n\n    .power-browser-settings-brand-v2 strong {\n      display: block;\n      font-size: 17px;\n      letter-spacing: -0.02em;\n    }\n\n    .power-browser-settings-brand-v2 span {\n      display: block;\n      margin-top: 4px;\n      color: #aeb3c2;\n      font-size: 11px;\n    }\n\n    .power-browser-settings-tabs-v2 {\n      display: flex;\n      height: 0;\n      flex: 1 1 0;\n      flex-direction: column;\n      gap: 4px;\n      min-height: 0;\n      overflow-y: auto;\n      overscroll-behavior: contain;\n      scrollbar-width: none;\n      touch-action: pan-y;\n    }\n\n    .power-browser-settings-tabs-v2::-webkit-scrollbar {\n      display: none;\n      width: 0;\n      height: 0;\n    }\n\n    .power-browser-settings-tabs-v2\n      > .power-browser-settings-tab-v2,\n    .power-browser-settings-tabs-v2\n      > .power-browser-settings-section-links-v2 {\n      flex: 0 0 auto;\n    }\n\n    .power-browser-settings-tab-v2 {\n      display: flex;\n      align-items: center;\n      justify-content: space-between;\n      gap: 8px;\n      width: 100%;\n      padding: 10px 12px;\n      border: 0;\n      border-radius: 8px;\n      color: #c7cad4;\n      background: transparent;\n      font: 500 13px Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n      text-align: left;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-tab-v2.has-sections::after {\n      content: \"›\";\n      font-size: 17px;\n      line-height: 1;\n      transform: rotate(0deg);\n      transition: transform 120ms ease;\n    }\n\n    .power-browser-settings-tab-v2.has-sections[aria-expanded=\"true\"]::after {\n      transform: rotate(90deg);\n    }\n\n    .power-browser-settings-tab-v2:hover {\n      color: #fff;\n      background: rgba(255, 255, 255, 0.07);\n    }\n\n    .power-browser-settings-tab-v2.active {\n      color: #fff;\n      background: #e9004c;\n      box-shadow: 0 6px 18px rgba(233, 0, 76, 0.28);\n    }\n\n    .power-browser-settings-section-links-v2 {\n      display: flex;\n      flex-direction: column;\n      gap: 2px;\n      padding: 2px 0 4px 13px;\n    }\n\n    .power-browser-settings-section-link-v2 {\n      padding: 6px 10px;\n      border: 0;\n      border-left: 1px solid rgba(255, 255, 255, 0.16);\n      color: #969cac;\n      background: transparent;\n      font: 500 11px Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n      text-align: left;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-section-link-v2:hover,\n    .power-browser-settings-section-link-v2.active {\n      color: #fff;\n      border-left-color: #e9004c;\n    }\n\n    .power-browser-settings-version-v2 {\n      padding: 12px 10px 2px;\n      color: #777d8c;\n      font-size: 10px;\n    }\n\n    .power-browser-settings-main-v2 {\n      display: flex;\n      min-width: 0;\n      flex-direction: column;\n      overflow: hidden;\n      background: #f7f7f9;\n    }\n\n    .power-browser-settings-header-v2 {\n      display: flex;\n      align-items: center;\n      justify-content: space-between;\n      gap: 20px;\n      padding: 22px 26px 18px;\n      background: #fff;\n      border-bottom: 1px solid #e8e9ed;\n    }\n\n    .power-browser-settings-heading-v2 h2 {\n      margin: 0;\n      padding-left: 0;\n      color: #262a3a;\n      font-size: 20px;\n      letter-spacing: -0.02em;\n    }\n\n    .power-browser-settings-heading-v2 p {\n      margin: 5px 0 0;\n      color: #777d8c;\n      font-size: 12px;\n    }\n\n    .power-browser-settings-close-v2 {\n      display: inline-flex;\n      align-items: center;\n      justify-content: center;\n      width: 34px;\n      height: 34px;\n      border: 0;\n      border-radius: 8px;\n      color: #646977;\n      background: #f1f2f5;\n      font-size: 21px;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-close-v2:hover {\n      color: #e9004c;\n      background: #fff0f5;\n    }\n\n    .power-browser-settings-alert-v2 {\n      display: none;\n      align-items: center;\n      justify-content: space-between;\n      gap: 18px;\n      padding: 12px 26px;\n      color: #6e1836;\n      background: #ffe4ed;\n      border-bottom: 1px solid #ffc1d5;\n      font-size: 12px;\n      line-height: 1.4;\n    }\n\n    .power-browser-settings-alert-v2.open {\n      display: flex;\n    }\n\n    .power-browser-settings-search-v2 {\n      padding: 12px 26px;\n      background: #fff;\n      border-bottom: 1px solid #e8e9ed;\n    }\n\n    .power-browser-settings-search-v2 input {\n      box-sizing: border-box;\n      width: 100%;\n      padding: 9px 12px;\n      color: #303442;\n      background: #f7f7f9;\n      border: 1px solid #d9dbe1;\n      border-radius: 8px;\n      font-size: 12px;\n      outline: none;\n    }\n\n    .power-browser-settings-search-v2 input:focus {\n      background: #fff;\n      border-color: #e9004c;\n      box-shadow: 0 0 0 3px rgba(233, 0, 76, 0.1);\n    }\n\n    .power-browser-settings-search-result-v2 {\n      width: 100%;\n      color: inherit;\n      text-align: left;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-search-result-v2\n      .power-browser-settings-info-status-v2 {\n      color: #344bc1;\n      background: #edf1ff;\n      border-color: #ccd5ff;\n    }\n\n    .power-browser-settings-alert-v2 strong {\n      display: block;\n      margin-bottom: 2px;\n      color: #4f1027;\n      font-size: 12px;\n    }\n\n    .power-browser-settings-reload-v2 {\n      flex: 0 0 auto;\n      padding: 8px 12px;\n      border: 0;\n      border-radius: 7px;\n      color: #fff;\n      background: #e9004c;\n      font-size: 11px;\n      font-weight: 650;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-reload-v2:hover {\n      background: #c90042;\n    }\n\n    .power-browser-settings-content-v2 {\n      flex: 1;\n      padding: 20px 26px 28px;\n      overflow-y: auto;\n    }\n\n    .power-browser-settings-list-v2 {\n      display: flex;\n      flex-direction: column;\n      gap: 10px;\n    }\n\n    .power-browser-settings-section-v2 {\n      margin: 12px 4px 0 0;\n      padding-left: 0;\n      color: #656b79;\n      font-size: 11px;\n      font-weight: 700;\n      letter-spacing: 0.06em;\n      text-transform: uppercase;\n    }\n\n    .power-browser-settings-section-v2:first-child {\n      margin-top: 0;\n    }\n\n    .power-browser-settings-card-v2 {\n      display: grid;\n      grid-template-columns: minmax(0, 1fr) auto;\n      align-items: center;\n      gap: 18px;\n      padding: 16px 18px;\n      background: #fff;\n      border: 1px solid #e4e5ea;\n      border-radius: 11px;\n      box-shadow: 0 2px 7px rgba(25, 29, 42, 0.03);\n    }\n\n    .power-browser-settings-card-v2:hover {\n      border-color: #d4d6dd;\n    }\n\n    .power-browser-settings-card-v2.setting-flash {\n      animation: power-browser-settings-flash-v2 1.65s ease;\n    }\n\n    @keyframes power-browser-settings-flash-v2 {\n      0%,\n      100% {\n        box-shadow: 0 2px 7px rgba(25, 29, 42, 0.03);\n        transform: translateY(0);\n      }\n\n      18%,\n      55% {\n        border-color: rgb(var(--power-browser-settings-flash-rgb));\n        box-shadow:\n          0 0 0 4px\n            rgba(var(--power-browser-settings-flash-rgb), 0.22),\n          0 8px 22px rgba(25, 29, 42, 0.12);\n        transform: translateY(-1px);\n      }\n    }\n\n    .power-browser-settings-card-v2.setting-disabled {\n      opacity: 0.55;\n    }\n\n    .power-browser-settings-info-card-v2 {\n      display: block;\n    }\n\n    .power-browser-settings-data-v2\n      .power-browser-settings-info-title-v2 {\n      margin-bottom: 0;\n    }\n\n    .power-browser-settings-data-v2\n      .power-browser-settings-actions-v2 {\n      margin-top: 14px;\n    }\n\n    .power-browser-settings-scope-v2 {\n      box-sizing: border-box;\n      width: min(240px, 34vw);\n      min-width: 210px;\n      min-height: 38px;\n      margin-left: auto;\n      padding: 8px 11px;\n      color: #4e5360;\n      background: #fff;\n      border: 1px solid #d9dbe2;\n      border-radius: 8px;\n      outline: none;\n      font: 600 var(--pb-settings-font-input) Inter, -apple-system,\n        BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n      cursor: pointer;\n      transition:\n        border-color 140ms ease,\n        box-shadow 140ms ease,\n        background-color 140ms ease;\n    }\n\n    .power-browser-settings-scope-v2:hover {\n      background: #fafafd;\n      border-color: #bfc3cc;\n    }\n\n    .power-browser-settings-scope-v2:focus-visible {\n      border-color: #e9004c;\n      box-shadow: 0 0 0 3px rgba(233, 0, 76, 0.12);\n    }\n\n    .power-browser-settings-override-badge-v2 {\n      padding: 3px 7px;\n      color: #62410c;\n      background: #fff2c7;\n      border: 1px solid #f1d780;\n      border-radius: 999px;\n      font-size: 9px;\n      font-weight: 750;\n      letter-spacing: 0.03em;\n      text-transform: uppercase;\n    }\n\n    .power-browser-settings-override-badge-v2.inherited {\n      color: #536071;\n      background: #f0f2f5;\n      border-color: #d9dde4;\n    }\n\n    .power-browser-settings-use-global-v2 {\n      padding: 3px 7px;\n      color: #4655a5;\n      background: #f2f4ff;\n      border: 1px solid #d4dafb;\n      border-radius: 6px;\n      font-size: 9px;\n      font-weight: 700;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-use-global-v2:hover {\n      color: #e9004c;\n      background: #fff;\n      border-color: #ef9db9;\n    }\n\n    .power-browser-settings-profile-v2,\n    .power-browser-settings-update-v2 {\n      grid-template-columns: minmax(0, 1fr) auto;\n    }\n\n    .power-browser-settings-profile-name-v2 {\n      box-sizing: border-box;\n      width: min(360px, 100%);\n      padding: 7px 9px;\n      color: #303442;\n      background: #fff;\n      border: 1px solid #d9dbe2;\n      border-radius: 7px;\n      font: 600 12px Inter, sans-serif;\n    }\n\n    .power-browser-settings-profile-actions-v2 {\n      display: flex;\n      align-items: center;\n      gap: 7px;\n    }\n\n    .power-browser-settings-profile-actions-v2 button {\n      padding: 7px 9px;\n      color: #4e5360;\n      background: #fff;\n      border: 1px solid #d9dbe2;\n      border-radius: 7px;\n      font-size: 10px;\n      font-weight: 650;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-profile-actions-v2\n      .power-browser-settings-profile-clear-v2 {\n      color: #a12840;\n      border-color: #efbdc7;\n    }\n\n    #settingsButton {\n      position: relative;\n    }\n\n    #settingsButton.power-browser-update-available-v2::after {\n      position: absolute;\n      top: 5px;\n      right: 5px;\n      width: 8px;\n      height: 8px;\n      background: #e9004c;\n      border: 2px solid #fff;\n      border-radius: 50%;\n      content: \"\";\n    }\n\n    .power-browser-settings-file-input-v2 {\n      display: none !important;\n    }\n\n    .power-browser-command-overlay-v2 {\n      position: fixed;\n      inset: 0;\n      display: none;\n      background: rgba(19, 23, 34, 0.48);\n      backdrop-filter: blur(3px);\n      z-index: 2147483646;\n    }\n\n    .power-browser-command-overlay-v2.open {\n      display: block;\n    }\n\n    .power-browser-command-dialog-v2 {\n      position: fixed;\n      top: clamp(70px, 14vh, 150px);\n      left: 50%;\n      display: none;\n      width: min(640px, calc(100vw - 32px));\n      max-height: min(560px, 72vh);\n      overflow: hidden;\n      transform: translateX(-50%);\n      color: #282c3a;\n      background: #fff;\n      border: 1px solid rgba(233, 0, 76, 0.2);\n      border-radius: 13px;\n      box-shadow: 0 28px 80px rgba(20, 24, 35, 0.3);\n      font-family: Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n      z-index: 2147483647;\n    }\n\n    .power-browser-command-dialog-v2.open {\n      display: flex;\n      flex-direction: column;\n    }\n\n    .power-browser-command-input-v2 {\n      box-sizing: border-box;\n      width: 100%;\n      padding: 17px 18px;\n      color: #282c3a;\n      background: #fff;\n      border: 0;\n      border-bottom: 1px solid #e5e6eb;\n      outline: 0;\n      font-size: 16px;\n    }\n\n    .power-browser-command-results-v2 {\n      display: flex;\n      flex-direction: column;\n      gap: 3px;\n      padding: 7px;\n      overflow-y: auto;\n    }\n\n    .power-browser-command-result-v2 {\n      padding: 11px 12px;\n      color: #303442;\n      background: transparent;\n      border: 0;\n      border-radius: 8px;\n      font: 500 13px Inter, sans-serif;\n      text-align: left;\n      cursor: pointer;\n    }\n\n    .power-browser-command-result-v2:hover,\n    .power-browser-command-result-v2.active {\n      color: #78102f;\n      background: #fff0f5;\n    }\n\n    .power-browser-command-empty-v2 {\n      padding: 26px 18px;\n      color: #777d8c;\n      font-size: 12px;\n      text-align: center;\n    }\n\n    .power-browser-education-overlay-v2 {\n      position: fixed;\n      inset: 0;\n      display: none;\n      background: rgba(19, 23, 34, 0.5);\n      backdrop-filter: blur(4px);\n      z-index: 2147483646;\n    }\n\n    .power-browser-education-overlay-v2.open {\n      display: block;\n    }\n\n    .power-browser-education-dialog-v2 {\n      position: fixed;\n      top: 50%;\n      left: 50%;\n      display: none;\n      width: min(680px, calc(100vw - 32px));\n      max-height: min(760px, calc(100vh - 32px));\n      overflow: hidden;\n      transform: translate(-50%, -50%);\n      color: #2d3140;\n      background: #f7f7f9;\n      border: 1px solid rgba(233, 0, 76, 0.24);\n      border-radius: 16px;\n      box-shadow: 0 32px 100px rgba(15, 18, 28, 0.34);\n      font-family: Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\",\n        sans-serif;\n      z-index: 2147483647;\n    }\n\n    .power-browser-education-dialog-v2.open {\n      display: flex;\n      flex-direction: column;\n    }\n\n    .power-browser-education-header-v2 {\n      display: flex;\n      align-items: flex-start;\n      justify-content: space-between;\n      gap: 20px;\n      padding: 24px 26px 20px;\n      color: #fff;\n      background: #292d3d;\n    }\n\n    .power-browser-education-eyebrow-v2 {\n      display: block;\n      margin-bottom: 6px;\n      color: #ff8eb3;\n      font-size: 10px;\n      font-weight: 800;\n      letter-spacing: 0.09em;\n      text-transform: uppercase;\n    }\n\n    .power-browser-education-header-v2 h2 {\n      margin: 0;\n      padding: 0;\n      color: inherit;\n      font-size: 24px;\n      letter-spacing: -0.03em;\n    }\n\n    .power-browser-education-header-v2 p {\n      max-width: 520px;\n      margin: 7px 0 0;\n      color: #c4c8d3;\n      font-size: 12px;\n      line-height: 1.55;\n    }\n\n    .power-browser-education-close-v2 {\n      flex: 0 0 auto;\n      width: 34px;\n      height: 34px;\n      padding: 0;\n      color: #e0e2e8;\n      background: rgba(255, 255, 255, 0.08);\n      border: 0;\n      border-radius: 8px;\n      font-size: 22px;\n      line-height: 1;\n      cursor: pointer;\n    }\n\n    .power-browser-education-close-v2:hover {\n      color: #fff;\n      background: rgba(255, 255, 255, 0.16);\n    }\n\n    .power-browser-education-body-v2 {\n      display: grid;\n      grid-template-columns: repeat(2, minmax(0, 1fr));\n      gap: 12px;\n      min-height: 0;\n      padding: 18px;\n      overflow-y: auto;\n    }\n\n    .power-browser-education-feature-v2 {\n      display: grid;\n      grid-template-columns: auto minmax(0, 1fr);\n      align-items: start;\n      gap: 11px;\n      padding: 15px;\n      background: #fff;\n      border: 1px solid #e1e3e8;\n      border-radius: 11px;\n    }\n\n    .power-browser-education-icon-v2 {\n      display: inline-flex;\n      align-items: center;\n      justify-content: center;\n      width: 32px;\n      height: 32px;\n      color: #9c1742;\n      background: #ffe3ec;\n      border-radius: 9px;\n      font-size: 13px;\n      font-weight: 800;\n      line-height: 1;\n    }\n\n    .power-browser-education-feature-v2 > div > strong,\n    .power-browser-education-feature-v2 > div > span {\n      display: block;\n    }\n\n    .power-browser-education-feature-v2 strong {\n      color: #303442;\n      font-size: 12px;\n    }\n\n    .power-browser-education-feature-v2 div > span {\n      margin-top: 5px;\n      color: #737986;\n      font-size: 10px;\n      line-height: 1.5;\n    }\n\n    .power-browser-education-footer-v2 {\n      display: flex;\n      justify-content: flex-end;\n      gap: 8px;\n      padding: 14px 18px;\n      background: #fff;\n      border-top: 1px solid #e1e3e8;\n    }\n\n    .power-browser-education-primary-v2,\n    .power-browser-education-secondary-v2 {\n      min-height: 38px;\n      padding: 9px 14px;\n      border: 1px solid #d4d6dd;\n      border-radius: 8px;\n      font: 700 11px Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\",\n        sans-serif;\n      cursor: pointer;\n    }\n\n    .power-browser-education-secondary-v2 {\n      color: #444a58;\n      background: #fff;\n    }\n\n    .power-browser-education-secondary-v2:hover {\n      color: #e9004c;\n      background: #fff7fa;\n      border-color: #ef9db9;\n    }\n\n    .power-browser-education-primary-v2 {\n      color: #fff;\n      background: #e9004c;\n      border-color: #e9004c;\n    }\n\n    .power-browser-education-primary-v2:hover {\n      background: #c90042;\n      border-color: #c90042;\n    }\n\n    .power-browser-sr-only-v2 {\n      position: fixed !important;\n      width: 1px !important;\n      height: 1px !important;\n      padding: 0 !important;\n      overflow: hidden !important;\n      clip: rect(0, 0, 0, 0) !important;\n      white-space: nowrap !important;\n      border: 0 !important;\n    }\n\n    .power-browser-dark-v2.power-browser-command-dialog-v2,\n    .power-browser-dark-v2.power-browser-education-dialog-v2 {\n      color: #f4f5f7;\n      background: #1f2330;\n      border-color: #494f60;\n    }\n\n    .power-browser-dark-v2 .power-browser-command-input-v2,\n    .power-browser-dark-v2 .power-browser-command-result-v2 {\n      color: #f4f5f7;\n      background: #282d3b;\n      border-color: #404657;\n    }\n\n    .power-browser-dark-v2 .power-browser-command-result-v2:hover,\n    .power-browser-dark-v2 .power-browser-command-result-v2.active {\n      color: #fff;\n      background: #343949;\n    }\n\n    .power-browser-dark-v2 .power-browser-command-empty-v2,\n    .power-browser-dark-v2 .power-browser-education-feature-v2 div > span {\n      color: #aeb4c2;\n    }\n\n    .power-browser-dark-v2 .power-browser-education-feature-v2,\n    .power-browser-dark-v2 .power-browser-education-footer-v2 {\n      color: #f4f5f7;\n      background: #282d3b;\n      border-color: #404657;\n    }\n\n    .power-browser-dark-v2\n      .power-browser-education-feature-v2\n      strong {\n      color: #f4f5f7;\n    }\n\n    .power-browser-dark-v2 .power-browser-education-icon-v2 {\n      color: #ff9cbd;\n      background: #4b2838;\n    }\n\n    .power-browser-dark-v2 .power-browser-education-secondary-v2 {\n      color: #d5d8e0;\n      background: #282d3b;\n      border-color: #565c6d;\n    }\n\n    .power-browser-betty-theme-v2.power-browser-command-dialog-v2,\n    .power-browser-betty-theme-v2.power-browser-education-dialog-v2 {\n      border-color: #7189ff;\n      box-shadow: 0 28px 90px rgba(57, 90, 252, 0.28);\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-education-header-v2 {\n      background: linear-gradient(\n        259deg,\n        rgb(233, 0, 76) 0%,\n        rgb(57, 90, 252) 52%,\n        rgb(17, 171, 209) 100%\n      );\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-education-eyebrow-v2,\n    .power-browser-betty-theme-v2\n      .power-browser-education-header-v2\n      p {\n      color: rgba(255, 255, 255, 0.86);\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-command-result-v2:hover,\n    .power-browser-betty-theme-v2\n      .power-browser-command-result-v2.active {\n      color: #233fc4;\n      background: linear-gradient(\n        90deg,\n        rgba(233, 0, 76, 0.08),\n        rgba(57, 90, 252, 0.12),\n        rgba(17, 171, 209, 0.1)\n      );\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-education-icon-v2 {\n      color: #314fcf;\n      background: #e8edff;\n    }\n\n    :is(\n        .power-browser-settings-dialog-v2,\n        .power-browser-model-search-dialog-v2,\n        .power-browser-artifact-dialog-v2,\n        .power-browser-command-dialog-v2,\n        .power-browser-education-dialog-v2\n      )\n      :is(button, a, input, select, textarea):focus-visible {\n      outline: 2px solid #e9004c;\n      outline-offset: 2px;\n    }\n\n    :is(\n        .power-browser-settings-dialog-v2,\n        .power-browser-model-search-dialog-v2,\n        .power-browser-artifact-dialog-v2,\n        .power-browser-command-dialog-v2,\n        .power-browser-education-dialog-v2\n      )\n      :is(button, a, input, select, textarea) {\n      transition:\n        color 140ms ease,\n        background-color 140ms ease,\n        border-color 140ms ease,\n        box-shadow 140ms ease;\n    }\n\n    :is(\n        .power-browser-settings-dialog-v2,\n        .power-browser-model-search-dialog-v2,\n        .power-browser-artifact-dialog-v2,\n        .power-browser-command-dialog-v2,\n        .power-browser-education-dialog-v2\n      )\n      :is(button, input, select, textarea):disabled {\n      opacity: 0.62;\n    }\n\n    :is(\n        .power-browser-dark-v2,\n        .power-browser-betty-theme-v2\n      )\n      :is(button, a, input, select, textarea):focus-visible {\n      outline-color: #ff5c91;\n    }\n\n    .power-browser-betty-theme-v2\n      :is(button, a, input, select, textarea):focus-visible {\n      outline-color: #395afc;\n    }\n\n    .power-browser-settings-info-title-v2 {\n      display: flex;\n      align-items: center;\n      justify-content: space-between;\n      gap: 12px;\n      margin-bottom: 14px;\n      color: #303442;\n      font-size: 13px;\n      font-weight: 700;\n    }\n\n    .power-browser-settings-info-status-v2 {\n      display: inline-flex;\n      align-items: center;\n      padding: 3px 7px;\n      color: #23603e;\n      background: #e8f7ef;\n      border: 1px solid #bde8cf;\n      border-radius: 999px;\n      font-size: 9px;\n      font-weight: 750;\n      letter-spacing: 0.04em;\n      text-transform: uppercase;\n    }\n\n    .power-browser-settings-info-grid-v2 {\n      display: grid;\n      grid-template-columns: repeat(2, minmax(0, 1fr));\n      gap: 12px 20px;\n      margin: 0;\n    }\n\n    .power-browser-settings-info-item-v2 {\n      min-width: 0;\n    }\n\n    .power-browser-settings-info-item-v2 dt {\n      margin: 0 0 3px;\n      color: #8a8f9d;\n      font-size: 9px;\n      font-weight: 700;\n      letter-spacing: 0.05em;\n      text-transform: uppercase;\n    }\n\n    .power-browser-settings-info-item-v2 dd {\n      margin: 0;\n      overflow-wrap: anywhere;\n      color: #303442;\n      font: 11px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace;\n    }\n\n    .power-browser-settings-info-value-v2 {\n      display: flex;\n      align-items: flex-start;\n      gap: 6px;\n    }\n\n    .power-browser-settings-info-value-v2 dd {\n      min-width: 0;\n      flex: 1;\n    }\n\n    .power-browser-settings-copy-value-v2 {\n      flex: 0 0 auto;\n      padding: 2px 5px;\n      color: #656b79;\n      background: #f3f4f7;\n      border: 1px solid #dfe1e7;\n      border-radius: 5px;\n      font-size: 8px;\n      font-weight: 700;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-copy-value-v2:hover {\n      color: #e9004c;\n      background: #fff;\n      border-color: #ef9db9;\n    }\n\n    .power-browser-settings-diagnostics-v2 {\n      display: grid;\n      grid-template-columns: repeat(2, minmax(0, 1fr));\n      gap: 10px;\n    }\n\n    .power-browser-settings-timeline-v2 {\n      display: flex;\n      flex-direction: column;\n      gap: 6px;\n      margin: 0;\n      padding: 0;\n      list-style: none;\n    }\n\n    .power-browser-settings-timeline-v2 li {\n      display: flex;\n      flex-direction: column;\n      gap: 2px;\n      padding: 9px 11px;\n      color: #343844;\n      background: #fff;\n      border: 1px solid #e0e2e7;\n      border-left: 3px solid #9ca1ad;\n      border-radius: 7px;\n    }\n\n    .power-browser-settings-timeline-v2 li[data-status=\"success\"],\n    .power-browser-settings-timeline-v2 li[data-status=\"ready\"] {\n      border-left-color: #24945f;\n    }\n\n    .power-browser-settings-timeline-v2 li[data-status=\"error\"],\n    .power-browser-settings-timeline-v2\n      li[data-status=\"manual-login-required\"] {\n      border-left-color: #d14343;\n    }\n\n    .power-browser-settings-timeline-v2\n      li[data-status=\"loading\"],\n    .power-browser-settings-timeline-v2\n      li[data-status=\"reauthenticating\"] {\n      border-left-color: #395afc;\n    }\n\n    .power-browser-settings-timeline-v2 li span {\n      color: #777d8c;\n      font-size: 10px;\n    }\n\n    .power-browser-settings-timeline-v2 li strong {\n      font-size: 11px;\n      font-weight: 550;\n    }\n\n    .power-browser-settings-diagnostic-v2 {\n      padding: 13px 14px;\n      background: #fff;\n      border: 1px solid #e4e5ea;\n      border-left: 4px solid #8a8f9d;\n      border-radius: 9px;\n    }\n\n    .power-browser-settings-diagnostic-v2[data-status=\"loading\"] {\n      border-left-color: #395afc;\n    }\n\n    .power-browser-settings-diagnostic-v2[data-status=\"success\"] {\n      border-left-color: #22935c;\n    }\n\n    .power-browser-settings-diagnostic-v2[data-status=\"warning\"] {\n      border-left-color: #d78b14;\n    }\n\n    .power-browser-settings-diagnostic-v2[data-status=\"error\"] {\n      border-left-color: #d02d3d;\n    }\n\n    .power-browser-settings-diagnostic-v2 strong {\n      display: block;\n      margin-bottom: 4px;\n      color: #303442;\n      font-size: 11px;\n    }\n\n    .power-browser-settings-diagnostic-v2 span {\n      display: block;\n      color: #777d8c;\n      font-size: 10px;\n      line-height: 1.45;\n    }\n\n    .power-browser-settings-actions-v2 {\n      display: flex;\n      align-items: center;\n      flex-wrap: wrap;\n      gap: 8px;\n    }\n\n    .power-browser-settings-action-v2 {\n      padding: 8px 11px;\n      color: #3f4554;\n      background: #fff;\n      border: 1px solid #d4d6dd;\n      border-radius: 7px;\n      font-size: 10px;\n      font-weight: 700;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-action-v2:hover {\n      color: #e9004c;\n      border-color: #ef9db9;\n    }\n\n    .power-browser-settings-action-v2:disabled {\n      color: #989dab;\n      background: #f1f2f5;\n      cursor: wait;\n    }\n\n    .power-browser-settings-operation-status-v2 {\n      color: #656b79;\n      font-size: 10px;\n    }\n\n    .power-browser-settings-operation-status-v2[data-status=\"success\"] {\n      color: #167346;\n    }\n\n    .power-browser-settings-operation-status-v2[data-status=\"error\"] {\n      color: #c52a3a;\n    }\n\n    .power-browser-settings-info-empty-v2 {\n      padding: 22px;\n      color: #777d8c;\n      background: #fff;\n      border: 1px dashed #d5d7de;\n      border-radius: 11px;\n      font-size: 12px;\n      line-height: 1.5;\n      text-align: center;\n    }\n\n    .power-browser-settings-danger-v2 {\n      display: flex;\n      align-items: center;\n      justify-content: space-between;\n      gap: 20px;\n      padding: 18px;\n      background: #fff7f7;\n      border: 1px solid #f3b8b8;\n      border-radius: 11px;\n    }\n\n    .power-browser-settings-danger-v2 strong {\n      display: block;\n      margin-bottom: 4px;\n      color: #8f1d1d;\n      font-size: 13px;\n    }\n\n    .power-browser-settings-danger-v2 span {\n      display: block;\n      color: #9b4a4a;\n      font-size: 11px;\n      line-height: 1.45;\n    }\n\n    .power-browser-settings-danger-button-v2 {\n      flex: 0 0 auto;\n      padding: 9px 12px;\n      color: #fff;\n      background: #c62828;\n      border: 1px solid #a91f1f;\n      border-radius: 7px;\n      font-size: 11px;\n      font-weight: 700;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-danger-button-v2:hover {\n      background: #a91f1f;\n    }\n\n    .power-browser-settings-copy-v2 strong {\n      display: block;\n      color: #303442;\n      font-size: 13px;\n      font-weight: 650;\n    }\n\n    .power-browser-settings-label-row-v2 {\n      display: flex;\n      align-items: center;\n      flex-wrap: wrap;\n      gap: 7px;\n    }\n\n    .power-browser-settings-badge-v2 {\n      display: inline-flex;\n      align-items: center;\n      padding: 2px 6px;\n      color: #6d3bd1;\n      background: #f0eaff;\n      border: 1px solid #ded0ff;\n      border-radius: 999px;\n      font-size: 9px;\n      font-weight: 700;\n      letter-spacing: 0.03em;\n      line-height: 1.2;\n      text-transform: uppercase;\n    }\n\n    .power-browser-settings-description-v2 {\n      display: block;\n      margin-top: 4px;\n      color: #777d8c;\n      font-size: 11px;\n      line-height: 1.45;\n    }\n\n    .power-browser-settings-theme-picker-v2 {\n      display: grid;\n      grid-template-columns: repeat(3, minmax(76px, 1fr));\n      gap: 8px;\n      width: min(310px, 100%);\n    }\n\n    .power-browser-settings-theme-option-v2 {\n      display: flex;\n      min-width: 0;\n      flex-direction: column;\n      gap: 7px;\n      padding: 7px;\n      color: #555a68;\n      background: #fff;\n      border: 1px solid #d9dbe1;\n      border-radius: 9px;\n      font: 650 10px Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n      text-align: left;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-theme-option-v2:hover {\n      border-color: #aeb2bf;\n    }\n\n    .power-browser-settings-theme-option-v2.active {\n      color: #262a3a;\n      border-color: #e9004c;\n      box-shadow: 0 0 0 2px rgba(233, 0, 76, 0.12);\n    }\n\n    .power-browser-settings-size-picker-v2 {\n      display: grid;\n      grid-template-columns: repeat(5, minmax(52px, 1fr));\n      gap: 6px;\n      width: min(430px, 100%);\n    }\n\n    .power-browser-settings-size-option-v2 {\n      display: flex;\n      min-width: 0;\n      flex-direction: column;\n      gap: 6px;\n      padding: 6px;\n      color: #555a68;\n      background: #fff;\n      border: 1px solid #d9dbe1;\n      border-radius: 9px;\n      font: 650 10px Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n      text-align: center;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-size-option-v2:hover {\n      border-color: #aeb2bf;\n    }\n\n    .power-browser-settings-size-option-v2.active {\n      color: #262a3a;\n      border-color: #e9004c;\n      box-shadow: 0 0 0 2px rgba(233, 0, 76, 0.12);\n    }\n\n    .power-browser-settings-size-preview-v2 {\n      position: relative;\n      display: grid;\n      height: 38px;\n      place-items: center;\n      overflow: hidden;\n      color: #444957;\n      background: #f4f5f8;\n      border: 1px solid rgba(31, 35, 48, 0.12);\n      border-radius: 6px;\n    }\n\n    .power-browser-settings-size-option-v2[data-size-kind=\"dialog\"]\n      .power-browser-settings-size-preview-v2::before {\n      width: 68%;\n      height: 62%;\n      content: \"\";\n      background: #fff;\n      border: 1px solid #b9bdc8;\n      border-radius: 3px;\n      box-shadow: inset 7px 0 0 #333847;\n    }\n\n    .power-browser-settings-size-option-v2[data-size-kind=\"dialog\"][data-size=\"xs\"]\n      .power-browser-settings-size-preview-v2::before {\n      width: 42%;\n      height: 42%;\n    }\n\n    .power-browser-settings-size-option-v2[data-size-kind=\"dialog\"][data-size=\"sm\"]\n      .power-browser-settings-size-preview-v2::before {\n      width: 55%;\n      height: 52%;\n    }\n\n    .power-browser-settings-size-option-v2[data-size-kind=\"dialog\"][data-size=\"lg\"]\n      .power-browser-settings-size-preview-v2::before {\n      width: 82%;\n      height: 72%;\n    }\n\n    .power-browser-settings-size-option-v2[data-size-kind=\"dialog\"][data-size=\"xl\"]\n      .power-browser-settings-size-preview-v2::before {\n      width: 94%;\n      height: 82%;\n    }\n\n    .power-browser-settings-size-option-v2[data-size-kind=\"text\"]\n      .power-browser-settings-size-preview-v2::before {\n      content: \"Aa\";\n      font-size: 14px;\n      font-weight: 700;\n      line-height: 1;\n    }\n\n    .power-browser-settings-size-option-v2[data-size-kind=\"text\"][data-size=\"xs\"]\n      .power-browser-settings-size-preview-v2::before {\n      font-size: 9px;\n    }\n\n    .power-browser-settings-size-option-v2[data-size-kind=\"text\"][data-size=\"sm\"]\n      .power-browser-settings-size-preview-v2::before {\n      font-size: 11px;\n    }\n\n    .power-browser-settings-size-option-v2[data-size-kind=\"text\"][data-size=\"lg\"]\n      .power-browser-settings-size-preview-v2::before {\n      font-size: 17px;\n    }\n\n    .power-browser-settings-size-option-v2[data-size-kind=\"text\"][data-size=\"xl\"]\n      .power-browser-settings-size-preview-v2::before {\n      font-size: 20px;\n    }\n\n    .power-browser-settings-theme-preview-v2 {\n      position: relative;\n      display: block;\n      height: 34px;\n      overflow: hidden;\n      background: #f7f7f9;\n      border: 1px solid rgba(31, 35, 48, 0.12);\n      border-radius: 6px;\n    }\n\n    .power-browser-settings-theme-preview-v2::before {\n      position: absolute;\n      top: 7px;\n      right: 7px;\n      left: 7px;\n      height: 7px;\n      content: \"\";\n      background: #fff;\n      border-radius: 4px;\n      box-shadow:\n        0 9px 0 #e4e5ea,\n        0 18px 0 #f0f1f4;\n    }\n\n    .power-browser-settings-theme-option-v2[data-theme=\"dark\"]\n      .power-browser-settings-theme-preview-v2 {\n      background: #1f2330;\n      border-color: #494f60;\n    }\n\n    .power-browser-settings-theme-option-v2[data-theme=\"dark\"]\n      .power-browser-settings-theme-preview-v2::before {\n      background: #343949;\n      box-shadow:\n        0 9px 0 #282d3b,\n        0 18px 0 #404657;\n    }\n\n    .power-browser-settings-theme-option-v2[data-theme=\"betty\"]\n      .power-browser-settings-theme-preview-v2 {\n      background:\n        linear-gradient(\n          259deg,\n          rgb(233, 0, 76) 0%,\n          rgb(57, 90, 252) 51.9162%,\n          rgb(17, 171, 209) 100%\n        );\n      border-color: transparent;\n    }\n\n    .power-browser-settings-theme-option-v2[data-theme=\"betty\"]\n      .power-browser-settings-theme-preview-v2::before {\n      background: rgba(255, 255, 255, 0.94);\n      box-shadow:\n        0 9px 0 rgba(255, 255, 255, 0.68),\n        0 18px 0 rgba(255, 255, 255, 0.4);\n    }\n\n    .power-browser-settings-toggle-v2 {\n      position: relative;\n      display: inline-flex;\n      width: 42px;\n      height: 24px;\n      flex: 0 0 42px;\n    }\n\n    .power-browser-settings-toggle-v2 input {\n      position: absolute;\n      opacity: 0;\n      pointer-events: none;\n    }\n\n    .power-browser-settings-toggle-track-v2 {\n      width: 100%;\n      border-radius: 999px;\n      background: #c8cbd3;\n      cursor: pointer;\n      transition: background 0.18s ease;\n    }\n\n    .power-browser-settings-toggle-track-v2::after {\n      position: absolute;\n      top: 3px;\n      left: 3px;\n      width: 18px;\n      height: 18px;\n      content: \"\";\n      background: #fff;\n      border-radius: 50%;\n      box-shadow: 0 2px 5px rgba(20, 24, 35, 0.22);\n      transition: transform 0.18s ease;\n    }\n\n    .power-browser-settings-toggle-v2 input:checked + .power-browser-settings-toggle-track-v2 {\n      background: #e9004c;\n    }\n\n    .power-browser-settings-toggle-v2 input:checked + .power-browser-settings-toggle-track-v2::after {\n      transform: translateX(18px);\n    }\n\n    .power-browser-settings-toggle-v2 input:focus-visible + .power-browser-settings-toggle-track-v2 {\n      outline: 3px solid rgba(233, 0, 76, 0.22);\n      outline-offset: 2px;\n    }\n\n    .power-browser-settings-toggle-v2\n      input:disabled\n      + .power-browser-settings-toggle-track-v2 {\n      cursor: not-allowed;\n    }\n\n    .power-browser-settings-shortcut-v2 {\n      width: 170px;\n      padding: 8px 10px;\n      border: 1px solid #d4d6dd;\n      border-radius: 7px;\n      color: #303442;\n      background: #fbfbfc;\n      font: 12px ui-monospace, SFMono-Regular, Consolas, monospace;\n    }\n\n    .power-browser-settings-shortcut-v2:focus {\n      border-color: #e9004c;\n      outline: 3px solid rgba(233, 0, 76, 0.12);\n    }\n\n    .power-browser-settings-footer-v2 {\n      display: flex;\n      align-items: center;\n      justify-content: space-between;\n      padding: 12px 26px;\n      color: #777d8c;\n      background: #fff;\n      border-top: 1px solid #e8e9ed;\n      font-size: 11px;\n    }\n\n    .power-browser-settings-reset-v2 {\n      padding: 7px 10px;\n      border: 1px solid #d9dbe1;\n      border-radius: 7px;\n      color: #555a68;\n      background: #fff;\n      font-size: 11px;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-reset-v2:hover {\n      color: #e9004c;\n      border-color: #f0a0ba;\n      background: #fff5f8;\n    }\n\n    .power-browser-icon-only-v2 #dropdownMenu > a span,\n    .power-browser-icon-only-v2 #dropdownMenu > button span,\n    .power-browser-icon-only-v2 .power-browser-state-toggle-label-v2 {\n      display: none;\n    }\n\n    .power-browser-icon-only-v2.power-browser-show-sandbox-name-v2\n      .power-browser-state-toggle-label-v2 {\n      display: inline;\n    }\n\n    .power-browser-setting-hidden-v2 {\n      display: none !important;\n    }\n\n    .power-browser-dark-v2 .dropdown-1aaab757-b16d-413a-9499-a72197bb1732,\n    .power-browser-dark-v2 .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > a,\n    .power-browser-dark-v2 .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > button,\n    .power-browser-dark-v2 .power-browser-state-toggle-v2 {\n      color: #f4f5f7;\n      background: #262a3a;\n    }\n\n    .power-browser-dark-v2 .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > a:hover,\n    .power-browser-dark-v2 .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > button:hover,\n    .power-browser-dark-v2 .power-browser-state-toggle-v2:hover {\n      background: #343949;\n    }\n\n    .power-browser-dark-v2 .button-disabled-6b6a60d4-9e38-4279-84a5-5ef466dde62f,\n    .power-browser-dark-v2 .button-disabled-6b6a60d4-9e38-4279-84a5-5ef466dde62f:hover {\n      color: #858b9b !important;\n      background: #343947 !important;\n    }\n\n    .power-browser-dark-v2 .power-browser-state-menu-v2,\n    .power-browser-dark-v2 .power-browser-state-option-v2 {\n      color: #f4f5f7;\n      background: #262a3a;\n      border-color: #444a5b;\n    }\n\n    .power-browser-dark-v2 .power-browser-state-option-v2:hover {\n      background: #343949;\n    }\n\n    .power-browser-dark-v2 .power-browser-state-option-v2.no-access,\n    .power-browser-dark-v2 .power-browser-state-option-v2.no-access:hover {\n      color: #858b9b;\n      background: #343947;\n    }\n\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732.power-browser-hotfix-active-v2,\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732.power-browser-hotfix-active-v2 > a,\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732.power-browser-hotfix-active-v2 > button,\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732.power-browser-hotfix-active-v2 > .power-browser-state-switcher-v2 > .power-browser-state-toggle-v2 {\n      color: #4a111b !important;\n      background: #ff9c9c !important;\n    }\n\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732.power-browser-hotfix-active-v2 > a:hover,\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732.power-browser-hotfix-active-v2 > button:hover,\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732.power-browser-hotfix-active-v2 > .power-browser-state-switcher-v2 > .power-browser-state-toggle-v2:hover {\n      background: #ffd1d1 !important;\n    }\n\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732.power-browser-hotfix-active-v2\n      > .button-disabled-6b6a60d4-9e38-4279-84a5-5ef466dde62f,\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732.power-browser-hotfix-active-v2\n      > .power-browser-state-switcher-v2\n      > .button-disabled-6b6a60d4-9e38-4279-84a5-5ef466dde62f {\n      color: #805c63 !important;\n      background: #e2bcbc !important;\n      cursor: not-allowed !important;\n    }\n\n    .power-browser-shift-hidden-v2 {\n      visibility: hidden !important;\n      pointer-events: none !important;\n    }\n\n    .power-browser-b5-highlighting-v2 .pane .body .action_diagram .event.active .symbol {\n      box-shadow: 0 0 15px 2px rgba(255, 126, 117, 1);\n    }\n\n    .power-browser-b5-password-v2 {\n      filter: blur(3px);\n      transition: filter 0.25s ease;\n    }\n\n    .power-browser-b5-password-v2:hover,\n    .power-browser-b5-password-v2:focus {\n      filter: blur(0);\n    }\n\n    .power-browser-dark-v2.power-browser-model-search-dialog-v2 {\n      color: #f4f5f7;\n      background: #242836;\n      border-color: #494f60;\n    }\n\n    .power-browser-dark-v2 .power-browser-model-search-header-v2,\n    .power-browser-dark-v2 .power-browser-model-search-footer-v2 {\n      background: #242836;\n      border-color: #444a5b;\n    }\n\n    .power-browser-dark-v2 .power-browser-model-search-input-v2,\n    .power-browser-dark-v2 .power-browser-model-search-title-v2 {\n      color: #f4f5f7;\n    }\n\n    .power-browser-dark-v2 .power-browser-model-search-result-v2:hover,\n    .power-browser-dark-v2 .power-browser-model-search-result-v2.active,\n    .power-browser-dark-v2 .power-browser-model-search-backoffice-v2:hover {\n      background: #343949;\n    }\n\n    .power-browser-dark-v2.power-browser-artifact-dialog-v2 {\n      color: #f4f5f7;\n      background: #1f2330;\n      border-color: #494f60;\n    }\n\n    .power-browser-dark-v2 .power-browser-artifact-tabs-v2,\n    .power-browser-dark-v2 .power-browser-artifact-browser-v2,\n    .power-browser-dark-v2 .power-browser-artifact-details-v2,\n    .power-browser-dark-v2 .power-browser-artifact-entry-v2,\n    .power-browser-dark-v2 .power-browser-artifact-health-item-v2,\n    .power-browser-dark-v2 .power-browser-artifact-snapshot-v2,\n    .power-browser-dark-v2 .power-browser-artifact-diff-group-v2 {\n      color: #f4f5f7;\n      background: #282d3b;\n      border-color: #404657;\n    }\n\n    .power-browser-dark-v2 .power-browser-artifact-search-v2,\n    .power-browser-dark-v2\n      .power-browser-artifact-code-secondary-v2 {\n      color: #f4f5f7;\n      background: #202431;\n      border-color: #4a5061;\n    }\n\n    .power-browser-dark-v2 .power-browser-artifact-entry-v2:hover,\n    .power-browser-dark-v2 .power-browser-artifact-entry-v2.active,\n    .power-browser-dark-v2\n      .power-browser-artifact-tabs-v2\n      button:hover,\n    .power-browser-dark-v2\n      .power-browser-artifact-tabs-v2\n      button.active {\n      color: #fff;\n      background: #343949;\n    }\n\n    .power-browser-dark-v2.power-browser-settings-dialog-v2 .power-browser-settings-main-v2,\n    .power-browser-dark-v2.power-browser-settings-dialog-v2 .power-browser-settings-content-v2 {\n      background: #1f2330;\n    }\n\n    .power-browser-dark-v2.power-browser-settings-dialog-v2 {\n      --power-browser-settings-flash-rgb: 255, 92, 145;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-header-v2,\n    .power-browser-dark-v2 .power-browser-settings-search-v2,\n    .power-browser-dark-v2 .power-browser-settings-footer-v2,\n    .power-browser-dark-v2 .power-browser-settings-card-v2 {\n      background: #282d3b;\n      border-color: #404657;\n    }\n\n    .power-browser-dark-v2\n      .power-browser-settings-search-v2 input {\n      color: #f4f5f7;\n      background: #202431;\n      border-color: #4a5061;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-scope-v2 {\n      color: #f4f5f7;\n      color-scheme: dark;\n      background: #202431;\n      border-color: #4a5061;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-scope-v2:hover {\n      background: #292e3c;\n      border-color: #737b91;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-scope-v2:focus-visible {\n      border-color: #ff5c91;\n      box-shadow: 0 0 0 3px rgba(255, 92, 145, 0.14);\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-heading-v2 h2,\n    .power-browser-dark-v2 .power-browser-settings-copy-v2 strong,\n    .power-browser-dark-v2 .power-browser-settings-info-title-v2,\n    .power-browser-dark-v2 .power-browser-settings-info-item-v2 dd {\n      color: #f4f5f7;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-info-empty-v2 {\n      color: #aeb4c2;\n      background: #282d3b;\n      border-color: #4a5061;\n    }\n\n    .power-browser-dark-v2\n      .power-browser-settings-diagnostic-v2,\n    .power-browser-dark-v2\n      .power-browser-settings-action-v2 {\n      color: #d5d8e0;\n      background: #282d3b;\n      border-color: #4a5061;\n    }\n\n    .power-browser-dark-v2\n      .power-browser-settings-diagnostic-v2 strong {\n      color: #f4f5f7;\n    }\n\n    .power-browser-dark-v2\n      .power-browser-settings-copy-value-v2 {\n      color: #c8ccd6;\n      background: #343949;\n      border-color: #4a5061;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-danger-v2 {\n      background: #421f25;\n      border-color: #75404a;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-danger-v2 strong {\n      color: #ffccd3;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-danger-v2 span {\n      color: #e7aab4;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-close-v2 {\n      color: #c8ccd6;\n      background: #363b4b;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-close-v2:hover {\n      color: #ff8eb3;\n      background: #472938;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-reset-v2 {\n      color: #d5d8e0;\n      background: #282d3b;\n      border-color: #4a5061;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-reset-v2:hover {\n      color: #ff9cbd;\n      background: #3d2834;\n      border-color: #8d5268;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-section-v2 {\n      color: #aeb4c2;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-badge-v2 {\n      color: #d8c7ff;\n      background: #3b3155;\n      border-color: #574876;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-shortcut-v2 {\n      color: #f4f5f7;\n      background: #202431;\n      border-color: #4a5061;\n    }\n\n    .power-browser-dark-v2\n      .power-browser-settings-theme-option-v2 {\n      color: #c8ccd6;\n      background: #202431;\n      border-color: #4a5061;\n    }\n\n    .power-browser-dark-v2\n      .power-browser-settings-size-option-v2 {\n      color: #c8ccd6;\n      background: #202431;\n      border-color: #4a5061;\n    }\n\n    .power-browser-dark-v2\n      .power-browser-settings-size-preview-v2 {\n      color: #e5e8ef;\n      background: #292e3c;\n      border-color: #4a5061;\n    }\n\n    .power-browser-dark-v2\n      .power-browser-settings-size-option-v2[data-size-kind=\"dialog\"]\n      .power-browser-settings-size-preview-v2::before {\n      background: #343949;\n      border-color: #737b91;\n      box-shadow: inset 7px 0 0 #171a24;\n    }\n\n    .power-browser-dark-v2\n      .power-browser-settings-theme-option-v2:hover {\n      border-color: #737b91;\n    }\n\n    .power-browser-dark-v2\n      .power-browser-settings-size-option-v2:hover {\n      border-color: #737b91;\n    }\n\n    .power-browser-dark-v2\n      .power-browser-settings-theme-option-v2.active {\n      color: #fff;\n      border-color: #ff5c91;\n      box-shadow: 0 0 0 2px rgba(255, 92, 145, 0.14);\n    }\n\n    .power-browser-dark-v2\n      .power-browser-settings-size-option-v2.active {\n      color: #fff;\n      border-color: #ff5c91;\n      box-shadow: 0 0 0 2px rgba(255, 92, 145, 0.14);\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-alert-v2 {\n      color: #ffc4d7;\n      background: #552134;\n      border-color: #733047;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-alert-v2 strong {\n      color: #ffe4ed;\n    }\n\n    .power-browser-betty-theme-v2\n      .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 {\n      overflow: visible;\n      background:\n        linear-gradient(\n          259deg,\n          rgb(233, 0, 76) 0%,\n          rgb(57, 90, 252) 51.9162%,\n          rgb(17, 171, 209) 100%\n        )\n        transparent;\n      border-radius: 12px;\n      box-shadow: none;\n    }\n\n    .power-browser-betty-theme-v2\n      .dropdown-1aaab757-b16d-413a-9499-a72197bb1732\n      > a,\n    .power-browser-betty-theme-v2\n      .dropdown-1aaab757-b16d-413a-9499-a72197bb1732\n      > button,\n    .power-browser-betty-theme-v2 .power-browser-state-toggle-v2 {\n      color: #fff;\n      background: transparent;\n    }\n\n    .power-browser-betty-theme-v2\n      .dropdown-1aaab757-b16d-413a-9499-a72197bb1732\n      > a:hover,\n    .power-browser-betty-theme-v2\n      .dropdown-1aaab757-b16d-413a-9499-a72197bb1732\n      > button:hover,\n    .power-browser-betty-theme-v2\n      .power-browser-state-toggle-v2:hover {\n      background: rgba(255, 255, 255, 0.16);\n    }\n\n    .power-browser-betty-theme-v2\n      .button-disabled-6b6a60d4-9e38-4279-84a5-5ef466dde62f,\n    .power-browser-betty-theme-v2\n      .button-disabled-6b6a60d4-9e38-4279-84a5-5ef466dde62f:hover {\n      color: rgba(255, 255, 255, 0.56) !important;\n      background: rgba(25, 30, 72, 0.16) !important;\n    }\n\n    .power-browser-betty-theme-v2 .power-browser-state-menu-v2,\n    .power-browser-betty-theme-v2 .power-browser-state-option-v2 {\n      color: #29304a;\n      background: #fff;\n      border-color: #cad3ff;\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-state-option-v2:hover {\n      color: #233fc4;\n      background: #eef2ff;\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-state-option-v2.no-access,\n    .power-browser-betty-theme-v2\n      .power-browser-state-option-v2.no-access:hover {\n      color: #9499aa;\n      background: #f1f2f5;\n    }\n\n    .power-browser-betty-theme-v2.power-browser-model-search-dialog-v2 {\n      border-color: #7189ff;\n      box-shadow: 0 26px 80px rgba(57, 90, 252, 0.25);\n    }\n\n    .power-browser-betty-theme-v2.power-browser-artifact-dialog-v2 {\n      border-color: #7189ff;\n      box-shadow: 0 28px 90px rgba(57, 90, 252, 0.28);\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-artifact-header-v2 {\n      background:\n        linear-gradient(\n          259deg,\n          rgb(233, 0, 76) 0%,\n          rgb(57, 90, 252) 52%,\n          rgb(17, 171, 209) 100%\n        );\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-artifact-entry-v2:hover,\n    .power-browser-betty-theme-v2\n      .power-browser-artifact-entry-v2.active,\n    .power-browser-betty-theme-v2\n      .power-browser-artifact-tabs-v2\n      button:hover,\n    .power-browser-betty-theme-v2\n      .power-browser-artifact-tabs-v2\n      button.active {\n      color: #233fc4;\n      background: linear-gradient(\n        90deg,\n        rgba(233, 0, 76, 0.08),\n        rgba(57, 90, 252, 0.12),\n        rgba(17, 171, 209, 0.1)\n      );\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-model-search-result-v2:hover,\n    .power-browser-betty-theme-v2\n      .power-browser-model-search-result-v2.active,\n    .power-browser-betty-theme-v2\n      .power-browser-model-search-backoffice-v2:hover {\n      background: linear-gradient(\n        90deg,\n        rgba(233, 0, 76, 0.08),\n        rgba(57, 90, 252, 0.12),\n        rgba(17, 171, 209, 0.1)\n      );\n    }\n\n    .power-browser-betty-theme-v2.power-browser-settings-dialog-v2 {\n      --power-browser-settings-flash-rgb: 57, 90, 252;\n      border-color: rgba(57, 90, 252, 0.35);\n      box-shadow: 0 32px 100px rgba(42, 61, 160, 0.32);\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-sidebar-v2 {\n      background:\n        linear-gradient(\n          259deg,\n          rgb(233, 0, 76) 0%,\n          rgb(57, 90, 252) 51.9162%,\n          rgb(17, 171, 209) 100%\n        )\n        transparent;\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-tab-v2,\n    .power-browser-betty-theme-v2\n      .power-browser-settings-section-link-v2 {\n      color: rgba(255, 255, 255, 0.8);\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-tab-v2:hover,\n    .power-browser-betty-theme-v2\n      .power-browser-settings-tab-v2.active {\n      color: #fff;\n      background: rgba(255, 255, 255, 0.18);\n      box-shadow: none;\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-section-link-v2:hover,\n    .power-browser-betty-theme-v2\n      .power-browser-settings-section-link-v2.active {\n      color: #fff;\n      border-left-color: #fff;\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-main-v2,\n    .power-browser-betty-theme-v2\n      .power-browser-settings-content-v2 {\n      background: #f3f6ff;\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-header-v2,\n    .power-browser-betty-theme-v2\n      .power-browser-settings-search-v2,\n    .power-browser-betty-theme-v2\n      .power-browser-settings-footer-v2,\n    .power-browser-betty-theme-v2\n      .power-browser-settings-card-v2 {\n      background: #fff;\n      border-color: #dce2ff;\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-scope-v2 {\n      color: #29304a;\n      background: #f8f9ff;\n      border-color: #bec9ff;\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-scope-v2:hover {\n      background: #eef2ff;\n      border-color: #8ca0ff;\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-scope-v2:focus-visible {\n      border-color: #395afc;\n      box-shadow: 0 0 0 3px rgba(57, 90, 252, 0.14);\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-close-v2 {\n      color: #395afc;\n      background: #edf1ff;\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-close-v2:hover {\n      color: #e9004c;\n      background: #fff0f5;\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-reset-v2 {\n      color: #395afc;\n      background: #fff;\n      border-color: #aebcff;\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-reset-v2:hover {\n      color: #e9004c;\n      background: #fff4f8;\n      border-color: #ed8aad;\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-theme-option-v2.active {\n      border-color: #395afc;\n      box-shadow: 0 0 0 2px rgba(57, 90, 252, 0.14);\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-size-option-v2.active {\n      border-color: #395afc;\n      box-shadow: 0 0 0 2px rgba(57, 90, 252, 0.14);\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-version-v2 {\n      color: #fff;\n    }\n\n    .power-browser-settings-dialog-v2[data-dialog-size=\"xs\"] {\n      grid-template-columns: 190px minmax(0, 1fr);\n      width: min(780px, calc(100vw - 32px));\n      height: min(580px, calc(100vh - 32px));\n    }\n\n    .power-browser-settings-dialog-v2[data-dialog-size=\"sm\"] {\n      grid-template-columns: 205px minmax(0, 1fr);\n      width: min(900px, calc(100vw - 32px));\n      height: min(660px, calc(100vh - 32px));\n    }\n\n    .power-browser-settings-dialog-v2[data-dialog-size=\"md\"] {\n      grid-template-columns: 220px minmax(0, 1fr);\n      width: min(1000px, calc(100vw - 32px));\n      height: min(740px, calc(100vh - 32px));\n    }\n\n    .power-browser-settings-dialog-v2[data-dialog-size=\"lg\"] {\n      grid-template-columns: 235px minmax(0, 1fr);\n      width: min(1100px, calc(100vw - 24px));\n      height: min(790px, calc(100vh - 24px));\n    }\n\n    .power-browser-settings-dialog-v2[data-dialog-size=\"xl\"] {\n      grid-template-columns: 250px minmax(0, 1fr);\n      width: min(1200px, calc(100vw - 20px));\n      height: min(860px, calc(100vh - 20px));\n    }\n\n    .power-browser-settings-dialog-v2[data-text-size=\"xs\"] {\n      --pb-settings-font-micro: 7.5px;\n      --pb-settings-font-small: 9px;\n      --pb-settings-font-body: 11px;\n      --pb-settings-font-input: 10px;\n      --pb-settings-font-title: 17px;\n      --pb-settings-font-large: 12px;\n    }\n\n    .power-browser-settings-dialog-v2[data-text-size=\"sm\"] {\n      --pb-settings-font-micro: 8px;\n      --pb-settings-font-small: 10px;\n      --pb-settings-font-body: 12px;\n      --pb-settings-font-input: 11px;\n      --pb-settings-font-title: 18px;\n      --pb-settings-font-large: 13.5px;\n    }\n\n    .power-browser-settings-dialog-v2[data-text-size=\"lg\"] {\n      --pb-settings-font-micro: 10px;\n      --pb-settings-font-small: 12.5px;\n      --pb-settings-font-body: 15px;\n      --pb-settings-font-input: 14px;\n      --pb-settings-font-title: 23px;\n      --pb-settings-font-large: 17px;\n    }\n\n    .power-browser-settings-dialog-v2[data-text-size=\"xl\"] {\n      --pb-settings-font-micro: 11px;\n      --pb-settings-font-small: 14px;\n      --pb-settings-font-body: 17px;\n      --pb-settings-font-input: 16px;\n      --pb-settings-font-title: 26px;\n      --pb-settings-font-large: 19px;\n    }\n\n    .power-browser-settings-dialog-v2 .power-browser-settings-tab-v2,\n    .power-browser-settings-dialog-v2 .power-browser-settings-footer-v2,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-diagnostic-v2 strong {\n      font-size: var(--pb-settings-font-body);\n    }\n\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-brand-v2 strong {\n      font-size: var(--pb-settings-font-large);\n    }\n\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-heading-v2 h2 {\n      font-size: var(--pb-settings-font-title);\n    }\n\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-copy-v2 strong,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-info-title-v2 {\n      font-size: var(--pb-settings-font-large);\n    }\n\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-section-link-v2,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-description-v2,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-info-item-v2 dd,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-diagnostic-v2 span,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-operation-status-v2,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-brand-v2 span,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-version-v2,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-theme-option-v2,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-size-option-v2 {\n      font-size: var(--pb-settings-font-small);\n    }\n\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-heading-v2 p,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-search-v2 input,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-section-v2,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-shortcut-v2,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-action-v2,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-reset-v2,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-danger-button-v2 {\n      font-size: var(--pb-settings-font-input);\n    }\n\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-info-item-v2 dt {\n      font-size: var(--pb-settings-font-micro);\n    }\n\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-badge-v2 {\n      font-size: var(--pb-settings-font-micro);\n    }\n\n    @media (max-width: 720px) {\n      .power-browser-settings-dialog-v2,\n      .power-browser-settings-dialog-v2.open {\n        grid-template-columns: 1fr;\n        grid-template-rows: auto minmax(0, 1fr);\n      }\n\n      .power-browser-settings-sidebar-v2 {\n        padding: 14px;\n      }\n\n      .power-browser-settings-brand-v2,\n      .power-browser-settings-version-v2 {\n        display: none;\n      }\n\n      .power-browser-settings-tabs-v2 {\n        height: auto;\n        flex: none;\n        flex-direction: row;\n        overflow-x: auto;\n        overflow-y: hidden;\n        touch-action: pan-x;\n      }\n\n      .power-browser-settings-tab-v2 {\n        width: auto;\n        white-space: nowrap;\n      }\n\n      .power-browser-settings-section-links-v2 {\n        flex: none;\n        flex-direction: row;\n        padding: 0;\n      }\n\n      .power-browser-settings-section-link-v2 {\n        border-left: 0;\n        border-bottom: 1px solid rgba(255, 255, 255, 0.16);\n        white-space: nowrap;\n      }\n\n      .power-browser-settings-card-v2 {\n        grid-template-columns: minmax(0, 1fr);\n      }\n\n      .power-browser-settings-shortcut-v2 {\n        width: 100%;\n        box-sizing: border-box;\n      }\n\n      .power-browser-settings-scope-v2 {\n        width: min(220px, 42vw);\n        min-width: 180px;\n      }\n\n      .power-browser-settings-info-grid-v2 {\n        grid-template-columns: minmax(0, 1fr);\n      }\n\n      .power-browser-settings-diagnostics-v2 {\n        grid-template-columns: minmax(0, 1fr);\n      }\n\n      .power-browser-settings-danger-v2 {\n        align-items: stretch;\n        flex-direction: column;\n      }\n\n      .power-browser-settings-theme-picker-v2 {\n        width: 100%;\n      }\n\n      .power-browser-settings-size-picker-v2 {\n        width: 100%;\n      }\n\n      .power-browser-education-body-v2 {\n        grid-template-columns: minmax(0, 1fr);\n      }\n\n      .power-browser-education-header-v2 {\n        padding: 20px;\n      }\n\n      .power-browser-education-footer-v2 {\n        align-items: stretch;\n        flex-direction: column-reverse;\n      }\n    }\n\n    @media (prefers-reduced-motion: reduce) {\n      :is(\n          .power-browser-settings-dialog-v2,\n          .power-browser-model-search-dialog-v2,\n          .power-browser-artifact-dialog-v2,\n          .power-browser-command-dialog-v2,\n          .power-browser-education-dialog-v2,\n          .nav-container-1c7b2759-c793-4d17-b89b-1da6c5c5cf5b\n        )\n        *,\n      :is(\n          .power-browser-settings-dialog-v2,\n          .power-browser-model-search-dialog-v2,\n          .power-browser-artifact-dialog-v2,\n          .power-browser-command-dialog-v2,\n          .power-browser-education-dialog-v2,\n          .nav-container-1c7b2759-c793-4d17-b89b-1da6c5c5cf5b\n        )\n        *::before,\n      :is(\n          .power-browser-settings-dialog-v2,\n          .power-browser-model-search-dialog-v2,\n          .power-browser-artifact-dialog-v2,\n          .power-browser-command-dialog-v2,\n          .power-browser-education-dialog-v2,\n          .nav-container-1c7b2759-c793-4d17-b89b-1da6c5c5cf5b\n        )\n        *::after {\n        scroll-behavior: auto !important;\n        animation-duration: 0.01ms !important;\n        animation-iteration-count: 1 !important;\n        transition-duration: 0.01ms !important;\n      }\n    }\n");
+GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px !important;\n      width: min(900px, calc(100vw - 48px)) !important;\n      max-width: min(900px, calc(100vw - 48px)) !important;\n      height: min(880px, calc(100vh - 88px)) !important;\n      min-height: min(720px, calc(100vh - 88px)) !important;\n      max-height: calc(100vh - 88px) !important;\n      grid-template-rows: auto minmax(0, 1fr) auto auto !important;\n      overflow: hidden !important;\n      transform: translateX(-50%) !important;\n    }\n\n    .power-browser-action-playground-dialog-v2\n      > .box-border.overflow-auto {\n      min-height: 0 !important;\n      overflow-x: hidden !important;\n      overflow-y: auto !important;\n      padding-right: 6px;\n    }\n\n    .power-browser-action-playground-dialog-v2\n      > .flex.flex-row.justify-between.gap-2 {\n      position: relative;\n      z-index: 1;\n      flex-shrink: 0;\n      background: white;\n    }\n\n    .power-browser-action-playground-dialog-v2\n      [data-power-browser-action-headers-v2] {\n      padding-bottom: 4px;\n    }\n\n    .power-browser-action-playground-dialog-v2\n      [data-power-browser-action-headers-v2]\n      textarea {\n      min-height: 112px;\n    }\n\n    .power-browser-action-playground-dialog-v2\n      textarea[data-power-browser-action-variables-v2] {\n      max-height: calc(12em + 16px) !important;\n    }\n\n    .power-browser-action-alert-v2 {\n      display: none;\n      margin: 4px 0 12px;\n      padding: 10px 12px;\n      color: #991b1b;\n      background: #fef2f2;\n      border: 1px solid #fecaca;\n      border-radius: 6px;\n      font: 500 12px/1.4 Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n    }\n\n    .power-browser-action-alert-v2.open {\n      display: block;\n    }\n\n    .power-browser-action-logs-panel-v350 {\n      min-height: 260px;\n      padding: 12px 2px 4px;\n      color: #343844;\n      font: 13px/1.4 Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n    }\n\n    .power-browser-action-logs-toolbar-v350,\n    .power-browser-action-logs-toolbar-v350 > div {\n      display: flex;\n      align-items: center;\n      justify-content: space-between;\n      gap: 8px;\n    }\n\n    .power-browser-action-logs-toolbar-v350 button {\n      padding: 6px 9px;\n      border: 1px solid #d1d5db;\n      border-radius: 5px;\n      background: #fff;\n      cursor: pointer;\n    }\n\n    .power-browser-action-logs-toolbar-v350 button:disabled {\n      opacity: 0.45;\n      cursor: not-allowed;\n    }\n\n    .power-browser-action-logs-list-v350 {\n      margin-top: 12px;\n      overflow: hidden;\n      border: 1px solid #e5e7eb;\n      border-radius: 6px;\n    }\n\n    .power-browser-action-log-row-v350 {\n      display: grid;\n      grid-template-columns: 16px 70px minmax(0, 1fr) 120px auto;\n      align-items: center;\n      gap: 12px;\n      padding: 9px 10px;\n      border-bottom: 1px solid #e5e7eb;\n      border-left: 4px solid #6b7280;\n      color: inherit;\n      cursor: pointer;\n      text-decoration: none;\n    }\n\n    .power-browser-action-log-item-v350:last-child\n      .power-browser-action-log-row-v350 {\n      border-bottom: 0;\n    }\n\n    .power-browser-action-log-row-v350:focus-visible {\n      outline: 2px solid #f97316;\n      outline-offset: -2px;\n    }\n\n    .power-browser-action-log-chevron-v350 {\n      color: #6b7280;\n      font-size: 18px;\n      line-height: 1;\n      text-align: center;\n    }\n\n    .power-browser-action-log-row-v350[data-level=\"error\"] {\n      border-left-color: #b91c1c;\n      background: #fff7f7;\n    }\n\n    .power-browser-action-log-row-v350[data-level=\"warning\"],\n    .power-browser-action-log-row-v350[data-level=\"warn\"] {\n      border-left-color: #b45309;\n    }\n\n    .power-browser-action-log-row-v350[data-level=\"info\"] {\n      border-left-color: #15803d;\n    }\n\n    .power-browser-action-log-level-v350 {\n      padding: 3px 6px;\n      border-radius: 4px;\n      background: #f3f4f6;\n      font-size: 11px;\n      text-align: center;\n      text-transform: capitalize;\n    }\n\n    .power-browser-action-log-message-v350 {\n      min-width: 0;\n      overflow: hidden;\n      text-overflow: ellipsis;\n      white-space: nowrap;\n    }\n\n    .power-browser-action-log-service-v350,\n    .power-browser-action-log-row-v350 time {\n      color: #6b7280;\n      font-size: 11px;\n      white-space: nowrap;\n    }\n\n    .power-browser-action-logs-empty-v350 {\n      padding: 30px;\n      color: #6b7280;\n      text-align: center;\n    }\n\n    .power-browser-action-log-details-v350 {\n      padding: 10px 12px 14px 28px;\n      color: #4b5563;\n      background: #fafafa;\n      border-bottom: 1px solid #e5e7eb;\n    }\n\n    .power-browser-action-local-log-v350\n      .power-browser-action-log-row-v350 {\n      border-left-color: #ea580c;\n      background: #fff7ed;\n    }\n\n    .power-browser-action-response-v350 > strong {\n      display: block;\n      margin-bottom: 7px;\n      color: #374151;\n    }\n\n    .power-browser-action-response-v350 > pre {\n      max-height: 360px;\n      margin: 0;\n      padding: 10px;\n      overflow: auto;\n      color: #e5e7eb;\n      background: #1f2937;\n      border-radius: 5px;\n      font: 11px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace;\n      white-space: pre-wrap;\n      word-break: break-word;\n    }\n\n    .nav-container-1c7b2759-c793-4d17-b89b-1da6c5c5cf5b {\n      position: fixed;\n      margin: 0;\n      top: 0;\n      left: 50%;\n      transform: translateX(-50%);\n      text-align: center;\n      padding: 6px 2px 2px;\n      width: 30%;\n      min-width: 250px;\n      z-index: 2147483647;\n      background: transparent !important;\n      box-shadow: none !important;\n      font-family: Arial, sans-serif;\n    }\n\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 {\n      position: absolute;\n      top: 50%;\n      left: 50%;\n      transform: translateX(-50%);\n      display: flex !important;\n      flex-direction: row;\n      align-items: stretch;\n      padding: 0;\n      opacity: 1;\n      white-space: nowrap;\n      background: white;\n      border-radius: 5px;\n      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);\n    }\n\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > a,\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > button,\n    .power-browser-state-toggle-v2 {\n      box-sizing: border-box;\n      display: inline-flex;\n      align-items: center;\n      gap: 5px;\n      min-height: 38px;\n      padding: 10px 20px;\n      border: 0;\n      border-radius: 0;\n      color: black;\n      background: white;\n      font: 14px Arial, sans-serif;\n      text-decoration: none;\n      cursor: pointer;\n    }\n\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > a:hover,\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > button:hover,\n    .power-browser-state-toggle-v2:hover {\n      background: #f0f0f0;\n    }\n\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > :first-child {\n      border-radius: 5px 0 0 5px;\n    }\n\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > :last-child {\n      border-radius: 0 5px 5px 0;\n    }\n\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 svg {\n      width: 16px;\n      height: 16px;\n      flex: 0 0 16px;\n      margin-bottom: 2px;\n      vertical-align: middle;\n      fill: currentColor;\n    }\n\n    .button-disabled-6b6a60d4-9e38-4279-84a5-5ef466dde62f {\n      color: #777 !important;\n      background-color: rgb(220, 220, 220) !important;\n      cursor: not-allowed !important;\n      pointer-events: none;\n    }\n\n    #buttonCopyBearer.button-disabled-6b6a60d4-9e38-4279-84a5-5ef466dde62f {\n      pointer-events: auto;\n    }\n\n    .power-browser-hidden-v2 {\n      display: none !important;\n    }\n\n    .power-browser-state-switcher-v2 {\n      position: relative;\n      display: inline-flex;\n    }\n\n    .power-browser-state-status-v2 {\n      position: absolute;\n      top: calc(100% + 8px);\n      right: 0;\n      display: none;\n      flex-direction: column;\n      gap: 7px;\n      width: min(320px, calc(100vw - 24px));\n      padding: 12px;\n      color: #343844;\n      background: #fff;\n      border: 1px solid #d9dbe2;\n      border-radius: 8px;\n      box-shadow: 0 12px 30px rgba(20, 24, 35, 0.2);\n      font: 12px/1.45 Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n      text-align: left;\n      white-space: normal;\n      z-index: 3;\n    }\n\n    .power-browser-state-status-v2::before {\n      position: absolute;\n      right: 0;\n      bottom: 100%;\n      width: 100%;\n      height: 8px;\n      content: \"\";\n    }\n\n    .power-browser-state-switcher-v2:not([data-status=\"ready\"]):hover\n      .power-browser-state-status-v2,\n    .power-browser-state-switcher-v2:not([data-status=\"ready\"]):focus-within\n      .power-browser-state-status-v2 {\n      display: flex;\n    }\n\n    .power-browser-state-status-v2 strong {\n      color: #252936;\n      font-size: 13px;\n    }\n\n    .power-browser-state-status-actions-v2 {\n      display: flex;\n      gap: 7px;\n    }\n\n    .power-browser-state-status-actions-v2 button {\n      padding: 6px 9px;\n      color: #343844;\n      background: #fff;\n      border: 1px solid #cfd2da;\n      border-radius: 5px;\n      font: 600 11px Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n      cursor: pointer;\n    }\n\n    .power-browser-state-status-actions-v2 button:hover {\n      color: #e9004c;\n      border-color: #e9004c;\n    }\n\n    .power-browser-state-status-actions-v2 button:disabled {\n      color: #8c909b;\n      background: #f0f1f3;\n      border-color: #dddfe4;\n      cursor: wait;\n    }\n\n    .power-browser-state-toggle-v2 {\n      max-width: 210px;\n    }\n\n    .power-browser-state-toggle-label-v2 {\n      overflow: hidden;\n      text-overflow: ellipsis;\n    }\n\n    .power-browser-state-menu-v2 {\n      position: absolute;\n      top: calc(100% + 5px);\n      left: 0;\n      display: none;\n      min-width: 240px;\n      padding: 5px;\n      background: white;\n      border: 1px solid #ddd;\n      border-radius: 5px;\n      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);\n      z-index: 1;\n    }\n\n    .power-browser-state-group-v2 {\n      padding: 8px 9px 4px;\n      color: #777d8c;\n      font-size: 10px;\n      font-weight: 700;\n      text-transform: uppercase;\n    }\n\n    .power-browser-environment-badge-v2 {\n      align-self: center;\n      margin: 0 7px;\n      padding: 3px 6px;\n      color: #fff;\n      background: #596070;\n      border-radius: 999px;\n      font: 700 9px/1 Arial, sans-serif;\n    }\n\n    .nav-container-1c7b2759-c793-4d17-b89b-1da6c5c5cf5b[data-environment=\"production\"]\n      .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 {\n      box-shadow: 0 0 0 2px #d14343, 0 4px 12px rgba(209, 67, 67, 0.25);\n    }\n\n    .nav-container-1c7b2759-c793-4d17-b89b-1da6c5c5cf5b[data-environment=\"production\"]\n      .power-browser-environment-badge-v2 {\n      background: #c83232;\n    }\n\n    .power-browser-state-switcher-v2.open .power-browser-state-menu-v2 {\n      display: flex;\n      flex-direction: column;\n    }\n\n    .power-browser-state-option-v2 {\n      display: flex;\n      align-items: center;\n      width: 100%;\n      padding: 9px 12px;\n      padding-left: calc(12px + var(--power-browser-depth, 0) * 16px);\n      border: 0;\n      border-radius: 3px;\n      color: #222;\n      background: white;\n      font: 14px Arial, sans-serif;\n      text-align: left;\n      cursor: pointer;\n    }\n\n    .power-browser-state-option-v2:hover {\n      background: #f0f0f0;\n    }\n\n    .power-browser-state-option-v2.current {\n      color: #e9004c;\n      font-weight: 600;\n      cursor: default;\n    }\n\n    .power-browser-state-option-v2.no-access {\n      color: #888;\n      background: #e7e7e7;\n      cursor: not-allowed;\n      opacity: 0.7;\n    }\n\n    .power-browser-state-option-v2.no-access:hover {\n      background: #e7e7e7;\n    }\n\n    .power-browser-state-option-v2 small {\n      margin-left: auto;\n      padding-left: 12px;\n      color: #777;\n      font-size: 11px;\n    }\n\n    .power-browser-bearer-copied-v2 {\n      background: rgba(202, 240, 181, 0.95) !important;\n    }\n\n    .power-browser-bearer-error-v2 {\n      background: rgba(255, 190, 190, 0.95) !important;\n    }\n\n    .power-browser-model-search-overlay-v2 {\n      position: fixed;\n      inset: 0;\n      display: none;\n      background: rgba(20, 24, 35, 0.45);\n      backdrop-filter: blur(2px);\n      z-index: 2147483646;\n    }\n\n    .power-browser-model-search-overlay-v2.open {\n      display: block;\n    }\n\n    #searchbox[data-power-browser-quick-switcher-proxy=\"true\"] {\n      display: none !important;\n    }\n\n    .power-browser-model-search-dialog-v2 {\n      position: fixed;\n      top: clamp(55px, 10vh, 120px);\n      left: 50%;\n      display: none;\n      width: min(720px, calc(100vw - 32px));\n      max-height: min(720px, 80vh);\n      overflow: hidden;\n      transform: translateX(-50%);\n      color: #262a3a;\n      background: #fff;\n      border: 1px solid rgba(233, 0, 76, 0.2);\n      border-radius: 14px;\n      box-shadow: 0 28px 80px rgba(20, 24, 35, 0.28);\n      font-family: Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n      z-index: 2147483647;\n    }\n\n    .power-browser-model-search-dialog-v2.open {\n      display: flex;\n      flex-direction: column;\n    }\n\n    .power-browser-model-search-header-v2 {\n      display: flex;\n      align-items: center;\n      gap: 12px;\n      padding: 16px 18px;\n      border-bottom: 1px solid #e6e7eb;\n    }\n\n    .power-browser-model-search-header-v2 svg {\n      width: 20px;\n      height: 20px;\n      fill: #e9004c;\n    }\n\n    .power-browser-model-search-input-v2 {\n      flex: 1;\n      min-width: 0;\n      padding: 0;\n      border: 0;\n      outline: 0;\n      color: #262a3a;\n      background: transparent;\n      font: 500 17px Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n    }\n\n    .power-browser-model-search-shortcut-v2,\n    .power-browser-model-search-count-v2 {\n      color: #777d8c;\n      font-size: 12px;\n      white-space: nowrap;\n    }\n\n    .power-browser-model-search-results-v2 {\n      display: flex;\n      flex-direction: column;\n      gap: 4px;\n      margin: 0;\n      padding: 8px;\n      overflow-y: auto;\n      list-style: none;\n    }\n\n    .power-browser-model-search-result-row-v2 {\n      display: grid;\n      grid-template-columns: minmax(0, 1fr) auto;\n      align-items: stretch;\n      gap: 4px;\n    }\n\n    .power-browser-model-search-result-v2 {\n      display: grid;\n      grid-template-columns: auto minmax(0, 1fr) auto;\n      align-items: center;\n      gap: 12px;\n      width: 100%;\n      padding: 11px 12px;\n      border: 0;\n      border-radius: 8px;\n      color: #262a3a;\n      background: transparent;\n      text-align: left;\n      cursor: pointer;\n    }\n\n    .power-browser-model-search-result-v2:hover,\n    .power-browser-model-search-result-v2.active {\n      background: #fff0f5;\n    }\n\n    .power-browser-model-search-chip-v2 {\n      min-width: 58px;\n      padding: 4px 7px;\n      border-radius: 999px;\n      color: #6b2541;\n      background: #ffdbe8;\n      font-size: 10px;\n      font-weight: 700;\n      text-align: center;\n      text-transform: uppercase;\n    }\n\n    .power-browser-model-search-chip-v2.property {\n      color: #24546c;\n      background: #dceff8;\n    }\n\n    .power-browser-model-search-chip-v2.relation {\n      color: #614e13;\n      background: #fff0b8;\n    }\n\n    .power-browser-model-search-chip-v2.navigation {\n      color: #3d4050;\n      background: #e7e9ef;\n    }\n\n    .power-browser-model-search-chip-v2.page {\n      color: #31543a;\n      background: #dff2e3;\n    }\n\n    .power-browser-model-search-chip-v2.action {\n      color: #58398a;\n      background: #eadffd;\n    }\n\n    .power-browser-model-search-chip-v2.view {\n      color: #6b4521;\n      background: #f8e6ce;\n    }\n\n    .power-browser-model-search-copy-v2 {\n      min-width: 0;\n    }\n\n    .power-browser-model-search-title-v2 {\n      display: block;\n      overflow: hidden;\n      color: #262a3a;\n      font-size: 14px;\n      font-weight: 650;\n      text-overflow: ellipsis;\n      white-space: nowrap;\n    }\n\n    .power-browser-model-search-meta-v2 {\n      display: block;\n      margin-top: 3px;\n      overflow: hidden;\n      color: #777d8c;\n      font-size: 11px;\n      text-overflow: ellipsis;\n      white-space: nowrap;\n    }\n\n    .power-browser-model-search-open-v2 {\n      padding: 5px 8px;\n      border: 1px solid #d9dbe2;\n      border-radius: 6px;\n      color: #4e5360;\n      background: #fff;\n      font-size: 11px;\n      cursor: pointer;\n      appearance: none;\n    }\n\n    .power-browser-model-search-open-v2:hover,\n    .power-browser-model-search-open-v2:focus-visible {\n      border-color: #e9004c;\n      color: #e9004c;\n      outline: none;\n    }\n\n    .power-browser-model-search-backoffice-v2 {\n      display: inline-flex;\n      align-items: center;\n      justify-content: center;\n      width: 42px;\n      padding: 0;\n      border: 1px solid transparent;\n      border-radius: 8px;\n      color: #4e5360;\n      background: transparent;\n      cursor: pointer;\n    }\n\n    .power-browser-model-search-backoffice-v2:hover,\n    .power-browser-model-search-backoffice-v2:focus-visible {\n      color: #e9004c;\n      background: #fff0f5;\n      border-color: #ffd0df;\n      outline: none;\n    }\n\n    .power-browser-model-search-backoffice-v2 svg {\n      width: 18px;\n      height: 18px;\n      fill: currentColor;\n    }\n\n    .power-browser-model-search-empty-v2 {\n      padding: 32px 20px;\n      color: #777d8c;\n      font-size: 13px;\n      text-align: center;\n    }\n\n    .power-browser-model-search-footer-v2 {\n      display: flex;\n      justify-content: space-between;\n      gap: 12px;\n      padding: 9px 16px;\n      color: #777d8c;\n      background: #f7f7f9;\n      border-top: 1px solid #e6e7eb;\n      font-size: 11px;\n    }\n\n    .power-browser-artifact-overlay-v2 {\n      position: fixed;\n      inset: 0;\n      display: none;\n      background: rgba(19, 23, 34, 0.5);\n      backdrop-filter: blur(4px);\n      z-index: 2147483646;\n    }\n\n    .power-browser-artifact-overlay-v2.open {\n      display: block;\n    }\n\n    .power-browser-artifact-dialog-v2 {\n      position: fixed;\n      top: 50%;\n      left: 50%;\n      display: none;\n      width: min(1120px, calc(100vw - 32px));\n      height: min(800px, calc(100vh - 32px));\n      overflow: hidden;\n      transform: translate(-50%, -50%);\n      color: #282c3a;\n      background: #f7f7f9;\n      border: 1px solid rgba(233, 0, 76, 0.2);\n      border-radius: 16px;\n      box-shadow: 0 32px 100px rgba(15, 18, 28, 0.34);\n      font-family: Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n      z-index: 2147483647;\n    }\n\n    .power-browser-artifact-dialog-v2.open {\n      display: grid;\n      grid-template-rows: auto auto minmax(0, 1fr);\n    }\n\n    .power-browser-artifact-header-v2 {\n      display: flex;\n      align-items: center;\n      justify-content: space-between;\n      gap: 16px;\n      padding: 17px 20px;\n      color: #fff;\n      background: #262a3a;\n    }\n\n    .power-browser-artifact-header-v2 strong,\n    .power-browser-artifact-header-v2 span {\n      display: block;\n    }\n\n    .power-browser-artifact-header-v2 strong {\n      font-size: 17px;\n    }\n\n    .power-browser-artifact-header-v2 span {\n      margin-top: 3px;\n      color: #adb2c1;\n      font-size: 10px;\n    }\n\n    .power-browser-artifact-close-v2 {\n      width: 32px;\n      height: 32px;\n      color: #d9dce5;\n      background: rgba(255, 255, 255, 0.08);\n      border: 0;\n      border-radius: 7px;\n      font-size: 21px;\n      cursor: pointer;\n    }\n\n    .power-browser-artifact-tabs-v2 {\n      display: flex;\n      gap: 4px;\n      padding: 8px 14px;\n      background: #fff;\n      border-bottom: 1px solid #e2e4e9;\n    }\n\n    .power-browser-artifact-tabs-v2 button {\n      padding: 8px 11px;\n      color: #5c6270;\n      background: transparent;\n      border: 0;\n      border-radius: 7px;\n      font-size: 11px;\n      font-weight: 650;\n      cursor: pointer;\n    }\n\n    .power-browser-artifact-tabs-v2 button:hover,\n    .power-browser-artifact-tabs-v2 button.active {\n      color: #8d1238;\n      background: #fff0f5;\n    }\n\n    .power-browser-artifact-body-v2 {\n      min-height: 0;\n      padding: 16px;\n      overflow: auto;\n    }\n\n    .power-browser-artifact-split-v2 {\n      display: grid;\n      grid-template-columns: minmax(300px, 0.8fr) minmax(0, 1.2fr);\n      gap: 14px;\n      height: 100%;\n      min-height: 0;\n    }\n\n    .power-browser-artifact-browser-v2,\n    .power-browser-artifact-details-v2 {\n      min-height: 0;\n      overflow: hidden;\n      background: #fff;\n      border: 1px solid #e1e3e8;\n      border-radius: 10px;\n    }\n\n    .power-browser-artifact-browser-v2 {\n      display: grid;\n      grid-template-rows: auto minmax(0, 1fr);\n    }\n\n    .power-browser-artifact-details-v2 {\n      padding: 14px;\n      overflow: auto;\n    }\n\n    .power-browser-artifact-search-v2 {\n      box-sizing: border-box;\n      width: calc(100% - 20px);\n      margin: 10px;\n      padding: 9px 11px;\n      color: #303442;\n      background: #f8f8fa;\n      border: 1px solid #d8dae1;\n      border-radius: 7px;\n      outline: none;\n      font-size: 11px;\n    }\n\n    .power-browser-artifact-search-v2:focus {\n      background: #fff;\n      border-color: #e9004c;\n      box-shadow: 0 0 0 3px rgba(233, 0, 76, 0.1);\n    }\n\n    .power-browser-artifact-results-v2 {\n      display: flex;\n      min-height: 0;\n      flex-direction: column;\n      gap: 3px;\n      padding: 0 7px 8px;\n      overflow: auto;\n    }\n\n    .power-browser-artifact-entry-v2 {\n      display: grid;\n      grid-template-columns: auto minmax(0, 1fr);\n      align-items: center;\n      gap: 9px;\n      width: 100%;\n      padding: 9px 10px;\n      color: #303442;\n      background: transparent;\n      border: 0;\n      border-radius: 7px;\n      text-align: left;\n      cursor: pointer;\n    }\n\n    .power-browser-artifact-entry-v2:hover,\n    .power-browser-artifact-entry-v2.active {\n      background: #fff0f5;\n    }\n\n    .power-browser-artifact-entry-v2 strong,\n    .power-browser-artifact-entry-v2 small {\n      display: block;\n      overflow: hidden;\n      text-overflow: ellipsis;\n      white-space: nowrap;\n    }\n\n    .power-browser-artifact-entry-v2 strong {\n      font-size: 11px;\n    }\n\n    .power-browser-artifact-entry-v2 small {\n      margin-top: 3px;\n      color: #858a97;\n      font-size: 9px;\n    }\n\n    .power-browser-artifact-kind-v2 {\n      padding: 3px 6px;\n      color: #603047;\n      background: #ffe0eb;\n      border-radius: 999px;\n      font-size: 8px;\n      font-weight: 750;\n      text-transform: uppercase;\n    }\n\n    .power-browser-artifact-detail-heading-v2,\n    .power-browser-artifact-section-header-v2 {\n      display: flex;\n      align-items: center;\n      justify-content: space-between;\n      gap: 12px;\n      margin-bottom: 12px;\n    }\n\n    .power-browser-artifact-detail-heading-v2 h3 {\n      margin: 0;\n      font-size: 15px;\n    }\n\n    .power-browser-artifact-detail-heading-v2 span,\n    .power-browser-artifact-section-header-v2 span,\n    .power-browser-artifact-snapshot-v2 span {\n      display: block;\n      margin-top: 4px;\n      color: #7c818e;\n      font-size: 9px;\n    }\n\n    .power-browser-artifact-detail-heading-v2 > div:last-child,\n    .power-browser-artifact-snapshot-v2 > div:last-child {\n      display: flex;\n      gap: 6px;\n    }\n\n    .power-browser-artifact-action-v2,\n    .power-browser-artifact-primary-v2 {\n      padding: 7px 9px;\n      color: #4e5360;\n      background: #fff;\n      border: 1px solid #d7d9df;\n      border-radius: 6px;\n      font-size: 9px;\n      font-weight: 700;\n      cursor: pointer;\n    }\n\n    .power-browser-artifact-primary-v2 {\n      color: #fff;\n      background: #e9004c;\n      border-color: #e9004c;\n    }\n\n    .power-browser-artifact-action-v2.danger {\n      color: #a12840;\n      border-color: #efbdc7;\n    }\n\n    .power-browser-artifact-action-v2:disabled {\n      opacity: 0.45;\n      cursor: not-allowed;\n    }\n\n    .power-browser-artifact-code-v2 {\n      box-sizing: border-box;\n      max-height: 55vh;\n      margin: 0;\n      padding: 13px;\n      overflow: auto;\n      color: #e8e9ee;\n      background: #20232e;\n      border-radius: 8px;\n      font: 10px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace;\n      white-space: pre-wrap;\n      overflow-wrap: anywhere;\n    }\n\n    .power-browser-artifact-code-secondary-v2 {\n      max-height: 220px;\n      margin-top: 10px;\n      color: #424755;\n      background: #f2f3f6;\n    }\n\n    .power-browser-artifact-empty-v2 {\n      padding: 30px 18px;\n      color: #7c818e;\n      font-size: 11px;\n      text-align: center;\n    }\n\n    .power-browser-artifact-relationship-list-v2,\n    .power-browser-artifact-health-list-v2 {\n      display: flex;\n      flex-direction: column;\n      gap: 5px;\n    }\n\n    .power-browser-artifact-relationship-list-v2\n      .power-browser-artifact-entry-v2 {\n      grid-template-columns: 150px auto minmax(0, 1fr);\n      background: #fff;\n      border: 1px solid #e1e3e8;\n    }\n\n    .power-browser-artifact-relationship-direction-v2 {\n      color: #6b7080;\n      font-size: 9px;\n    }\n\n    .power-browser-artifact-health-summary-v2 {\n      display: flex;\n      gap: 7px;\n      margin-bottom: 12px;\n    }\n\n    .power-browser-artifact-health-summary-v2 span {\n      padding: 5px 8px;\n      color: #4e5360;\n      background: #fff;\n      border: 1px solid #dfe1e7;\n      border-radius: 999px;\n      font-size: 9px;\n      font-weight: 700;\n      text-transform: uppercase;\n    }\n\n    .power-browser-artifact-health-summary-v2\n      span[data-severity=\"error\"] {\n      color: #a12840;\n      background: #fff0f2;\n      border-color: #efbdc7;\n    }\n\n    .power-browser-artifact-health-summary-v2\n      span[data-severity=\"warning\"] {\n      color: #76510a;\n      background: #fff8dd;\n      border-color: #edda94;\n    }\n\n    .power-browser-artifact-health-item-v2 {\n      display: flex;\n      flex-direction: column;\n      gap: 3px;\n      padding: 10px 12px;\n      color: #343844;\n      background: #fff;\n      border: 1px solid #e0e2e7;\n      border-left: 3px solid #9ca1ad;\n      border-radius: 7px;\n      text-align: left;\n    }\n\n    .power-browser-artifact-health-item-v2:not(:disabled) {\n      cursor: pointer;\n    }\n\n    .power-browser-artifact-health-item-v2[data-severity=\"error\"] {\n      border-left-color: #c8324f;\n    }\n\n    .power-browser-artifact-health-item-v2[data-severity=\"warning\"] {\n      border-left-color: #d19416;\n    }\n\n    .power-browser-artifact-health-item-v2 span {\n      color: #858a97;\n      font-size: 8px;\n      text-transform: uppercase;\n    }\n\n    .power-browser-artifact-health-item-v2 strong {\n      font-size: 10px;\n    }\n\n    .power-browser-artifact-snapshot-layout-v2 {\n      display: grid;\n      grid-template-columns: minmax(280px, 0.7fr) minmax(0, 1.3fr);\n      gap: 14px;\n      min-height: 0;\n    }\n\n    .power-browser-artifact-snapshot-list-v2 {\n      display: flex;\n      flex-direction: column;\n      gap: 6px;\n    }\n\n    .power-browser-artifact-snapshot-v2 {\n      display: flex;\n      align-items: center;\n      justify-content: space-between;\n      gap: 10px;\n      padding: 11px;\n      background: #fff;\n      border: 1px solid #e0e2e7;\n      border-radius: 8px;\n    }\n\n    .power-browser-artifact-snapshot-v2 strong {\n      font-size: 10px;\n    }\n\n    .power-browser-artifact-snapshot-diff-v2 {\n      min-width: 0;\n    }\n\n    .power-browser-artifact-snapshot-diff-v2 h3 {\n      margin: 0 0 10px;\n      font-size: 13px;\n    }\n\n    .power-browser-artifact-diff-group-v2 {\n      margin-bottom: 8px;\n      padding: 10px;\n      background: #fff;\n      border: 1px solid #e0e2e7;\n      border-radius: 8px;\n    }\n\n    .power-browser-artifact-diff-group-v2 strong {\n      font-size: 10px;\n      text-transform: capitalize;\n    }\n\n    .power-browser-artifact-diff-group-v2 ul {\n      margin: 7px 0 0;\n      padding: 0;\n      list-style: none;\n    }\n\n    .power-browser-artifact-diff-group-v2 li {\n      padding: 2px 0;\n      color: #505563;\n      font: 9px/1.4 ui-monospace, SFMono-Regular, Consolas, monospace;\n      overflow-wrap: anywhere;\n    }\n\n    .power-browser-artifact-diff-group-v2 li[data-change=\"+\"] {\n      color: #197044;\n    }\n\n    .power-browser-artifact-diff-group-v2 li[data-change=\"−\"] {\n      color: #a12840;\n    }\n\n    @media (max-width: 760px) {\n      .power-browser-artifact-split-v2,\n      .power-browser-artifact-snapshot-layout-v2 {\n        grid-template-columns: 1fr;\n        height: auto;\n      }\n\n      .power-browser-artifact-browser-v2 {\n        min-height: 300px;\n      }\n\n      .power-browser-artifact-tabs-v2 {\n        overflow-x: auto;\n      }\n    }\n\n    .power-browser-settings-overlay-v2 {\n      position: fixed;\n      inset: 0;\n      display: none;\n      background: rgba(19, 23, 34, 0.48);\n      backdrop-filter: blur(4px);\n      z-index: 2147483646;\n    }\n\n    .power-browser-settings-overlay-v2.open {\n      display: block;\n    }\n\n    .power-browser-settings-dialog-v2 {\n      --power-browser-settings-flash-rgb: 233, 0, 76;\n      --pb-settings-font-micro: 9px;\n      --pb-settings-font-small: 11px;\n      --pb-settings-font-body: 13px;\n      --pb-settings-font-input: 12px;\n      --pb-settings-font-title: 20px;\n      --pb-settings-font-large: 15px;\n      position: fixed;\n      top: 50%;\n      left: 50%;\n      display: none;\n      grid-template-columns: 220px minmax(0, 1fr);\n      width: min(1000px, calc(100vw - 32px));\n      height: min(740px, calc(100vh - 32px));\n      overflow: hidden;\n      transform: translate(-50%, -50%);\n      color: #282c3a;\n      background: #fff;\n      border: 1px solid rgba(233, 0, 76, 0.18);\n      border-radius: 18px;\n      box-shadow: 0 32px 100px rgba(15, 18, 28, 0.32);\n      font-family: Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n      z-index: 2147483647;\n    }\n\n    .power-browser-settings-dialog-v2.open {\n      display: grid;\n    }\n\n    .power-browser-settings-sidebar-v2 {\n      display: flex;\n      flex-direction: column;\n      min-width: 0;\n      min-height: 0;\n      overflow: hidden;\n      padding: 24px 14px 14px;\n      color: #fff;\n      background: linear-gradient(165deg, #262a3a 0%, #171a25 100%);\n    }\n\n    .power-browser-settings-brand-v2 {\n      padding: 0 10px 22px;\n    }\n\n    .power-browser-settings-brand-v2 strong {\n      display: block;\n      font-size: 17px;\n      letter-spacing: -0.02em;\n    }\n\n    .power-browser-settings-brand-v2 span {\n      display: block;\n      margin-top: 4px;\n      color: #aeb3c2;\n      font-size: 11px;\n    }\n\n    .power-browser-settings-tabs-v2 {\n      display: flex;\n      height: 0;\n      flex: 1 1 0;\n      flex-direction: column;\n      gap: 4px;\n      min-height: 0;\n      overflow-y: auto;\n      overscroll-behavior: contain;\n      scrollbar-width: none;\n      touch-action: pan-y;\n    }\n\n    .power-browser-settings-tabs-v2::-webkit-scrollbar {\n      display: none;\n      width: 0;\n      height: 0;\n    }\n\n    .power-browser-settings-tabs-v2\n      > .power-browser-settings-tab-v2,\n    .power-browser-settings-tabs-v2\n      > .power-browser-settings-section-links-v2 {\n      flex: 0 0 auto;\n    }\n\n    .power-browser-settings-tab-v2 {\n      display: flex;\n      align-items: center;\n      justify-content: space-between;\n      gap: 8px;\n      width: 100%;\n      padding: 10px 12px;\n      border: 0;\n      border-radius: 8px;\n      color: #c7cad4;\n      background: transparent;\n      font: 500 13px Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n      text-align: left;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-tab-v2.has-sections::after {\n      content: \"›\";\n      font-size: 17px;\n      line-height: 1;\n      transform: rotate(0deg);\n      transition: transform 120ms ease;\n    }\n\n    .power-browser-settings-tab-v2.has-sections[aria-expanded=\"true\"]::after {\n      transform: rotate(90deg);\n    }\n\n    .power-browser-settings-tab-v2:hover {\n      color: #fff;\n      background: rgba(255, 255, 255, 0.07);\n    }\n\n    .power-browser-settings-tab-v2.active {\n      color: #fff;\n      background: #e9004c;\n      box-shadow: 0 6px 18px rgba(233, 0, 76, 0.28);\n    }\n\n    .power-browser-settings-section-links-v2 {\n      display: flex;\n      flex-direction: column;\n      gap: 2px;\n      padding: 2px 0 4px 13px;\n    }\n\n    .power-browser-settings-section-link-v2 {\n      padding: 6px 10px;\n      border: 0;\n      border-left: 1px solid rgba(255, 255, 255, 0.16);\n      color: #969cac;\n      background: transparent;\n      font: 500 11px Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n      text-align: left;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-section-link-v2:hover,\n    .power-browser-settings-section-link-v2.active {\n      color: #fff;\n      border-left-color: #e9004c;\n    }\n\n    .power-browser-settings-version-v2 {\n      padding: 12px 10px 2px;\n      color: #777d8c;\n      font-size: 10px;\n    }\n\n    .power-browser-settings-main-v2 {\n      display: flex;\n      min-width: 0;\n      flex-direction: column;\n      overflow: hidden;\n      background: #f7f7f9;\n    }\n\n    .power-browser-settings-header-v2 {\n      display: flex;\n      align-items: center;\n      justify-content: space-between;\n      gap: 20px;\n      padding: 22px 26px 18px;\n      background: #fff;\n      border-bottom: 1px solid #e8e9ed;\n    }\n\n    .power-browser-settings-heading-v2 h2 {\n      margin: 0;\n      padding-left: 0;\n      color: #262a3a;\n      font-size: 20px;\n      letter-spacing: -0.02em;\n    }\n\n    .power-browser-settings-heading-v2 p {\n      margin: 5px 0 0;\n      color: #777d8c;\n      font-size: 12px;\n    }\n\n    .power-browser-settings-close-v2 {\n      display: inline-flex;\n      align-items: center;\n      justify-content: center;\n      width: 34px;\n      height: 34px;\n      border: 0;\n      border-radius: 8px;\n      color: #646977;\n      background: #f1f2f5;\n      font-size: 21px;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-close-v2:hover {\n      color: #e9004c;\n      background: #fff0f5;\n    }\n\n    .power-browser-settings-alert-v2 {\n      display: none;\n      align-items: center;\n      justify-content: space-between;\n      gap: 18px;\n      padding: 12px 26px;\n      color: #6e1836;\n      background: #ffe4ed;\n      border-bottom: 1px solid #ffc1d5;\n      font-size: 12px;\n      line-height: 1.4;\n    }\n\n    .power-browser-settings-alert-v2.open {\n      display: flex;\n    }\n\n    .power-browser-settings-search-v2 {\n      padding: 12px 26px;\n      background: #fff;\n      border-bottom: 1px solid #e8e9ed;\n    }\n\n    .power-browser-settings-search-v2 input {\n      box-sizing: border-box;\n      width: 100%;\n      padding: 9px 12px;\n      color: #303442;\n      background: #f7f7f9;\n      border: 1px solid #d9dbe1;\n      border-radius: 8px;\n      font-size: 12px;\n      outline: none;\n    }\n\n    .power-browser-settings-search-v2 input:focus {\n      background: #fff;\n      border-color: #e9004c;\n      box-shadow: 0 0 0 3px rgba(233, 0, 76, 0.1);\n    }\n\n    .power-browser-settings-search-result-v2 {\n      width: 100%;\n      color: inherit;\n      text-align: left;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-search-result-v2\n      .power-browser-settings-info-status-v2 {\n      color: #344bc1;\n      background: #edf1ff;\n      border-color: #ccd5ff;\n    }\n\n    .power-browser-settings-alert-v2 strong {\n      display: block;\n      margin-bottom: 2px;\n      color: #4f1027;\n      font-size: 12px;\n    }\n\n    .power-browser-settings-reload-v2 {\n      flex: 0 0 auto;\n      padding: 8px 12px;\n      border: 0;\n      border-radius: 7px;\n      color: #fff;\n      background: #e9004c;\n      font-size: 11px;\n      font-weight: 650;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-reload-v2:hover {\n      background: #c90042;\n    }\n\n    .power-browser-settings-content-v2 {\n      flex: 1;\n      padding: 20px 26px 28px;\n      overflow-y: auto;\n    }\n\n    .power-browser-settings-list-v2 {\n      display: flex;\n      flex-direction: column;\n      gap: 10px;\n    }\n\n    .power-browser-settings-section-v2 {\n      margin: 12px 4px 0 0;\n      padding-left: 0;\n      color: #656b79;\n      font-size: 11px;\n      font-weight: 700;\n      letter-spacing: 0.06em;\n      text-transform: uppercase;\n    }\n\n    .power-browser-settings-section-v2:first-child {\n      margin-top: 0;\n    }\n\n    .power-browser-settings-card-v2 {\n      display: grid;\n      grid-template-columns: minmax(0, 1fr) auto;\n      align-items: center;\n      gap: 18px;\n      padding: 16px 18px;\n      background: #fff;\n      border: 1px solid #e4e5ea;\n      border-radius: 11px;\n      box-shadow: 0 2px 7px rgba(25, 29, 42, 0.03);\n    }\n\n    .power-browser-settings-card-v2:hover {\n      border-color: #d4d6dd;\n    }\n\n    .power-browser-settings-card-v2.setting-flash {\n      animation: power-browser-settings-flash-v2 1.65s ease;\n    }\n\n    @keyframes power-browser-settings-flash-v2 {\n      0%,\n      100% {\n        box-shadow: 0 2px 7px rgba(25, 29, 42, 0.03);\n        transform: translateY(0);\n      }\n\n      18%,\n      55% {\n        border-color: rgb(var(--power-browser-settings-flash-rgb));\n        box-shadow:\n          0 0 0 4px\n            rgba(var(--power-browser-settings-flash-rgb), 0.22),\n          0 8px 22px rgba(25, 29, 42, 0.12);\n        transform: translateY(-1px);\n      }\n    }\n\n    .power-browser-settings-card-v2.setting-disabled {\n      opacity: 0.55;\n    }\n\n    .power-browser-settings-info-card-v2 {\n      display: block;\n    }\n\n    .power-browser-settings-data-v2\n      .power-browser-settings-info-title-v2 {\n      margin-bottom: 0;\n    }\n\n    .power-browser-settings-data-v2\n      .power-browser-settings-actions-v2 {\n      margin-top: 14px;\n    }\n\n    .power-browser-settings-scope-v2 {\n      box-sizing: border-box;\n      width: min(240px, 34vw);\n      min-width: 210px;\n      min-height: 38px;\n      margin-left: auto;\n      padding: 8px 11px;\n      color: #4e5360;\n      background: #fff;\n      border: 1px solid #d9dbe2;\n      border-radius: 8px;\n      outline: none;\n      font: 600 var(--pb-settings-font-input) Inter, -apple-system,\n        BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n      cursor: pointer;\n      transition:\n        border-color 140ms ease,\n        box-shadow 140ms ease,\n        background-color 140ms ease;\n    }\n\n    .power-browser-settings-scope-v2:hover {\n      background: #fafafd;\n      border-color: #bfc3cc;\n    }\n\n    .power-browser-settings-scope-v2:focus-visible {\n      border-color: #e9004c;\n      box-shadow: 0 0 0 3px rgba(233, 0, 76, 0.12);\n    }\n\n    .power-browser-settings-override-badge-v2 {\n      padding: 3px 7px;\n      color: #62410c;\n      background: #fff2c7;\n      border: 1px solid #f1d780;\n      border-radius: 999px;\n      font-size: 9px;\n      font-weight: 750;\n      letter-spacing: 0.03em;\n      text-transform: uppercase;\n    }\n\n    .power-browser-settings-override-badge-v2.inherited {\n      color: #536071;\n      background: #f0f2f5;\n      border-color: #d9dde4;\n    }\n\n    .power-browser-settings-use-global-v2 {\n      padding: 3px 7px;\n      color: #4655a5;\n      background: #f2f4ff;\n      border: 1px solid #d4dafb;\n      border-radius: 6px;\n      font-size: 9px;\n      font-weight: 700;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-use-global-v2:hover {\n      color: #e9004c;\n      background: #fff;\n      border-color: #ef9db9;\n    }\n\n    .power-browser-settings-profile-v2,\n    .power-browser-settings-update-v2 {\n      grid-template-columns: minmax(0, 1fr) auto;\n    }\n\n    .power-browser-settings-profile-name-v2 {\n      box-sizing: border-box;\n      width: min(360px, 100%);\n      padding: 7px 9px;\n      color: #303442;\n      background: #fff;\n      border: 1px solid #d9dbe2;\n      border-radius: 7px;\n      font: 600 12px Inter, sans-serif;\n    }\n\n    .power-browser-settings-profile-actions-v2 {\n      display: flex;\n      align-items: center;\n      gap: 7px;\n    }\n\n    .power-browser-settings-profile-actions-v2 button {\n      padding: 7px 9px;\n      color: #4e5360;\n      background: #fff;\n      border: 1px solid #d9dbe2;\n      border-radius: 7px;\n      font-size: 10px;\n      font-weight: 650;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-profile-actions-v2\n      .power-browser-settings-profile-clear-v2 {\n      color: #a12840;\n      border-color: #efbdc7;\n    }\n\n    #settingsButton {\n      position: relative;\n    }\n\n    #settingsButton.power-browser-update-available-v2::after {\n      position: absolute;\n      top: 5px;\n      right: 5px;\n      width: 8px;\n      height: 8px;\n      background: #e9004c;\n      border: 2px solid #fff;\n      border-radius: 50%;\n      content: \"\";\n    }\n\n    .power-browser-settings-file-input-v2 {\n      display: none !important;\n    }\n\n    .power-browser-command-overlay-v2 {\n      position: fixed;\n      inset: 0;\n      display: none;\n      background: rgba(19, 23, 34, 0.48);\n      backdrop-filter: blur(3px);\n      z-index: 2147483646;\n    }\n\n    .power-browser-command-overlay-v2.open {\n      display: block;\n    }\n\n    .power-browser-command-dialog-v2 {\n      position: fixed;\n      top: clamp(70px, 14vh, 150px);\n      left: 50%;\n      display: none;\n      width: min(640px, calc(100vw - 32px));\n      max-height: min(560px, 72vh);\n      overflow: hidden;\n      transform: translateX(-50%);\n      color: #282c3a;\n      background: #fff;\n      border: 1px solid rgba(233, 0, 76, 0.2);\n      border-radius: 13px;\n      box-shadow: 0 28px 80px rgba(20, 24, 35, 0.3);\n      font-family: Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n      z-index: 2147483647;\n    }\n\n    .power-browser-command-dialog-v2.open {\n      display: flex;\n      flex-direction: column;\n    }\n\n    .power-browser-command-input-v2 {\n      box-sizing: border-box;\n      width: 100%;\n      padding: 17px 18px;\n      color: #282c3a;\n      background: #fff;\n      border: 0;\n      border-bottom: 1px solid #e5e6eb;\n      outline: 0;\n      font-size: 16px;\n    }\n\n    .power-browser-command-results-v2 {\n      display: flex;\n      flex-direction: column;\n      gap: 3px;\n      padding: 7px;\n      overflow-y: auto;\n    }\n\n    .power-browser-command-result-v2 {\n      padding: 11px 12px;\n      color: #303442;\n      background: transparent;\n      border: 0;\n      border-radius: 8px;\n      font: 500 13px Inter, sans-serif;\n      text-align: left;\n      cursor: pointer;\n    }\n\n    .power-browser-command-result-v2:hover,\n    .power-browser-command-result-v2.active {\n      color: #78102f;\n      background: #fff0f5;\n    }\n\n    .power-browser-command-empty-v2 {\n      padding: 26px 18px;\n      color: #777d8c;\n      font-size: 12px;\n      text-align: center;\n    }\n\n    .power-browser-education-overlay-v2 {\n      position: fixed;\n      inset: 0;\n      display: none;\n      background: rgba(19, 23, 34, 0.5);\n      backdrop-filter: blur(4px);\n      z-index: 2147483646;\n    }\n\n    .power-browser-education-overlay-v2.open {\n      display: block;\n    }\n\n    .power-browser-education-dialog-v2 {\n      position: fixed;\n      top: 50%;\n      left: 50%;\n      display: none;\n      width: min(680px, calc(100vw - 32px));\n      max-height: min(760px, calc(100vh - 32px));\n      overflow: hidden;\n      transform: translate(-50%, -50%);\n      color: #2d3140;\n      background: #f7f7f9;\n      border: 1px solid rgba(233, 0, 76, 0.24);\n      border-radius: 16px;\n      box-shadow: 0 32px 100px rgba(15, 18, 28, 0.34);\n      font-family: Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\",\n        sans-serif;\n      z-index: 2147483647;\n    }\n\n    .power-browser-education-dialog-v2.open {\n      display: flex;\n      flex-direction: column;\n    }\n\n    .power-browser-education-header-v2 {\n      display: flex;\n      align-items: flex-start;\n      justify-content: space-between;\n      gap: 20px;\n      padding: 24px 26px 20px;\n      color: #fff;\n      background: #292d3d;\n    }\n\n    .power-browser-education-eyebrow-v2 {\n      display: block;\n      margin-bottom: 6px;\n      color: #ff8eb3;\n      font-size: 10px;\n      font-weight: 800;\n      letter-spacing: 0.09em;\n      text-transform: uppercase;\n    }\n\n    .power-browser-education-header-v2 h2 {\n      margin: 0;\n      padding: 0;\n      color: inherit;\n      font-size: 24px;\n      letter-spacing: -0.03em;\n    }\n\n    .power-browser-education-header-v2 p {\n      max-width: 520px;\n      margin: 7px 0 0;\n      color: #c4c8d3;\n      font-size: 12px;\n      line-height: 1.55;\n    }\n\n    .power-browser-education-close-v2 {\n      flex: 0 0 auto;\n      width: 34px;\n      height: 34px;\n      padding: 0;\n      color: #e0e2e8;\n      background: rgba(255, 255, 255, 0.08);\n      border: 0;\n      border-radius: 8px;\n      font-size: 22px;\n      line-height: 1;\n      cursor: pointer;\n    }\n\n    .power-browser-education-close-v2:hover {\n      color: #fff;\n      background: rgba(255, 255, 255, 0.16);\n    }\n\n    .power-browser-education-body-v2 {\n      display: grid;\n      grid-template-columns: repeat(2, minmax(0, 1fr));\n      gap: 12px;\n      min-height: 0;\n      padding: 18px;\n      overflow-y: auto;\n    }\n\n    .power-browser-education-feature-v2 {\n      display: grid;\n      grid-template-columns: auto minmax(0, 1fr);\n      align-items: start;\n      gap: 11px;\n      padding: 15px;\n      background: #fff;\n      border: 1px solid #e1e3e8;\n      border-radius: 11px;\n    }\n\n    .power-browser-education-icon-v2 {\n      display: inline-flex;\n      align-items: center;\n      justify-content: center;\n      width: 32px;\n      height: 32px;\n      color: #9c1742;\n      background: #ffe3ec;\n      border-radius: 9px;\n      font-size: 13px;\n      font-weight: 800;\n      line-height: 1;\n    }\n\n    .power-browser-education-feature-v2 > div > strong,\n    .power-browser-education-feature-v2 > div > span {\n      display: block;\n    }\n\n    .power-browser-education-feature-v2 strong {\n      color: #303442;\n      font-size: 12px;\n    }\n\n    .power-browser-education-feature-v2 div > span {\n      margin-top: 5px;\n      color: #737986;\n      font-size: 10px;\n      line-height: 1.5;\n    }\n\n    .power-browser-education-footer-v2 {\n      display: flex;\n      justify-content: flex-end;\n      gap: 8px;\n      padding: 14px 18px;\n      background: #fff;\n      border-top: 1px solid #e1e3e8;\n    }\n\n    .power-browser-education-primary-v2,\n    .power-browser-education-secondary-v2 {\n      min-height: 38px;\n      padding: 9px 14px;\n      border: 1px solid #d4d6dd;\n      border-radius: 8px;\n      font: 700 11px Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\",\n        sans-serif;\n      cursor: pointer;\n    }\n\n    .power-browser-education-secondary-v2 {\n      color: #444a58;\n      background: #fff;\n    }\n\n    .power-browser-education-secondary-v2:hover {\n      color: #e9004c;\n      background: #fff7fa;\n      border-color: #ef9db9;\n    }\n\n    .power-browser-education-primary-v2 {\n      color: #fff;\n      background: #e9004c;\n      border-color: #e9004c;\n    }\n\n    .power-browser-education-primary-v2:hover {\n      background: #c90042;\n      border-color: #c90042;\n    }\n\n    .power-browser-sr-only-v2 {\n      position: fixed !important;\n      width: 1px !important;\n      height: 1px !important;\n      padding: 0 !important;\n      overflow: hidden !important;\n      clip: rect(0, 0, 0, 0) !important;\n      white-space: nowrap !important;\n      border: 0 !important;\n    }\n\n    .power-browser-dark-v2.power-browser-command-dialog-v2,\n    .power-browser-dark-v2.power-browser-education-dialog-v2 {\n      color: #f4f5f7;\n      background: #1f2330;\n      border-color: #494f60;\n    }\n\n    .power-browser-dark-v2 .power-browser-command-input-v2,\n    .power-browser-dark-v2 .power-browser-command-result-v2 {\n      color: #f4f5f7;\n      background: #282d3b;\n      border-color: #404657;\n    }\n\n    .power-browser-dark-v2 .power-browser-command-result-v2:hover,\n    .power-browser-dark-v2 .power-browser-command-result-v2.active {\n      color: #fff;\n      background: #343949;\n    }\n\n    .power-browser-dark-v2 .power-browser-command-empty-v2,\n    .power-browser-dark-v2 .power-browser-education-feature-v2 div > span {\n      color: #aeb4c2;\n    }\n\n    .power-browser-dark-v2 .power-browser-education-feature-v2,\n    .power-browser-dark-v2 .power-browser-education-footer-v2 {\n      color: #f4f5f7;\n      background: #282d3b;\n      border-color: #404657;\n    }\n\n    .power-browser-dark-v2\n      .power-browser-education-feature-v2\n      strong {\n      color: #f4f5f7;\n    }\n\n    .power-browser-dark-v2 .power-browser-education-icon-v2 {\n      color: #ff9cbd;\n      background: #4b2838;\n    }\n\n    .power-browser-dark-v2 .power-browser-education-secondary-v2 {\n      color: #d5d8e0;\n      background: #282d3b;\n      border-color: #565c6d;\n    }\n\n    .power-browser-betty-theme-v2.power-browser-command-dialog-v2,\n    .power-browser-betty-theme-v2.power-browser-education-dialog-v2 {\n      border-color: #7189ff;\n      box-shadow: 0 28px 90px rgba(57, 90, 252, 0.28);\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-education-header-v2 {\n      background: linear-gradient(\n        259deg,\n        rgb(233, 0, 76) 0%,\n        rgb(57, 90, 252) 52%,\n        rgb(17, 171, 209) 100%\n      );\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-education-eyebrow-v2,\n    .power-browser-betty-theme-v2\n      .power-browser-education-header-v2\n      p {\n      color: rgba(255, 255, 255, 0.86);\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-command-result-v2:hover,\n    .power-browser-betty-theme-v2\n      .power-browser-command-result-v2.active {\n      color: #233fc4;\n      background: linear-gradient(\n        90deg,\n        rgba(233, 0, 76, 0.08),\n        rgba(57, 90, 252, 0.12),\n        rgba(17, 171, 209, 0.1)\n      );\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-education-icon-v2 {\n      color: #314fcf;\n      background: #e8edff;\n    }\n\n    :is(\n        .power-browser-settings-dialog-v2,\n        .power-browser-model-search-dialog-v2,\n        .power-browser-artifact-dialog-v2,\n        .power-browser-command-dialog-v2,\n        .power-browser-education-dialog-v2\n      )\n      :is(button, a, input, select, textarea):focus-visible {\n      outline: 2px solid #e9004c;\n      outline-offset: 2px;\n    }\n\n    :is(\n        .power-browser-settings-dialog-v2,\n        .power-browser-model-search-dialog-v2,\n        .power-browser-artifact-dialog-v2,\n        .power-browser-command-dialog-v2,\n        .power-browser-education-dialog-v2\n      )\n      :is(button, a, input, select, textarea) {\n      transition:\n        color 140ms ease,\n        background-color 140ms ease,\n        border-color 140ms ease,\n        box-shadow 140ms ease;\n    }\n\n    :is(\n        .power-browser-settings-dialog-v2,\n        .power-browser-model-search-dialog-v2,\n        .power-browser-artifact-dialog-v2,\n        .power-browser-command-dialog-v2,\n        .power-browser-education-dialog-v2\n      )\n      :is(button, input, select, textarea):disabled {\n      opacity: 0.62;\n    }\n\n    :is(\n        .power-browser-dark-v2,\n        .power-browser-betty-theme-v2\n      )\n      :is(button, a, input, select, textarea):focus-visible {\n      outline-color: #ff5c91;\n    }\n\n    .power-browser-betty-theme-v2\n      :is(button, a, input, select, textarea):focus-visible {\n      outline-color: #395afc;\n    }\n\n    .power-browser-settings-info-title-v2 {\n      display: flex;\n      align-items: center;\n      justify-content: space-between;\n      gap: 12px;\n      margin-bottom: 14px;\n      color: #303442;\n      font-size: 13px;\n      font-weight: 700;\n    }\n\n    .power-browser-settings-info-status-v2 {\n      display: inline-flex;\n      align-items: center;\n      padding: 3px 7px;\n      color: #23603e;\n      background: #e8f7ef;\n      border: 1px solid #bde8cf;\n      border-radius: 999px;\n      font-size: 9px;\n      font-weight: 750;\n      letter-spacing: 0.04em;\n      text-transform: uppercase;\n    }\n\n    .power-browser-settings-info-grid-v2 {\n      display: grid;\n      grid-template-columns: repeat(2, minmax(0, 1fr));\n      gap: 12px 20px;\n      margin: 0;\n    }\n\n    .power-browser-settings-info-item-v2 {\n      min-width: 0;\n    }\n\n    .power-browser-settings-info-item-v2 dt {\n      margin: 0 0 3px;\n      color: #8a8f9d;\n      font-size: 9px;\n      font-weight: 700;\n      letter-spacing: 0.05em;\n      text-transform: uppercase;\n    }\n\n    .power-browser-settings-info-item-v2 dd {\n      margin: 0;\n      overflow-wrap: anywhere;\n      color: #303442;\n      font: 11px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace;\n    }\n\n    .power-browser-settings-info-value-v2 {\n      display: flex;\n      align-items: flex-start;\n      gap: 6px;\n    }\n\n    .power-browser-settings-info-value-v2 dd {\n      min-width: 0;\n      flex: 1;\n    }\n\n    .power-browser-settings-copy-value-v2 {\n      flex: 0 0 auto;\n      padding: 2px 5px;\n      color: #656b79;\n      background: #f3f4f7;\n      border: 1px solid #dfe1e7;\n      border-radius: 5px;\n      font-size: 8px;\n      font-weight: 700;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-copy-value-v2:hover {\n      color: #e9004c;\n      background: #fff;\n      border-color: #ef9db9;\n    }\n\n    .power-browser-settings-diagnostics-v2 {\n      display: grid;\n      grid-template-columns: repeat(2, minmax(0, 1fr));\n      gap: 10px;\n    }\n\n    .power-browser-settings-timeline-v2 {\n      display: flex;\n      flex-direction: column;\n      gap: 6px;\n      margin: 0;\n      padding: 0;\n      list-style: none;\n    }\n\n    .power-browser-settings-timeline-v2 li {\n      display: flex;\n      flex-direction: column;\n      gap: 2px;\n      padding: 9px 11px;\n      color: #343844;\n      background: #fff;\n      border: 1px solid #e0e2e7;\n      border-left: 3px solid #9ca1ad;\n      border-radius: 7px;\n    }\n\n    .power-browser-settings-timeline-v2 li[data-status=\"success\"],\n    .power-browser-settings-timeline-v2 li[data-status=\"ready\"] {\n      border-left-color: #24945f;\n    }\n\n    .power-browser-settings-timeline-v2 li[data-status=\"error\"],\n    .power-browser-settings-timeline-v2\n      li[data-status=\"manual-login-required\"] {\n      border-left-color: #d14343;\n    }\n\n    .power-browser-settings-timeline-v2\n      li[data-status=\"loading\"],\n    .power-browser-settings-timeline-v2\n      li[data-status=\"reauthenticating\"] {\n      border-left-color: #395afc;\n    }\n\n    .power-browser-settings-timeline-v2 li span {\n      color: #777d8c;\n      font-size: 10px;\n    }\n\n    .power-browser-settings-timeline-v2 li strong {\n      font-size: 11px;\n      font-weight: 550;\n    }\n\n    .power-browser-settings-diagnostic-v2 {\n      padding: 13px 14px;\n      background: #fff;\n      border: 1px solid #e4e5ea;\n      border-left: 4px solid #8a8f9d;\n      border-radius: 9px;\n    }\n\n    .power-browser-settings-diagnostic-v2[data-status=\"loading\"] {\n      border-left-color: #395afc;\n    }\n\n    .power-browser-settings-diagnostic-v2[data-status=\"success\"] {\n      border-left-color: #22935c;\n    }\n\n    .power-browser-settings-diagnostic-v2[data-status=\"warning\"] {\n      border-left-color: #d78b14;\n    }\n\n    .power-browser-settings-diagnostic-v2[data-status=\"error\"] {\n      border-left-color: #d02d3d;\n    }\n\n    .power-browser-settings-diagnostic-v2 strong {\n      display: block;\n      margin-bottom: 4px;\n      color: #303442;\n      font-size: 11px;\n    }\n\n    .power-browser-settings-diagnostic-v2 span {\n      display: block;\n      color: #777d8c;\n      font-size: 10px;\n      line-height: 1.45;\n    }\n\n    .power-browser-settings-actions-v2 {\n      display: flex;\n      align-items: center;\n      flex-wrap: wrap;\n      gap: 8px;\n    }\n\n    .power-browser-settings-action-v2 {\n      padding: 8px 11px;\n      color: #3f4554;\n      background: #fff;\n      border: 1px solid #d4d6dd;\n      border-radius: 7px;\n      font-size: 10px;\n      font-weight: 700;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-action-v2:hover {\n      color: #e9004c;\n      border-color: #ef9db9;\n    }\n\n    .power-browser-settings-action-v2:disabled {\n      color: #989dab;\n      background: #f1f2f5;\n      cursor: wait;\n    }\n\n    .power-browser-settings-operation-status-v2 {\n      color: #656b79;\n      font-size: 10px;\n    }\n\n    .power-browser-settings-operation-status-v2[data-status=\"success\"] {\n      color: #167346;\n    }\n\n    .power-browser-settings-operation-status-v2[data-status=\"error\"] {\n      color: #c52a3a;\n    }\n\n    .power-browser-settings-info-empty-v2 {\n      padding: 22px;\n      color: #777d8c;\n      background: #fff;\n      border: 1px dashed #d5d7de;\n      border-radius: 11px;\n      font-size: 12px;\n      line-height: 1.5;\n      text-align: center;\n    }\n\n    .power-browser-settings-danger-v2 {\n      display: flex;\n      align-items: center;\n      justify-content: space-between;\n      gap: 20px;\n      padding: 18px;\n      background: #fff7f7;\n      border: 1px solid #f3b8b8;\n      border-radius: 11px;\n    }\n\n    .power-browser-settings-danger-v2 strong {\n      display: block;\n      margin-bottom: 4px;\n      color: #8f1d1d;\n      font-size: 13px;\n    }\n\n    .power-browser-settings-danger-v2 span {\n      display: block;\n      color: #9b4a4a;\n      font-size: 11px;\n      line-height: 1.45;\n    }\n\n    .power-browser-settings-danger-button-v2 {\n      flex: 0 0 auto;\n      padding: 9px 12px;\n      color: #fff;\n      background: #c62828;\n      border: 1px solid #a91f1f;\n      border-radius: 7px;\n      font-size: 11px;\n      font-weight: 700;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-danger-button-v2:hover {\n      background: #a91f1f;\n    }\n\n    .power-browser-settings-copy-v2 strong {\n      display: block;\n      color: #303442;\n      font-size: 13px;\n      font-weight: 650;\n    }\n\n    .power-browser-settings-label-row-v2 {\n      display: flex;\n      align-items: center;\n      flex-wrap: wrap;\n      gap: 7px;\n    }\n\n    .power-browser-settings-badge-v2 {\n      display: inline-flex;\n      align-items: center;\n      padding: 2px 6px;\n      color: #6d3bd1;\n      background: #f0eaff;\n      border: 1px solid #ded0ff;\n      border-radius: 999px;\n      font-size: 9px;\n      font-weight: 700;\n      letter-spacing: 0.03em;\n      line-height: 1.2;\n      text-transform: uppercase;\n    }\n\n    .power-browser-settings-description-v2 {\n      display: block;\n      margin-top: 4px;\n      color: #777d8c;\n      font-size: 11px;\n      line-height: 1.45;\n    }\n\n    .power-browser-settings-theme-picker-v2 {\n      display: grid;\n      grid-template-columns: repeat(3, minmax(76px, 1fr));\n      gap: 8px;\n      width: min(310px, 100%);\n    }\n\n    .power-browser-settings-theme-option-v2 {\n      display: flex;\n      min-width: 0;\n      flex-direction: column;\n      gap: 7px;\n      padding: 7px;\n      color: #555a68;\n      background: #fff;\n      border: 1px solid #d9dbe1;\n      border-radius: 9px;\n      font: 650 10px Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n      text-align: left;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-theme-option-v2:hover {\n      border-color: #aeb2bf;\n    }\n\n    .power-browser-settings-theme-option-v2.active {\n      color: #262a3a;\n      border-color: #e9004c;\n      box-shadow: 0 0 0 2px rgba(233, 0, 76, 0.12);\n    }\n\n    .power-browser-settings-size-picker-v2 {\n      display: grid;\n      grid-template-columns: repeat(5, minmax(52px, 1fr));\n      gap: 6px;\n      width: min(430px, 100%);\n    }\n\n    .power-browser-settings-size-option-v2 {\n      display: flex;\n      min-width: 0;\n      flex-direction: column;\n      gap: 6px;\n      padding: 6px;\n      color: #555a68;\n      background: #fff;\n      border: 1px solid #d9dbe1;\n      border-radius: 9px;\n      font: 650 10px Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n      text-align: center;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-size-option-v2:hover {\n      border-color: #aeb2bf;\n    }\n\n    .power-browser-settings-size-option-v2.active {\n      color: #262a3a;\n      border-color: #e9004c;\n      box-shadow: 0 0 0 2px rgba(233, 0, 76, 0.12);\n    }\n\n    .power-browser-settings-size-preview-v2 {\n      position: relative;\n      display: grid;\n      height: 38px;\n      place-items: center;\n      overflow: hidden;\n      color: #444957;\n      background: #f4f5f8;\n      border: 1px solid rgba(31, 35, 48, 0.12);\n      border-radius: 6px;\n    }\n\n    .power-browser-settings-size-option-v2[data-size-kind=\"dialog\"]\n      .power-browser-settings-size-preview-v2::before {\n      width: 68%;\n      height: 62%;\n      content: \"\";\n      background: #fff;\n      border: 1px solid #b9bdc8;\n      border-radius: 3px;\n      box-shadow: inset 7px 0 0 #333847;\n    }\n\n    .power-browser-settings-size-option-v2[data-size-kind=\"dialog\"][data-size=\"xs\"]\n      .power-browser-settings-size-preview-v2::before {\n      width: 42%;\n      height: 42%;\n    }\n\n    .power-browser-settings-size-option-v2[data-size-kind=\"dialog\"][data-size=\"sm\"]\n      .power-browser-settings-size-preview-v2::before {\n      width: 55%;\n      height: 52%;\n    }\n\n    .power-browser-settings-size-option-v2[data-size-kind=\"dialog\"][data-size=\"lg\"]\n      .power-browser-settings-size-preview-v2::before {\n      width: 82%;\n      height: 72%;\n    }\n\n    .power-browser-settings-size-option-v2[data-size-kind=\"dialog\"][data-size=\"xl\"]\n      .power-browser-settings-size-preview-v2::before {\n      width: 94%;\n      height: 82%;\n    }\n\n    .power-browser-settings-size-option-v2[data-size-kind=\"text\"]\n      .power-browser-settings-size-preview-v2::before {\n      content: \"Aa\";\n      font-size: 14px;\n      font-weight: 700;\n      line-height: 1;\n    }\n\n    .power-browser-settings-size-option-v2[data-size-kind=\"text\"][data-size=\"xs\"]\n      .power-browser-settings-size-preview-v2::before {\n      font-size: 9px;\n    }\n\n    .power-browser-settings-size-option-v2[data-size-kind=\"text\"][data-size=\"sm\"]\n      .power-browser-settings-size-preview-v2::before {\n      font-size: 11px;\n    }\n\n    .power-browser-settings-size-option-v2[data-size-kind=\"text\"][data-size=\"lg\"]\n      .power-browser-settings-size-preview-v2::before {\n      font-size: 17px;\n    }\n\n    .power-browser-settings-size-option-v2[data-size-kind=\"text\"][data-size=\"xl\"]\n      .power-browser-settings-size-preview-v2::before {\n      font-size: 20px;\n    }\n\n    .power-browser-settings-theme-preview-v2 {\n      position: relative;\n      display: block;\n      height: 34px;\n      overflow: hidden;\n      background: #f7f7f9;\n      border: 1px solid rgba(31, 35, 48, 0.12);\n      border-radius: 6px;\n    }\n\n    .power-browser-settings-theme-preview-v2::before {\n      position: absolute;\n      top: 7px;\n      right: 7px;\n      left: 7px;\n      height: 7px;\n      content: \"\";\n      background: #fff;\n      border-radius: 4px;\n      box-shadow:\n        0 9px 0 #e4e5ea,\n        0 18px 0 #f0f1f4;\n    }\n\n    .power-browser-settings-theme-option-v2[data-theme=\"dark\"]\n      .power-browser-settings-theme-preview-v2 {\n      background: #1f2330;\n      border-color: #494f60;\n    }\n\n    .power-browser-settings-theme-option-v2[data-theme=\"dark\"]\n      .power-browser-settings-theme-preview-v2::before {\n      background: #343949;\n      box-shadow:\n        0 9px 0 #282d3b,\n        0 18px 0 #404657;\n    }\n\n    .power-browser-settings-theme-option-v2[data-theme=\"betty\"]\n      .power-browser-settings-theme-preview-v2 {\n      background:\n        linear-gradient(\n          259deg,\n          rgb(233, 0, 76) 0%,\n          rgb(57, 90, 252) 51.9162%,\n          rgb(17, 171, 209) 100%\n        );\n      border-color: transparent;\n    }\n\n    .power-browser-settings-theme-option-v2[data-theme=\"betty\"]\n      .power-browser-settings-theme-preview-v2::before {\n      background: rgba(255, 255, 255, 0.94);\n      box-shadow:\n        0 9px 0 rgba(255, 255, 255, 0.68),\n        0 18px 0 rgba(255, 255, 255, 0.4);\n    }\n\n    .power-browser-settings-toggle-v2 {\n      position: relative;\n      display: inline-flex;\n      width: 42px;\n      height: 24px;\n      flex: 0 0 42px;\n    }\n\n    .power-browser-settings-toggle-v2 input {\n      position: absolute;\n      opacity: 0;\n      pointer-events: none;\n    }\n\n    .power-browser-settings-toggle-track-v2 {\n      width: 100%;\n      border-radius: 999px;\n      background: #c8cbd3;\n      cursor: pointer;\n      transition: background 0.18s ease;\n    }\n\n    .power-browser-settings-toggle-track-v2::after {\n      position: absolute;\n      top: 3px;\n      left: 3px;\n      width: 18px;\n      height: 18px;\n      content: \"\";\n      background: #fff;\n      border-radius: 50%;\n      box-shadow: 0 2px 5px rgba(20, 24, 35, 0.22);\n      transition: transform 0.18s ease;\n    }\n\n    .power-browser-settings-toggle-v2 input:checked + .power-browser-settings-toggle-track-v2 {\n      background: #e9004c;\n    }\n\n    .power-browser-settings-toggle-v2 input:checked + .power-browser-settings-toggle-track-v2::after {\n      transform: translateX(18px);\n    }\n\n    .power-browser-settings-toggle-v2 input:focus-visible + .power-browser-settings-toggle-track-v2 {\n      outline: 3px solid rgba(233, 0, 76, 0.22);\n      outline-offset: 2px;\n    }\n\n    .power-browser-settings-toggle-v2\n      input:disabled\n      + .power-browser-settings-toggle-track-v2 {\n      cursor: not-allowed;\n    }\n\n    .power-browser-settings-shortcut-v2 {\n      width: 170px;\n      padding: 8px 10px;\n      border: 1px solid #d4d6dd;\n      border-radius: 7px;\n      color: #303442;\n      background: #fbfbfc;\n      font: 12px ui-monospace, SFMono-Regular, Consolas, monospace;\n    }\n\n    .power-browser-settings-shortcut-v2:focus {\n      border-color: #e9004c;\n      outline: 3px solid rgba(233, 0, 76, 0.12);\n    }\n\n    .power-browser-settings-footer-v2 {\n      display: flex;\n      align-items: center;\n      justify-content: space-between;\n      padding: 12px 26px;\n      color: #777d8c;\n      background: #fff;\n      border-top: 1px solid #e8e9ed;\n      font-size: 11px;\n    }\n\n    .power-browser-settings-reset-v2 {\n      padding: 7px 10px;\n      border: 1px solid #d9dbe1;\n      border-radius: 7px;\n      color: #555a68;\n      background: #fff;\n      font-size: 11px;\n      cursor: pointer;\n    }\n\n    .power-browser-settings-reset-v2:hover {\n      color: #e9004c;\n      border-color: #f0a0ba;\n      background: #fff5f8;\n    }\n\n    .power-browser-icon-only-v2 #dropdownMenu > a span,\n    .power-browser-icon-only-v2 #dropdownMenu > button span,\n    .power-browser-icon-only-v2 .power-browser-state-toggle-label-v2 {\n      display: none;\n    }\n\n    .power-browser-icon-only-v2.power-browser-show-sandbox-name-v2\n      .power-browser-state-toggle-label-v2 {\n      display: inline;\n    }\n\n    .power-browser-setting-hidden-v2 {\n      display: none !important;\n    }\n\n    .power-browser-dark-v2 .dropdown-1aaab757-b16d-413a-9499-a72197bb1732,\n    .power-browser-dark-v2 .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > a,\n    .power-browser-dark-v2 .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > button,\n    .power-browser-dark-v2 .power-browser-state-toggle-v2 {\n      color: #f4f5f7;\n      background: #262a3a;\n    }\n\n    .power-browser-dark-v2 .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > a:hover,\n    .power-browser-dark-v2 .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 > button:hover,\n    .power-browser-dark-v2 .power-browser-state-toggle-v2:hover {\n      background: #343949;\n    }\n\n    .power-browser-dark-v2 .button-disabled-6b6a60d4-9e38-4279-84a5-5ef466dde62f,\n    .power-browser-dark-v2 .button-disabled-6b6a60d4-9e38-4279-84a5-5ef466dde62f:hover {\n      color: #858b9b !important;\n      background: #343947 !important;\n    }\n\n    .power-browser-dark-v2 .power-browser-state-menu-v2,\n    .power-browser-dark-v2 .power-browser-state-option-v2 {\n      color: #f4f5f7;\n      background: #262a3a;\n      border-color: #444a5b;\n    }\n\n    .power-browser-dark-v2 .power-browser-state-option-v2:hover {\n      background: #343949;\n    }\n\n    .power-browser-dark-v2 .power-browser-state-option-v2.no-access,\n    .power-browser-dark-v2 .power-browser-state-option-v2.no-access:hover {\n      color: #858b9b;\n      background: #343947;\n    }\n\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732.power-browser-hotfix-active-v2,\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732.power-browser-hotfix-active-v2 > a,\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732.power-browser-hotfix-active-v2 > button,\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732.power-browser-hotfix-active-v2 > .power-browser-state-switcher-v2 > .power-browser-state-toggle-v2 {\n      color: #4a111b !important;\n      background: #ff9c9c !important;\n    }\n\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732.power-browser-hotfix-active-v2 > a:hover,\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732.power-browser-hotfix-active-v2 > button:hover,\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732.power-browser-hotfix-active-v2 > .power-browser-state-switcher-v2 > .power-browser-state-toggle-v2:hover {\n      background: #ffd1d1 !important;\n    }\n\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732.power-browser-hotfix-active-v2\n      > .button-disabled-6b6a60d4-9e38-4279-84a5-5ef466dde62f,\n    .dropdown-1aaab757-b16d-413a-9499-a72197bb1732.power-browser-hotfix-active-v2\n      > .power-browser-state-switcher-v2\n      > .button-disabled-6b6a60d4-9e38-4279-84a5-5ef466dde62f {\n      color: #805c63 !important;\n      background: #e2bcbc !important;\n      cursor: not-allowed !important;\n    }\n\n    .power-browser-shift-hidden-v2 {\n      visibility: hidden !important;\n      pointer-events: none !important;\n    }\n\n    .power-browser-b5-highlighting-v2 .pane .body .action_diagram .event.active .symbol {\n      box-shadow: 0 0 15px 2px rgba(255, 126, 117, 1);\n    }\n\n    .power-browser-b5-password-v2 {\n      filter: blur(3px);\n      transition: filter 0.25s ease;\n    }\n\n    .power-browser-b5-password-v2:hover,\n    .power-browser-b5-password-v2:focus {\n      filter: blur(0);\n    }\n\n    .power-browser-dark-v2.power-browser-model-search-dialog-v2 {\n      color: #f4f5f7;\n      background: #242836;\n      border-color: #494f60;\n    }\n\n    .power-browser-dark-v2 .power-browser-model-search-header-v2,\n    .power-browser-dark-v2 .power-browser-model-search-footer-v2 {\n      background: #242836;\n      border-color: #444a5b;\n    }\n\n    .power-browser-dark-v2 .power-browser-model-search-input-v2,\n    .power-browser-dark-v2 .power-browser-model-search-title-v2 {\n      color: #f4f5f7;\n    }\n\n    .power-browser-dark-v2 .power-browser-model-search-result-v2:hover,\n    .power-browser-dark-v2 .power-browser-model-search-result-v2.active,\n    .power-browser-dark-v2 .power-browser-model-search-backoffice-v2:hover {\n      background: #343949;\n    }\n\n    .power-browser-dark-v2.power-browser-artifact-dialog-v2 {\n      color: #f4f5f7;\n      background: #1f2330;\n      border-color: #494f60;\n    }\n\n    .power-browser-dark-v2 .power-browser-artifact-tabs-v2,\n    .power-browser-dark-v2 .power-browser-artifact-browser-v2,\n    .power-browser-dark-v2 .power-browser-artifact-details-v2,\n    .power-browser-dark-v2 .power-browser-artifact-entry-v2,\n    .power-browser-dark-v2 .power-browser-artifact-health-item-v2,\n    .power-browser-dark-v2 .power-browser-artifact-snapshot-v2,\n    .power-browser-dark-v2 .power-browser-artifact-diff-group-v2 {\n      color: #f4f5f7;\n      background: #282d3b;\n      border-color: #404657;\n    }\n\n    .power-browser-dark-v2 .power-browser-artifact-search-v2,\n    .power-browser-dark-v2\n      .power-browser-artifact-code-secondary-v2 {\n      color: #f4f5f7;\n      background: #202431;\n      border-color: #4a5061;\n    }\n\n    .power-browser-dark-v2 .power-browser-artifact-entry-v2:hover,\n    .power-browser-dark-v2 .power-browser-artifact-entry-v2.active,\n    .power-browser-dark-v2\n      .power-browser-artifact-tabs-v2\n      button:hover,\n    .power-browser-dark-v2\n      .power-browser-artifact-tabs-v2\n      button.active {\n      color: #fff;\n      background: #343949;\n    }\n\n    .power-browser-dark-v2.power-browser-settings-dialog-v2 .power-browser-settings-main-v2,\n    .power-browser-dark-v2.power-browser-settings-dialog-v2 .power-browser-settings-content-v2 {\n      background: #1f2330;\n    }\n\n    .power-browser-dark-v2.power-browser-settings-dialog-v2 {\n      --power-browser-settings-flash-rgb: 255, 92, 145;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-header-v2,\n    .power-browser-dark-v2 .power-browser-settings-search-v2,\n    .power-browser-dark-v2 .power-browser-settings-footer-v2,\n    .power-browser-dark-v2 .power-browser-settings-card-v2 {\n      background: #282d3b;\n      border-color: #404657;\n    }\n\n    .power-browser-dark-v2\n      .power-browser-settings-search-v2 input {\n      color: #f4f5f7;\n      background: #202431;\n      border-color: #4a5061;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-scope-v2 {\n      color: #f4f5f7;\n      color-scheme: dark;\n      background: #202431;\n      border-color: #4a5061;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-scope-v2:hover {\n      background: #292e3c;\n      border-color: #737b91;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-scope-v2:focus-visible {\n      border-color: #ff5c91;\n      box-shadow: 0 0 0 3px rgba(255, 92, 145, 0.14);\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-heading-v2 h2,\n    .power-browser-dark-v2 .power-browser-settings-copy-v2 strong,\n    .power-browser-dark-v2 .power-browser-settings-info-title-v2,\n    .power-browser-dark-v2 .power-browser-settings-info-item-v2 dd {\n      color: #f4f5f7;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-info-empty-v2 {\n      color: #aeb4c2;\n      background: #282d3b;\n      border-color: #4a5061;\n    }\n\n    .power-browser-dark-v2\n      .power-browser-settings-diagnostic-v2,\n    .power-browser-dark-v2\n      .power-browser-settings-action-v2 {\n      color: #d5d8e0;\n      background: #282d3b;\n      border-color: #4a5061;\n    }\n\n    .power-browser-dark-v2\n      .power-browser-settings-diagnostic-v2 strong {\n      color: #f4f5f7;\n    }\n\n    .power-browser-dark-v2\n      .power-browser-settings-copy-value-v2 {\n      color: #c8ccd6;\n      background: #343949;\n      border-color: #4a5061;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-danger-v2 {\n      background: #421f25;\n      border-color: #75404a;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-danger-v2 strong {\n      color: #ffccd3;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-danger-v2 span {\n      color: #e7aab4;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-close-v2 {\n      color: #c8ccd6;\n      background: #363b4b;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-close-v2:hover {\n      color: #ff8eb3;\n      background: #472938;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-reset-v2 {\n      color: #d5d8e0;\n      background: #282d3b;\n      border-color: #4a5061;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-reset-v2:hover {\n      color: #ff9cbd;\n      background: #3d2834;\n      border-color: #8d5268;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-section-v2 {\n      color: #aeb4c2;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-badge-v2 {\n      color: #d8c7ff;\n      background: #3b3155;\n      border-color: #574876;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-shortcut-v2 {\n      color: #f4f5f7;\n      background: #202431;\n      border-color: #4a5061;\n    }\n\n    .power-browser-dark-v2\n      .power-browser-settings-theme-option-v2 {\n      color: #c8ccd6;\n      background: #202431;\n      border-color: #4a5061;\n    }\n\n    .power-browser-dark-v2\n      .power-browser-settings-size-option-v2 {\n      color: #c8ccd6;\n      background: #202431;\n      border-color: #4a5061;\n    }\n\n    .power-browser-dark-v2\n      .power-browser-settings-size-preview-v2 {\n      color: #e5e8ef;\n      background: #292e3c;\n      border-color: #4a5061;\n    }\n\n    .power-browser-dark-v2\n      .power-browser-settings-size-option-v2[data-size-kind=\"dialog\"]\n      .power-browser-settings-size-preview-v2::before {\n      background: #343949;\n      border-color: #737b91;\n      box-shadow: inset 7px 0 0 #171a24;\n    }\n\n    .power-browser-dark-v2\n      .power-browser-settings-theme-option-v2:hover {\n      border-color: #737b91;\n    }\n\n    .power-browser-dark-v2\n      .power-browser-settings-size-option-v2:hover {\n      border-color: #737b91;\n    }\n\n    .power-browser-dark-v2\n      .power-browser-settings-theme-option-v2.active {\n      color: #fff;\n      border-color: #ff5c91;\n      box-shadow: 0 0 0 2px rgba(255, 92, 145, 0.14);\n    }\n\n    .power-browser-dark-v2\n      .power-browser-settings-size-option-v2.active {\n      color: #fff;\n      border-color: #ff5c91;\n      box-shadow: 0 0 0 2px rgba(255, 92, 145, 0.14);\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-alert-v2 {\n      color: #ffc4d7;\n      background: #552134;\n      border-color: #733047;\n    }\n\n    .power-browser-dark-v2 .power-browser-settings-alert-v2 strong {\n      color: #ffe4ed;\n    }\n\n    .power-browser-betty-theme-v2\n      .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 {\n      overflow: visible;\n      background:\n        linear-gradient(\n          259deg,\n          rgb(233, 0, 76) 0%,\n          rgb(57, 90, 252) 51.9162%,\n          rgb(17, 171, 209) 100%\n        )\n        transparent;\n      border-radius: 12px;\n      box-shadow: none;\n    }\n\n    .power-browser-betty-theme-v2\n      .dropdown-1aaab757-b16d-413a-9499-a72197bb1732\n      > a,\n    .power-browser-betty-theme-v2\n      .dropdown-1aaab757-b16d-413a-9499-a72197bb1732\n      > button,\n    .power-browser-betty-theme-v2 .power-browser-state-toggle-v2 {\n      color: #fff;\n      background: transparent;\n    }\n\n    .power-browser-betty-theme-v2\n      .dropdown-1aaab757-b16d-413a-9499-a72197bb1732\n      > a:hover,\n    .power-browser-betty-theme-v2\n      .dropdown-1aaab757-b16d-413a-9499-a72197bb1732\n      > button:hover,\n    .power-browser-betty-theme-v2\n      .power-browser-state-toggle-v2:hover {\n      background: rgba(255, 255, 255, 0.16);\n    }\n\n    .power-browser-betty-theme-v2\n      .button-disabled-6b6a60d4-9e38-4279-84a5-5ef466dde62f,\n    .power-browser-betty-theme-v2\n      .button-disabled-6b6a60d4-9e38-4279-84a5-5ef466dde62f:hover {\n      color: rgba(255, 255, 255, 0.56) !important;\n      background: rgba(25, 30, 72, 0.16) !important;\n    }\n\n    .power-browser-betty-theme-v2 .power-browser-state-menu-v2,\n    .power-browser-betty-theme-v2 .power-browser-state-option-v2 {\n      color: #29304a;\n      background: #fff;\n      border-color: #cad3ff;\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-state-option-v2:hover {\n      color: #233fc4;\n      background: #eef2ff;\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-state-option-v2.no-access,\n    .power-browser-betty-theme-v2\n      .power-browser-state-option-v2.no-access:hover {\n      color: #9499aa;\n      background: #f1f2f5;\n    }\n\n    .power-browser-betty-theme-v2.power-browser-model-search-dialog-v2 {\n      border-color: #7189ff;\n      box-shadow: 0 26px 80px rgba(57, 90, 252, 0.25);\n    }\n\n    .power-browser-betty-theme-v2.power-browser-artifact-dialog-v2 {\n      border-color: #7189ff;\n      box-shadow: 0 28px 90px rgba(57, 90, 252, 0.28);\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-artifact-header-v2 {\n      background:\n        linear-gradient(\n          259deg,\n          rgb(233, 0, 76) 0%,\n          rgb(57, 90, 252) 52%,\n          rgb(17, 171, 209) 100%\n        );\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-artifact-entry-v2:hover,\n    .power-browser-betty-theme-v2\n      .power-browser-artifact-entry-v2.active,\n    .power-browser-betty-theme-v2\n      .power-browser-artifact-tabs-v2\n      button:hover,\n    .power-browser-betty-theme-v2\n      .power-browser-artifact-tabs-v2\n      button.active {\n      color: #233fc4;\n      background: linear-gradient(\n        90deg,\n        rgba(233, 0, 76, 0.08),\n        rgba(57, 90, 252, 0.12),\n        rgba(17, 171, 209, 0.1)\n      );\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-model-search-result-v2:hover,\n    .power-browser-betty-theme-v2\n      .power-browser-model-search-result-v2.active,\n    .power-browser-betty-theme-v2\n      .power-browser-model-search-backoffice-v2:hover {\n      background: linear-gradient(\n        90deg,\n        rgba(233, 0, 76, 0.08),\n        rgba(57, 90, 252, 0.12),\n        rgba(17, 171, 209, 0.1)\n      );\n    }\n\n    .power-browser-betty-theme-v2.power-browser-settings-dialog-v2 {\n      --power-browser-settings-flash-rgb: 57, 90, 252;\n      border-color: rgba(57, 90, 252, 0.35);\n      box-shadow: 0 32px 100px rgba(42, 61, 160, 0.32);\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-sidebar-v2 {\n      background:\n        linear-gradient(\n          259deg,\n          rgb(233, 0, 76) 0%,\n          rgb(57, 90, 252) 51.9162%,\n          rgb(17, 171, 209) 100%\n        )\n        transparent;\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-tab-v2,\n    .power-browser-betty-theme-v2\n      .power-browser-settings-section-link-v2 {\n      color: rgba(255, 255, 255, 0.8);\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-tab-v2:hover,\n    .power-browser-betty-theme-v2\n      .power-browser-settings-tab-v2.active {\n      color: #fff;\n      background: rgba(255, 255, 255, 0.18);\n      box-shadow: none;\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-section-link-v2:hover,\n    .power-browser-betty-theme-v2\n      .power-browser-settings-section-link-v2.active {\n      color: #fff;\n      border-left-color: #fff;\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-main-v2,\n    .power-browser-betty-theme-v2\n      .power-browser-settings-content-v2 {\n      background: #f3f6ff;\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-header-v2,\n    .power-browser-betty-theme-v2\n      .power-browser-settings-search-v2,\n    .power-browser-betty-theme-v2\n      .power-browser-settings-footer-v2,\n    .power-browser-betty-theme-v2\n      .power-browser-settings-card-v2 {\n      background: #fff;\n      border-color: #dce2ff;\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-scope-v2 {\n      color: #29304a;\n      background: #f8f9ff;\n      border-color: #bec9ff;\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-scope-v2:hover {\n      background: #eef2ff;\n      border-color: #8ca0ff;\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-scope-v2:focus-visible {\n      border-color: #395afc;\n      box-shadow: 0 0 0 3px rgba(57, 90, 252, 0.14);\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-close-v2 {\n      color: #395afc;\n      background: #edf1ff;\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-close-v2:hover {\n      color: #e9004c;\n      background: #fff0f5;\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-reset-v2 {\n      color: #395afc;\n      background: #fff;\n      border-color: #aebcff;\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-reset-v2:hover {\n      color: #e9004c;\n      background: #fff4f8;\n      border-color: #ed8aad;\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-theme-option-v2.active {\n      border-color: #395afc;\n      box-shadow: 0 0 0 2px rgba(57, 90, 252, 0.14);\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-size-option-v2.active {\n      border-color: #395afc;\n      box-shadow: 0 0 0 2px rgba(57, 90, 252, 0.14);\n    }\n\n    .power-browser-betty-theme-v2\n      .power-browser-settings-version-v2 {\n      color: #fff;\n    }\n\n    .power-browser-settings-dialog-v2[data-dialog-size=\"xs\"] {\n      grid-template-columns: 190px minmax(0, 1fr);\n      width: min(780px, calc(100vw - 32px));\n      height: min(580px, calc(100vh - 32px));\n    }\n\n    .power-browser-settings-dialog-v2[data-dialog-size=\"sm\"] {\n      grid-template-columns: 205px minmax(0, 1fr);\n      width: min(900px, calc(100vw - 32px));\n      height: min(660px, calc(100vh - 32px));\n    }\n\n    .power-browser-settings-dialog-v2[data-dialog-size=\"md\"] {\n      grid-template-columns: 220px minmax(0, 1fr);\n      width: min(1000px, calc(100vw - 32px));\n      height: min(740px, calc(100vh - 32px));\n    }\n\n    .power-browser-settings-dialog-v2[data-dialog-size=\"lg\"] {\n      grid-template-columns: 235px minmax(0, 1fr);\n      width: min(1100px, calc(100vw - 24px));\n      height: min(790px, calc(100vh - 24px));\n    }\n\n    .power-browser-settings-dialog-v2[data-dialog-size=\"xl\"] {\n      grid-template-columns: 250px minmax(0, 1fr);\n      width: min(1200px, calc(100vw - 20px));\n      height: min(860px, calc(100vh - 20px));\n    }\n\n    .power-browser-settings-dialog-v2[data-text-size=\"xs\"] {\n      --pb-settings-font-micro: 7.5px;\n      --pb-settings-font-small: 9px;\n      --pb-settings-font-body: 11px;\n      --pb-settings-font-input: 10px;\n      --pb-settings-font-title: 17px;\n      --pb-settings-font-large: 12px;\n    }\n\n    .power-browser-settings-dialog-v2[data-text-size=\"sm\"] {\n      --pb-settings-font-micro: 8px;\n      --pb-settings-font-small: 10px;\n      --pb-settings-font-body: 12px;\n      --pb-settings-font-input: 11px;\n      --pb-settings-font-title: 18px;\n      --pb-settings-font-large: 13.5px;\n    }\n\n    .power-browser-settings-dialog-v2[data-text-size=\"lg\"] {\n      --pb-settings-font-micro: 10px;\n      --pb-settings-font-small: 12.5px;\n      --pb-settings-font-body: 15px;\n      --pb-settings-font-input: 14px;\n      --pb-settings-font-title: 23px;\n      --pb-settings-font-large: 17px;\n    }\n\n    .power-browser-settings-dialog-v2[data-text-size=\"xl\"] {\n      --pb-settings-font-micro: 11px;\n      --pb-settings-font-small: 14px;\n      --pb-settings-font-body: 17px;\n      --pb-settings-font-input: 16px;\n      --pb-settings-font-title: 26px;\n      --pb-settings-font-large: 19px;\n    }\n\n    .power-browser-settings-dialog-v2 .power-browser-settings-tab-v2,\n    .power-browser-settings-dialog-v2 .power-browser-settings-footer-v2,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-diagnostic-v2 strong {\n      font-size: var(--pb-settings-font-body);\n    }\n\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-brand-v2 strong {\n      font-size: var(--pb-settings-font-large);\n    }\n\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-heading-v2 h2 {\n      font-size: var(--pb-settings-font-title);\n    }\n\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-copy-v2 strong,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-info-title-v2 {\n      font-size: var(--pb-settings-font-large);\n    }\n\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-section-link-v2,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-description-v2,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-info-item-v2 dd,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-diagnostic-v2 span,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-operation-status-v2,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-brand-v2 span,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-version-v2,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-theme-option-v2,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-size-option-v2 {\n      font-size: var(--pb-settings-font-small);\n    }\n\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-heading-v2 p,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-search-v2 input,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-section-v2,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-shortcut-v2,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-action-v2,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-reset-v2,\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-danger-button-v2 {\n      font-size: var(--pb-settings-font-input);\n    }\n\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-info-item-v2 dt {\n      font-size: var(--pb-settings-font-micro);\n    }\n\n    .power-browser-settings-dialog-v2\n      .power-browser-settings-badge-v2 {\n      font-size: var(--pb-settings-font-micro);\n    }\n\n    @media (max-width: 720px) {\n      .power-browser-settings-dialog-v2,\n      .power-browser-settings-dialog-v2.open {\n        grid-template-columns: 1fr;\n        grid-template-rows: auto minmax(0, 1fr);\n      }\n\n      .power-browser-settings-sidebar-v2 {\n        padding: 14px;\n      }\n\n      .power-browser-settings-brand-v2,\n      .power-browser-settings-version-v2 {\n        display: none;\n      }\n\n      .power-browser-settings-tabs-v2 {\n        height: auto;\n        flex: none;\n        flex-direction: row;\n        overflow-x: auto;\n        overflow-y: hidden;\n        touch-action: pan-x;\n      }\n\n      .power-browser-settings-tab-v2 {\n        width: auto;\n        white-space: nowrap;\n      }\n\n      .power-browser-settings-section-links-v2 {\n        flex: none;\n        flex-direction: row;\n        padding: 0;\n      }\n\n      .power-browser-settings-section-link-v2 {\n        border-left: 0;\n        border-bottom: 1px solid rgba(255, 255, 255, 0.16);\n        white-space: nowrap;\n      }\n\n      .power-browser-settings-card-v2 {\n        grid-template-columns: minmax(0, 1fr);\n      }\n\n      .power-browser-settings-shortcut-v2 {\n        width: 100%;\n        box-sizing: border-box;\n      }\n\n      .power-browser-settings-scope-v2 {\n        width: min(220px, 42vw);\n        min-width: 180px;\n      }\n\n      .power-browser-settings-info-grid-v2 {\n        grid-template-columns: minmax(0, 1fr);\n      }\n\n      .power-browser-settings-diagnostics-v2 {\n        grid-template-columns: minmax(0, 1fr);\n      }\n\n      .power-browser-settings-danger-v2 {\n        align-items: stretch;\n        flex-direction: column;\n      }\n\n      .power-browser-settings-theme-picker-v2 {\n        width: 100%;\n      }\n\n      .power-browser-settings-size-picker-v2 {\n        width: 100%;\n      }\n\n      .power-browser-education-body-v2 {\n        grid-template-columns: minmax(0, 1fr);\n      }\n\n      .power-browser-education-header-v2 {\n        padding: 20px;\n      }\n\n      .power-browser-education-footer-v2 {\n        align-items: stretch;\n        flex-direction: column-reverse;\n      }\n    }\n\n    @media (prefers-reduced-motion: reduce) {\n      :is(\n          .power-browser-settings-dialog-v2,\n          .power-browser-model-search-dialog-v2,\n          .power-browser-artifact-dialog-v2,\n          .power-browser-command-dialog-v2,\n          .power-browser-education-dialog-v2,\n          .nav-container-1c7b2759-c793-4d17-b89b-1da6c5c5cf5b\n        )\n        *,\n      :is(\n          .power-browser-settings-dialog-v2,\n          .power-browser-model-search-dialog-v2,\n          .power-browser-artifact-dialog-v2,\n          .power-browser-command-dialog-v2,\n          .power-browser-education-dialog-v2,\n          .nav-container-1c7b2759-c793-4d17-b89b-1da6c5c5cf5b\n        )\n        *::before,\n      :is(\n          .power-browser-settings-dialog-v2,\n          .power-browser-model-search-dialog-v2,\n          .power-browser-artifact-dialog-v2,\n          .power-browser-command-dialog-v2,\n          .power-browser-education-dialog-v2,\n          .nav-container-1c7b2759-c793-4d17-b89b-1da6c5c5cf5b\n        )\n        *::after {\n        scroll-behavior: auto !important;\n        animation-duration: 0.01ms !important;\n        animation-iteration-count: 1 !important;\n        transition-duration: 0.01ms !important;\n      }\n    }\n");
 /*
   Credits:
   PageUI remove uneditable layer: Sven Truschel
@@ -901,8 +959,10 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     csvCell: powerBrowserCsvCell,
     diffArtifactSnapshots,
     getArtifactRelationships,
+    getQuickSwitcherViewCachePolicy,
     hasApplicationOverride,
     isAuthenticationError: isPowerBrowserAuthenticationError,
+    isQuickSwitcherViewCacheFresh,
     isVersionNewer,
     normalizeEndpoints: normalizePowerBrowserEndpoints,
     removeApplicationOverride,
@@ -1262,6 +1322,8 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
   const artifactRequestCache = new Map();
   const applicationFamilyRequestCache = new Map();
   const actionSettingsRequestCache = new Map();
+  const quickSwitcherActionRequestCache = new Map();
+  const quickSwitcherViewRequestCache = new Map();
   const powerBrowserNavigationSubscribers = new Set();
   let powerBrowserNavigationInitialized = false;
   let powerBrowserNavigationScheduled = false;
@@ -1675,6 +1737,22 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 10.63A2.63 2.63 0 1 0 8 5.37a2.63 2.63 0 0 0 0 5.26zm5.35-1.94 1.51 1.15-1.38 2.89-1.78-.69c-.47.33-1.01.64-1.65.82L9.78 15H6.22l-.27-2.14a5.9 5.9 0 0 1-1.65-.82l-1.78.69-1.38-2.89 1.51-1.15A5.2 5.2 0 0 1 2.62 8c0-.31.01-.54.03-.69L1.14 6.16l1.38-2.89 1.78.69c.47-.33 1.01-.64 1.65-.82L6.22 1h3.56l.27 2.14c.64.18 1.18.49 1.65.82l1.78-.69 1.38 2.89-1.51 1.15c.02.15.03.38.03.69s-.01.54-.03.69z"/></svg>',
     switch:
       '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 4-4v3h9v2h-9v3L7 7zm10 10-4 4v-3H4v-2h9v-3l4 4z"/></svg>',
+    action:
+      '<svg viewBox="0 0 14 14" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M5.69976 0.33991C5.82627 0.12906 6.05412 0.00005 6.3 0.00005L11.9 0.00005C12.16215 0.00005 12.40243 0.1466 12.52239 0.37975C12.64235 0.6129 12.62196 0.89355 12.46962 1.10692L9.41019 4.90005H11.2C11.48306 4.90005 11.73839 5.0706 11.84671 5.33217C11.95504 5.59374 11.89519 5.89482 11.69499 6.09502L3.99499 13.79499C3.75223 14.0378 3.36923 14.06869 3.09072 13.86787C2.81221 13.66715 2.72038 13.29405 2.87392 12.98701L5.16738 8.40004H2.10002C1.84783 8.40004 1.61514 8.26439 1.49088 8.04493C1.36663 7.82548 1.37002 7.55615 1.49978 7.3399L5.69976 0.33991Z"/></svg>',
+    nextgenPage:
+      '<svg viewBox="0 0 14 14" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M1.40001 1.40005C1.40001 0.62686 2.02511 0.00005 2.79831 0.00005H6.99997V4.20005C6.99997 4.90005 7.69997 5.60005 8.39996 5.60005H12.59991V12.60026C12.59991 13.3735 11.97315 14.00009 11.19991 14.00009H2.8C2.02681 14.00009 1.40001 13.37324 1.40001 12.60009V1.40005ZM12.59991 4.20005C12.59991 4.0144 12.52624 3.83636 12.3949 3.70508L8.8949 0.20508C8.76365 0.0738 8.58562 0.00005 8.39996 0.00005C8.39996 0.70005 8.39996 4.20005 8.39996 4.20005H12.59991Z"/></svg>',
+    nextgenModel:
+      '<svg viewBox="0 0 14 14" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M0.70004 3.50005V2.10005C0.70004 0.94026 3.52063 0.00005 7.00001 0.00005C10.47935 0.00005 13.3 0.94026 13.3 2.10005V3.50005C13.3 4.65985 10.47935 5.60005 7.00001 5.60005C3.52063 5.60005 0.70004 4.65985 0.70004 3.50005ZM7.00001 6.82511C10.47935 6.82511 13.3 5.88492 13.3 4.72511V7.70011C13.3 8.8599 10.47935 9.80009 7.00001 9.80009C3.52063 9.80009 0.70004 8.8599 0.70004 7.70011V4.72511C0.70004 5.88492 3.52063 6.82511 7.00001 6.82511ZM13.3 8.92509C13.3 10.0849 10.47935 11.02509 7.00001 11.02509C3.52063 11.02509 0.70004 10.0849 0.70004 8.92509V11.90009C0.70004 13.0599 3.52063 14.00009 7.00001 14.00009C10.47935 14.00009 13.3 13.0599 13.3 11.90009V8.92509Z"/></svg>',
+    logs:
+      '<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M7.13916 7.43658C7.04213 7.32341 6.92322 7.23732 6.78243 7.17638C6.64259 7.11737 6.48277 7.08739 6.30297 7.08739C6.12223 7.08739 5.96051 7.11737 5.81876 7.17638C5.67702 7.23732 5.55811 7.32341 5.46108 7.43658C5.36404 7.54975 5.28984 7.68711 5.23752 7.84962C5.1852 8.01309 5.15952 8.19494 5.15952 8.39905C5.15952 8.60411 5.1852 8.78693 5.23752 8.95037C5.28984 9.11295 5.36404 9.25024 5.46108 9.36346C5.55811 9.4766 5.67702 9.5627 5.81876 9.62167C5.96051 9.68074 6.12223 9.71066 6.30297 9.71066C6.48277 9.71066 6.64259 9.68074 6.78243 9.62167C6.92322 9.5627 7.04213 9.4766 7.13916 9.36346C7.23715 9.25024 7.31135 9.11295 7.36177 8.95037C7.41409 8.78693 7.44073 8.60411 7.44073 8.39905C7.44073 8.19494 7.41409 8.01309 7.36177 7.84962C7.31135 7.68711 7.23715 7.54975 7.13916 7.43658Z"/><path fill-rule="evenodd" clip-rule="evenodd" d="M1.40004 1.4001C1.40004 0.62691 2.02548 0.00011 2.79868 0.00011H8.40002C8.58567 0.00011 8.76374 0.07386 8.89499 0.20513L12.39499 3.70514C12.52624 3.83641 12.6 4.01446 12.6 4.2001V4.9001C13.37315 4.9001 14 5.52691 14 6.30011V10.50009C14 11.27332 13.37315 11.90009 12.6 11.90009V12.60289C12.6 13.37604 11.97324 14.00009 11.2 14.00009H2.80004C2.02684 14.00009 1.40004 13.37332 1.40004 12.60009L1.40004 11.90009C0.62685 11.90009 0.00005 11.27332 0.00005 10.50009V6.30011C0.00005 5.52691 0.62685 4.9001 1.40004 4.9001V1.4001ZM11.2 4.2001V4.9001H2.80004V2.1001C2.80004 1.7135 3.11344 1.4001 3.50004 1.4001H8.40002V3.50011C8.40002 3.88671 8.71342 4.2001 9.1 4.2001L11.2 4.2001ZM3.50004 12.60009C3.11344 12.60009 2.80004 12.28666 2.80004 11.90009H11.2C11.2 12.28666 10.88658 12.60009 10.5 12.60009H3.50004ZM1.40004 10.50009V6.30011H2.33957V9.67636H3.85003V10.50009H1.40004ZM8.40002 8.39914C8.40002 8.6961 8.35055 8.97181 8.25066 9.2281C8.14888 9.48351 8.00618 9.70594 7.82353 9.89459C7.63993 10.0842 7.42018 10.23216 7.16143 10.33953C6.90457 10.44689 6.61728 10.50009 6.30335 10.50009C5.98847 10.50009 5.70213 10.44689 5.44243 10.33953C5.18368 10.23216 4.96297 10.0842 4.77842 9.89459C4.59483 9.70594 4.45118 9.48351 4.35129 9.2281C4.25045 8.97181 4.20003 8.6961 4.20003 8.39914C4.20003 8.10121 4.25045 7.82554 4.35129 7.5692C4.45118 7.31384 4.59483 7.09136 4.77842 6.9037C4.96297 6.71605 5.18368 6.56805 5.44243 6.46068C5.70213 6.3533 5.98847 6.30011 6.30335 6.30011C6.61728 6.30011 6.90457 6.35428 7.16143 6.46261C7.42018 6.56998 7.63993 6.71895 7.82353 6.90563C8.00618 7.09426 8.14888 7.31673 8.25066 7.5721C8.35055 7.82843 8.40002 8.10315 8.40002 8.39914ZM12.31125 7.27321C12.28509 7.31286 12.25192 7.34382 12.21369 7.36606C12.17545 7.38928 12.13424 7.39992 12.08891 7.39992C12.0316 7.39992 11.96921 7.38154 11.90682 7.34382C11.82842 7.29836 11.75597 7.25967 11.68554 7.22677C11.61711 7.19292 11.54571 7.1668 11.47326 7.14649C11.40081 7.12521 11.32434 7.1107 11.24392 7.10103C11.16343 7.09135 11.07391 7.08748 10.97425 7.08748C10.78814 7.08748 10.62119 7.11844 10.47226 7.18131C10.32238 7.24516 10.19664 7.33318 10.09199 7.44829C9.98742 7.56242 9.90587 7.69978 9.85057 7.86132C9.79423 8.0219 9.76605 8.20084 9.76605 8.39914C9.76605 8.61678 9.79624 8.8102 9.85862 8.97951C9.92197 9.14979 10.00851 9.29198 10.11815 9.40896C10.22989 9.52507 10.36061 9.61406 10.51251 9.67601C10.6624 9.73595 10.82944 9.76693 11.00846 9.76693C11.14627 9.76693 11.26807 9.75529 11.37369 9.73306C11.4793 9.71075 11.62499 9.67986 11.71949 9.64311V9.01915H11.24891C11.18758 9.01915 11.13928 9.00366 11.1041 8.97085C11.06884 8.93891 11.05072 8.89927 11.05072 8.84993V8.39914H12.6V10.05996C12.48931 10.1374 12.34651 10.20407 12.22874 10.25833C12.11009 10.31537 11.98435 10.36079 11.84951 10.39561C11.71573 10.4314 11.57389 10.45756 11.42094 10.47594C11.27105 10.49239 11.10708 10.50009 10.93304 10.50009C10.62014 10.50009 10.33042 10.44689 10.06583 10.34145C9.7993 10.23505 9.56786 10.08805 9.3737 9.90036C9.17954 9.71373 9.02562 9.49217 8.91502 9.23493C8.80635 8.97855 8.75 8.69997 8.75 8.39914C8.75 8.09251 8.80329 7.81102 8.90794 7.55373C9.0146 7.29739 9.16545 7.07588 9.36163 6.89016C9.55981 6.70347 9.79624 6.55934 10.07493 6.45487C10.35361 6.35137 10.66441 6.30011 11.00846 6.30011C11.18758 6.30011 11.35452 6.31365 11.5115 6.34267C11.66742 6.37072 11.81128 6.40941 11.9441 6.45777C12.07587 6.5071 12.19759 6.56514 12.30626 6.63189C12.4159 6.70057 12.51346 6.77311 12.6 6.85243L12.31125 7.27321Z"/></svg>',
+    configurations:
+      '<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M13.8852 3.3386C13.80557 3.00741 13.38505 2.89674 13.14416 3.13758L11.04644 5.23483L8.76916 5.23482V2.95843L10.86689 0.86118C11.10786 0.62042 10.99709 0.19991 10.6659 0.12047C10.01674 -0.03548 9.31376 -0.04694 8.5854 0.12727C6.90145 0.52995 5.58744 1.95989 5.31889 3.66924C5.17628 4.37955 5.24479 5.08903 5.45854 5.73004L0.57794 10.60885C-0.19265 11.37911 -0.19265 12.62748 0.57794 13.39748C0.93858 13.7837 1.4428 14.00009 1.92346 14.00009C2.40412 14.00009 2.93302 13.8075 3.31859 13.42241L8.19918 8.54362C8.84205 8.75551 9.55045 8.82411 10.2865 8.70809C11.99677 8.43854 13.42696 7.12475 13.82981 5.4428C14.05232 4.68909 14.04139 3.98782 13.8852 3.3386Z"/></svg>',
+    roles:
+      '<svg viewBox="0 0 14 14" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M10.83775 10.75996C10.84912 10.78411 10.85962 10.80853 10.86916 10.83329C11.02176 11.2287 10.93916 11.69604 10.62145 12.01366C10.19226 12.44294 9.48981 12.44294 9.06071 12.01366C8.63143 11.58447 8.63144 10.88203 9.06071 10.45292C9.37825 10.13521 9.8455 10.05261 10.24091 10.20513C10.26576 10.21466 10.29026 10.22516 10.3145 10.23663C10.42571 10.28913 10.52984 10.36123 10.62145 10.45292C10.71315 10.54454 10.78525 10.64866 10.83775 10.75996ZM10.23645 9.06343C9.54844 8.9376 8.81212 9.14069 8.28017 9.67251C7.4192 10.5336 7.41939 11.93316 8.28035 12.79416C9.14139 13.65516 10.54095 13.65499 11.40204 12.79399C11.74119 12.45484 11.94655 12.03256 12.0183 11.5927C12.05461 11.36966 12.05663 11.14208 12.02425 10.9186C11.60801 10.14956 10.9879 9.50705 10.23645 9.06343ZM7.52601 14H0.80005C0.35822 14 0.00005 13.64178 0.00005 13.19999C0.00005 10.549 2.14908 8.39998 4.80003 8.39998H7.60777C7.49787 8.48682 7.39183 8.58099 7.29032 8.68249C5.88248 10.09032 5.88248 12.37626 7.29032 13.78405C7.36642 13.86017 7.44506 13.9321 7.52601 14Z"/><rect x="3.5" width="7" height="7" rx="3.5"/><path fill-rule="evenodd" clip-rule="evenodd" d="M12.96278 7.07107L10.79059 9.24324C9.97115 8.85045 8.95921 8.99351 8.28026 9.67251C7.41918 10.5336 7.41918 11.93308 8.28026 12.79416C9.1413 13.65525 10.54086 13.65525 11.40186 12.79416C12.08086 12.11516 12.22401 11.10331 11.83114 10.28379L11.92223 10.1927H12.96278V9.15215H14.00332L13.99291 7.06067L12.96278 7.07107ZM10.62145 12.01375C10.19226 12.44294 9.4899 12.44294 9.06071 12.01375C8.63143 11.58456 8.63143 10.88211 9.06071 10.45292C9.4899 10.02365 10.19226 10.02365 10.62145 10.45292C11.05072 10.88211 11.05072 11.58456 10.62145 12.01375Z"/></svg>',
+    translate:
+      '<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M4.90002 1.39999C4.90002 1.01339 4.58661 0.69999 4.20002 0.69999C3.81342 0.69999 3.50002 1.01339 3.50002 1.39999V2.09999H0.70001C0.31341 2.09999 0.00001 2.41339 0.00001 2.79999C0.00001 3.18659 0.31341 3.49999 0.70001 3.49999H6.07336C5.94006 3.83708 5.75548 4.23253 5.52791 4.65294C5.15109 5.34909 4.66989 6.08878 4.13271 6.72956C4.11625 6.71353 4.09949 6.69702 4.08249 6.68001C3.77226 6.36979 3.38491 5.90453 3.07611 5.28694C2.90322 4.94115 2.48275 4.801 2.13696 4.97389C1.79118 5.14678 1.65102 5.56726 1.82391 5.91304C2.21511 6.69545 2.70277 7.28019 3.09254 7.66996C3.11847 7.6959 3.14401 7.721 3.16908 7.74528C2.46015 8.43978 1.87771 8.90286 1.17865 9.13588C0.81189 9.2582 0.61368 9.65457 0.73594 10.02137C0.85819 10.38809 1.25461 10.58636 1.62138 10.46404C2.64963 10.1213 3.45065 9.44003 4.23138 8.66511C4.2923 8.71525 4.35753 8.76768 4.4265 8.82131C4.84103 9.14366 5.44064 9.55141 6.07865 9.76404C6.44542 9.88636 6.84183 9.68809 6.96409 9.32137C7.08634 8.95458 6.88813 8.55817 6.52137 8.43591C6.10938 8.29858 5.659 8.00629 5.28602 7.7162C5.25428 7.6915 5.22346 7.66712 5.19364 7.64317C5.81116 6.90903 6.3471 6.08054 6.75911 5.3194C7.0193 4.83872 7.23544 4.37502 7.39414 3.96666C7.45561 3.8085 7.5113 3.65154 7.55799 3.49999H8.40002C8.78658 3.49999 9.1 3.18659 9.1 2.79999C9.1 2.41339 8.78658 2.09999 8.40002 2.09999H4.90002V1.39999Z"/><path fill-rule="evenodd" clip-rule="evenodd" d="M8.40002 5.59999C8.01342 5.59999 7.70002 5.91339 7.70002 6.29999V12.6C7.70002 12.98657 8.01342 13.3 8.40002 13.3H11.69998C12.9598 13.3 14 12.29183 14 11.025C14 10.18316 13.54071 9.4556 12.86285 9.06211C13.07644 8.7176 13.19999 8.31166 13.19999 7.87499C13.19999 6.60819 12.15987 5.59999 10.90005 5.59999H8.40002ZM11.79999 7.87499C11.79999 8.34788 11.40746 8.74999 10.90005 8.74999H9.1V6.99999H10.90005C11.40746 6.99999 11.79999 7.4021 11.79999 7.87499ZM11.69998 10.15H9.1V11.9H11.69998C12.20747 11.9 12.6 11.49785 12.6 11.025C12.6 10.55206 12.20747 10.15 11.69998 10.15Z"/></svg>',
+    theme:
+      '<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M12.63124 0.00011C12.99629 0.00011 13.31566 0.1212 13.58936 0.36339C13.86315 0.60558 14 0.90896 14 1.27355C14 1.60167 13.88266 1.99489 13.64807 2.45323C11.91698 5.72927 10.70466 7.68761 10.01114 8.32823C9.50539 8.80215 8.93708 9.03919 8.30617 9.03919C7.64918 9.03919 7.08475 8.7983 6.61287 8.31652C6.141 7.83474 5.90505 7.26313 5.90505 6.60167C5.90505 5.935 6.14491 5.38292 6.62461 4.94542L11.61449 0.42198C11.92214 0.14073 12.26111 0.00011 12.63124 0.00011ZM5.52182 8.07824C5.72517 8.47407 6.00282 8.81265 6.35478 9.09388C6.70673 9.3751 7.09909 9.57302 7.53186 9.68765L7.53968 10.24231C7.56054 11.35164 7.22292 12.25534 6.52684 12.95324C5.83075 13.65114 4.92219 14.00009 3.80116 14.00009C3.15982 14.00009 2.59148 13.87899 2.09613 13.63679C1.60079 13.39467 1.20321 13.06261 0.9034 12.64077C0.60359 12.21885 0.37808 11.74233 0.22687 11.21102C0.07566 10.67981 0.00005 10.10686 0.00005 9.49226C0.03655 9.51834 0.14344 9.59647 0.32072 9.72668C0.498 9.85688 0.65964 9.97272 0.80564 10.07431C0.95163 10.1759 1.10545 10.27093 1.26709 10.35947C1.42873 10.44802 1.54865 10.4923 1.62686 10.4923C1.84064 10.4923 1.98403 10.39596 2.05703 10.2032C2.18738 9.8595 2.33728 9.56655 2.50674 9.32435C2.6762 9.08215 2.8574 8.88422 3.05032 8.73057C3.24324 8.57693 3.47267 8.45323 3.73859 8.35948C4.00451 8.26573 4.27304 8.19933 4.54416 8.16027C4.8153 8.1212 5.14119 8.09386 5.52182 8.07824Z"/></svg>',
   });
 
   const NavigatorItems = Object.freeze([
@@ -1688,7 +1766,15 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     { id: "monitoringButton", label: "Monitoring", icon: SvgIcons.monitor },
     { id: "playgroundButton", label: "Playground", icon: SvgIcons.playground },
     { id: "buttonCopyBearer", label: "Bearer", icon: SvgIcons.copy, dynamic: true, button: true },
-    { id: "buttonRuntimeModelSearch", label: "Search Models", icon: SvgIcons.search, dynamic: true, button: true },
+    { id: "nextgenActionsButton", label: "Actions", icon: SvgIcons.action, dynamic: true },
+    { id: "nextgenPagesButton", label: "Pages", icon: SvgIcons.nextgenPage, dynamic: true },
+    { id: "nextgenModelsButton", label: "Models", icon: SvgIcons.nextgenModel, dynamic: true },
+    { id: "nextgenLogsButton", label: "Logs", icon: SvgIcons.logs, dynamic: true },
+    { id: "nextgenConfigurationsButton", label: "Configurations", icon: SvgIcons.configurations, dynamic: true },
+    { id: "nextgenRolesButton", label: "Roles and permissions", icon: SvgIcons.roles, dynamic: true },
+    { id: "nextgenTranslationsButton", label: "Translations", icon: SvgIcons.translate, dynamic: true },
+    { id: "nextgenThemeBuilderButton", label: "Theme builder", icon: SvgIcons.theme, dynamic: true },
+    { id: "buttonRuntimeModelSearch", label: "Quick switcher+", icon: SvgIcons.search, dynamic: true, button: true },
   ]);
 
   const SettingsTabs = Object.freeze([
@@ -1757,19 +1843,21 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       key: "buttonOrganizationHidden",
       tab: "general",
       section: "Navigation visibility",
-      label: "Hide Organization",
-      description: "Hide the My Betty Blocks application shortcut.",
+      label: "Show Organization shortcut",
+      description: "Show the My Betty Blocks application shortcut.",
       type: "toggle",
       defaultValue: false,
+      invertedValue: true,
     },
     {
       key: "sandboxSwitcherHidden",
       tab: "general",
       section: "Navigation visibility",
-      label: "Hide sandbox switcher",
-      description: "Hide the application-family sandbox selector.",
+      label: "Show sandbox switcher",
+      description: "Show the application-family sandbox selector.",
       type: "toggle",
       defaultValue: false,
+      invertedValue: true,
     },
     {
       key: "sandboxSwitcherShowApplicationName",
@@ -1786,10 +1874,11 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       key: "buttonHomePageHidden",
       tab: "general",
       section: "Navigation visibility",
-      label: "Hide Home page",
-      description: "Hide the runtime home-page shortcut.",
+      label: "Show Home page shortcut",
+      description: "Show the runtime home-page shortcut.",
       type: "toggle",
       defaultValue: false,
+      invertedValue: true,
     },
     {
       key: "environmentSafetyBadge",
@@ -1804,37 +1893,41 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       key: "buttonBackOfficeHidden",
       tab: "betty5",
       section: "Navigation visibility",
-      label: "Hide Backoffice",
-      description: "Hide the Betty 5 back-office shortcut.",
+      label: "Show Backoffice shortcut",
+      description: "Show the Betty 5 back-office shortcut.",
       type: "toggle",
       defaultValue: false,
+      invertedValue: true,
     },
     {
       key: "buttonB5Models",
       tab: "betty5",
       section: "Navigation visibility",
-      label: "Hide B5 models",
-      description: "Hide the legacy model overview shortcut.",
+      label: "Show B5 models shortcut",
+      description: "Show the legacy model overview shortcut.",
       type: "toggle",
-      defaultValue: false,
+      defaultValue: true,
+      invertedValue: true,
     },
     {
       key: "buttonB5Monitoring",
       tab: "betty5",
       section: "Navigation visibility",
-      label: "Hide Monitoring",
-      description: "Hide the application monitoring shortcut.",
+      label: "Show Monitoring shortcut",
+      description: "Show the application monitoring shortcut.",
       type: "toggle",
       defaultValue: false,
+      invertedValue: true,
     },
     {
       key: "buttonPlaygroundHidden",
       tab: "general",
       section: "Navigation visibility",
-      label: "Hide Playground",
-      description: "Hide the GraphQL playground shortcut.",
+      label: "Show Playground shortcut",
+      description: "Show the GraphQL playground shortcut.",
       type: "toggle",
       defaultValue: false,
+      invertedValue: true,
     },
     {
       key: "extraHotfix",
@@ -1967,22 +2060,96 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       max: 50,
     },
     {
+      key: "nextgenNavigationActions",
+      tab: "nextgen",
+      section: "Navigation",
+      label: "Show Actions shortcut",
+      description: "Add the Next-gen Actions overview to the Power Browser navigation bar.",
+      type: "toggle",
+      defaultValue: false,
+    },
+    {
+      key: "nextgenNavigationPages",
+      tab: "nextgen",
+      section: "Navigation",
+      label: "Show Pages shortcut",
+      description: "Add the Next-gen Pages overview to the Power Browser navigation bar.",
+      type: "toggle",
+      defaultValue: false,
+    },
+    {
+      key: "nextgenNavigationModels",
+      tab: "nextgen",
+      section: "Navigation",
+      label: "Show Models shortcut",
+      description: "Add the Next-gen Models overview to the Power Browser navigation bar.",
+      type: "toggle",
+      defaultValue: false,
+    },
+    {
+      key: "nextgenNavigationLogs",
+      tab: "nextgen",
+      section: "Navigation",
+      label: "Show Logs shortcut",
+      description: "Add the Next-gen Logs overview to the Power Browser navigation bar.",
+      type: "toggle",
+      defaultValue: true,
+    },
+    {
+      key: "nextgenNavigationConfigurations",
+      tab: "nextgen",
+      section: "Navigation",
+      label: "Show Configurations shortcut",
+      description: "Add the Next-gen Configurations overview to the Power Browser navigation bar.",
+      type: "toggle",
+      defaultValue: false,
+    },
+    {
+      key: "nextgenNavigationRoles",
+      tab: "nextgen",
+      section: "Navigation",
+      label: "Show Roles and permissions shortcut",
+      description: "Add the Next-gen Roles and permissions overview to the Power Browser navigation bar.",
+      type: "toggle",
+      defaultValue: false,
+    },
+    {
+      key: "nextgenNavigationTranslations",
+      tab: "nextgen",
+      section: "Navigation",
+      label: "Show Translations shortcut",
+      description: "Add the Next-gen Translations overview to the Power Browser navigation bar.",
+      type: "toggle",
+      defaultValue: false,
+    },
+    {
+      key: "nextgenNavigationThemeBuilder",
+      tab: "nextgen",
+      section: "Navigation",
+      label: "Show Theme builder shortcut",
+      description: "Add the Next-gen Theme builder to the Power Browser navigation bar.",
+      type: "toggle",
+      defaultValue: false,
+    },
+    {
       key: "buttonRuntimeHidden",
       tab: "nextgen",
       section: "Page builder",
-      label: "Hide Runtime shortcut",
-      description: "Hide the current Page Builder page’s runtime shortcut.",
+      label: "Show Runtime shortcut",
+      description: "Show the current Page Builder page’s runtime shortcut.",
       type: "toggle",
       defaultValue: false,
+      invertedValue: true,
     },
     {
       key: "buttonProcoderModeHidden",
       tab: "nextgen",
       section: "Page builder",
-      label: "Hide Pro-coder-mode shortcut",
-      description: "Hide the Page Builder to Pro-coder-mode shortcut.",
+      label: "Show Pro-coder-mode shortcut",
+      description: "Show the Page Builder to Pro-coder-mode shortcut.",
       type: "toggle",
       defaultValue: false,
+      invertedValue: true,
     },
     {
       key: "featureFlagTreeV1",
@@ -2054,19 +2221,21 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       key: "buttonPagebuilderHidden",
       tab: "runtime",
       section: "Navigation",
-      label: "Hide Page Builder shortcut",
-      description: "Hide the runtime-to-Page-Builder shortcut.",
+      label: "Show Page Builder shortcut",
+      description: "Show the runtime-to-Page-Builder shortcut.",
       type: "toggle",
       defaultValue: false,
+      invertedValue: true,
     },
     {
       key: "buttonCopyBearerHidden",
       tab: "runtime",
       section: "Navigation",
-      label: "Hide Bearer shortcut",
-      description: "Hide the runtime bearer-token copy button.",
+      label: "Show Bearer shortcut",
+      description: "Show the runtime bearer-token copy button.",
       type: "toggle",
       defaultValue: false,
+      invertedValue: true,
     },
     {
       key: "featureFlagInteractionDebug",
@@ -2083,27 +2252,28 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     {
       key: "buttonRuntimeModelSearchHidden",
       tab: "general",
-      section: "Model search",
-      label: "Hide model search",
-      description: "Hide the model and property command-palette button.",
+      section: "Quick switcher+",
+      label: "Show Quick switcher+",
+      description: "Show the unified navigation and entity switcher button.",
       type: "toggle",
       defaultValue: false,
+      invertedValue: true,
     },
     {
       key: "runtimeSearchIncludeKind",
       tab: "general",
-      section: "Model search",
+      section: "Quick switcher+",
       label: "Search property kinds",
-      description: "Include kinds such as text, belongs_to and has_many in model search.",
+      description: "Include kinds such as text, belongs_to and has_many in Quick switcher+ searches.",
       type: "toggle",
       defaultValue: true,
     },
     {
       key: "runtimeSearchExcludeRelations",
       tab: "general",
-      section: "Model search",
+      section: "Quick switcher+",
       label: "Exclude relation properties",
-      description: "Hide belongs-to, has-many and HABTM relations from model search.",
+      description: "Hide belongs-to, has-many and HABTM relations from Quick switcher+ searches.",
       type: "toggle",
       defaultValue: false,
     },
@@ -2118,8 +2288,8 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     {
       key: "extraModelSearchShortcut",
       tab: "shortcuts",
-      label: "Model search",
-      description: "Open or close model and property search.",
+      label: "Quick switcher+",
+      description: "Open or close Quick switcher+.",
       type: "shortcut",
       defaultValue: "Ctrl+Shift+K",
     },
@@ -3299,6 +3469,26 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
           Boolean(getSettingValue(settingKey)),
         );
     });
+    const nextgenNavigationSettings = {
+      nextgenNavigationActions: "nextgenActionsButton",
+      nextgenNavigationPages: "nextgenPagesButton",
+      nextgenNavigationModels: "nextgenModelsButton",
+      nextgenNavigationLogs: "nextgenLogsButton",
+      nextgenNavigationConfigurations: "nextgenConfigurationsButton",
+      nextgenNavigationRoles: "nextgenRolesButton",
+      nextgenNavigationTranslations: "nextgenTranslationsButton",
+      nextgenNavigationThemeBuilder: "nextgenThemeBuilderButton",
+    };
+    Object.entries(nextgenNavigationSettings).forEach(
+      ([settingKey, controlId]) => {
+        navigator.controls
+          .get(controlId)
+          ?.classList.toggle(
+            "power-browser-setting-hidden-v2",
+            !getSettingValue(settingKey),
+          );
+      },
+    );
     navigator.stateSwitcher.classList.toggle(
       "power-browser-setting-hidden-v2",
       Boolean(getSettingValue("sandboxSwitcherHidden")),
@@ -10827,7 +11017,8 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       definition.key.endsWith("Hidden") ||
       definition.key === "buttonB5Models" ||
       definition.key === "buttonB5Monitoring" ||
-      definition.key === "sandboxSwitcherHidden"
+      definition.key === "sandboxSwitcherHidden" ||
+      definition.key.startsWith("nextgenNavigation")
     ) {
       applyNavigatorVisibilitySettings(navigator);
     }
@@ -10919,7 +11110,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
         "buttonRuntimeModelSearch",
       );
       if (searchButton) {
-        searchButton.title = `Search models and properties (${value || "No shortcut"})`;
+        searchButton.title = `Quick switcher+ (${value || "No shortcut"})`;
       }
     }
   }
@@ -11251,7 +11442,12 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       identifier,
       siteType,
     );
-    configureModelSearch(navigator, artifactData, identifier);
+    configureModelSearch(
+      navigator,
+      artifactData,
+      identifier,
+      applicationFamily,
+    );
     if (
       powerBrowserDiagnostics.artifact.status === "error" ||
       powerBrowserDiagnostics.applicationFamily.status === "error"
@@ -12623,7 +12819,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       SettingsTabs[0];
     const descriptions = {
       info: "Application, sandbox and runtime artifact details for the current page.",
-      general: "Choose which navigation tools are visible and how model search behaves.",
+      general: "Choose which navigation tools are visible and how Quick switcher+ behaves.",
       betty5: "Legacy Betty 5 behavior and editor preferences.",
       nextgen: "Action, Page Builder and log tooling for Next-gen applications.",
       uiBuilder: "Tools for the Betty 5 UI Builder preview.",
@@ -12932,9 +13128,12 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
         wrapper.className = "power-browser-settings-toggle-v2";
         const input = document.createElement("input");
         input.type = "checkbox";
-        input.checked = Boolean(
+        const storedValue = Boolean(
           getEditableSettingValue(definition.key),
         );
+        input.checked = definition.invertedValue
+          ? !storedValue
+          : storedValue;
         input.disabled = settingDisabled;
         input.setAttribute("aria-label", definition.label);
         const track = document.createElement("span");
@@ -12944,7 +13143,12 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
             "Enable Icons only to use this setting.";
         }
         input.addEventListener("change", () => {
-          setSettingValue(definition.key, input.checked);
+          setSettingValue(
+            definition.key,
+            definition.invertedValue
+              ? !input.checked
+              : input.checked,
+          );
           applySettingChange(
             navigator,
             definition,
@@ -13712,15 +13916,806 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     return item?.label || item?.name || item?.id || fallback;
   }
 
+  const QUICK_SWITCHER_NAVIGATION_ITEMS = Object.freeze([
+    { testId: "builderbar-dashboard", title: "Dashboard", path: "/app" },
+    { testId: "builderbar-modules", title: "Modules", path: "/app/modules" },
+    {
+      testId: "builderbar-appblueprint",
+      title: "App Blueprint",
+      path: "/app/app-blueprint",
+    },
+    { testId: "builderbar-pages", title: "Pages", path: "/app/pages" },
+    { testId: "builderbar-models", title: "Models", path: "/app/models" },
+    { testId: "builderbar-actions", title: "Actions", path: "/app/actions" },
+    {
+      testId: "builderbar-blockstore",
+      title: "Block Store",
+      externalDestination: "block-store",
+    },
+    { testId: "builderbar-logs", title: "Logs", path: "/app/logs" },
+    {
+      testId: "builderbar-themebuilder",
+      title: "Theme Builder",
+      path: "/app/theme-builder",
+    },
+    {
+      testId: "builderbar-rolesand permissions",
+      title: "Roles and permissions",
+      path: "/app/roles",
+    },
+    {
+      testId: "builderbar-configurations",
+      title: "Configurations",
+      path: "/app/configurations",
+    },
+    {
+      testId: "builderbar-publicfiles",
+      title: "Public files",
+      path: "/app/files",
+    },
+    {
+      testId: "builderbar-authenticationprofiles",
+      title: "Authentication profiles",
+      path: "/app/authentication-profiles",
+    },
+    {
+      testId: "builderbar-translations",
+      title: "Translations",
+      path: "/app/translations",
+    },
+    {
+      testId: "builderbar-applicationsettings",
+      title: "Application settings",
+      path: "/app/settings",
+    },
+  ]);
+
+  const QUICK_SWITCHER_ACTIONS_QUERY = `query Actions($perPage: Int, $page: Int, $filter: ActionFilter, $order: [ActionOrder], $visibility: ActionVisibility) {
+    actions(perPage: $perPage, page: $page, filter: $filter, order: $order, visibility: $visibility) {
+      results {
+        id name description
+        folder { id name }
+      }
+      pageInfo { currentPage hasNextPage lastPage totalCount }
+    }
+  }`;
+
+  const QUICK_SWITCHER_VIEW_BRIDGE_REQUEST =
+    "power-browser:betty5-references:request";
+  const QUICK_SWITCHER_VIEW_BRIDGE_RESPONSE =
+    "power-browser:betty5-references:response";
+  const QUICK_SWITCHER_VIEW_STORAGE_KEY = "powerBrowserQuickSwitcherViews";
+  const QUICK_SWITCHER_VIEW_CACHE_VERSION = 2;
+  const QUICK_SWITCHER_DEVELOPMENT_CACHE_TTL = 5 * 60 * 1000;
+  let quickSwitcherViewBridgeInstalled = false;
+
+  function buildQuickSwitcherNavigationEntries() {
+    const renderedNavigation = new Map(
+      Array.from(
+        document.querySelectorAll('nav [data-testid^="builderbar-"]'),
+      ).map((element) => [element.getAttribute("data-testid"), element]),
+    );
+    return QUICK_SWITCHER_NAVIGATION_ITEMS.map((item, order) => {
+        const element = renderedNavigation.get(item.testId);
+        const href = element?.getAttribute("href") || item.path || "";
+        return {
+          type: "navigation",
+          id: item.testId,
+          navigationTestId: item.testId,
+          navigationPath: item.path || null,
+          externalDestination: item.externalDestination || null,
+          title: item.title,
+          meta: element ? "Current navigation" : "Navigation",
+          order,
+          searchText: ["navigation", "nav", item.title, item.testId, href]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase(),
+          searchTextWithoutKind: [
+            "navigation",
+            "nav",
+            item.title,
+            item.testId,
+            href,
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase(),
+        };
+      });
+  }
+
+  function buildActionSearchEntries(actions) {
+    return actions
+      .filter((action) => action?.id)
+      .map((action) => {
+        const title = getSearchDisplayName(action, "Unnamed action");
+        const folderName = action.folder?.name || "No folder";
+        return {
+          type: "action",
+          id: String(action.id),
+          title,
+          meta: `${folderName} · ${action.id}`,
+          searchText: [
+            "action",
+            action.id,
+            action.name,
+            action.description,
+            folderName,
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase(),
+          searchTextWithoutKind: [
+            "action",
+            action.id,
+            action.name,
+            action.description,
+            folderName,
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase(),
+        };
+      })
+      .sort((left, right) =>
+        left.title.localeCompare(right.title, undefined, {
+          sensitivity: "base",
+        }),
+      );
+  }
+
+  async function fetchQuickSwitcherActions(identifier) {
+    const actions = [];
+    let page = 1;
+    let hasNextPage = true;
+
+    while (hasNextPage && page <= 100) {
+      const data = await requestNextgenActionStepGraphql(
+        "Actions",
+        QUICK_SWITCHER_ACTIONS_QUERY,
+        {
+          perPage: 50,
+          page,
+          filter: { field: { name: { like: "" } } },
+          order: [{ field: "name", direction: "ASC" }],
+          visibility: "all",
+        },
+      );
+      const connection = data?.actions;
+      actions.push(...(connection?.results || []));
+      hasNextPage = Boolean(connection?.pageInfo?.hasNextPage);
+      page += 1;
+    }
+
+    console.info("[Power Browser] Quick switcher+ actions loaded.", {
+      identifier,
+      count: actions.length,
+      operationName: "Actions",
+    });
+    return buildActionSearchEntries(actions);
+  }
+
+  function sanitizeBetty5Reference(reference) {
+    if (!reference || typeof reference !== "object") {
+      return null;
+    }
+
+    return {
+      id: reference.id || null,
+      name: reference.name || null,
+      label: reference.label || null,
+      form_id: Object.hasOwn(reference, "form_id")
+        ? reference.form_id
+        : reference.formId,
+      model_id: reference.model_id || reference.modelId || null,
+      section: reference.section || null,
+    };
+  }
+
+  function getDirectBetty5CachedReferences() {
+    const betty = pageWindow.Betty;
+    const references = betty?.Cache?.references;
+    if (betty?.loaded !== true || !Array.isArray(references?.models)) {
+      return null;
+    }
+
+    return references.models
+      .map((reference) =>
+        sanitizeBetty5Reference(reference?.attributes || reference),
+      )
+      .filter(Boolean);
+  }
+
+  function installQuickSwitcherViewBridge() {
+    if (quickSwitcherViewBridgeInstalled) {
+      return;
+    }
+    quickSwitcherViewBridgeInstalled = true;
+
+    const script = document.createElement("script");
+    script.dataset.powerBrowserBetty5ReferenceBridge = "true";
+    script.textContent = `(() => {
+      if (window.__powerBrowserBetty5ReferenceBridge) return;
+      window.__powerBrowserBetty5ReferenceBridge = true;
+      document.addEventListener(${JSON.stringify(QUICK_SWITCHER_VIEW_BRIDGE_REQUEST)}, (event) => {
+        const requestId = typeof event.detail === "string" ? event.detail : "";
+        const collection = window.Betty?.Cache?.references;
+        const models = window.Betty?.loaded === true && Array.isArray(collection?.models)
+          ? collection.models
+          : null;
+        const references = models?.map((model) => {
+          const reference = model?.attributes || model || {};
+          return {
+            id: reference.id || null,
+            name: reference.name || null,
+            label: reference.label || null,
+            form_id: Object.prototype.hasOwnProperty.call(reference, "form_id")
+              ? reference.form_id
+              : reference.formId,
+            model_id: reference.model_id || reference.modelId || null,
+            section: reference.section || null,
+          };
+        }).filter((reference) => reference.id) || null;
+        document.dispatchEvent(new CustomEvent(
+          ${JSON.stringify(QUICK_SWITCHER_VIEW_BRIDGE_RESPONSE)},
+          { detail: JSON.stringify({ requestId, references }) },
+        ));
+      });
+    })();`;
+    (document.head || document.documentElement).appendChild(script);
+    script.remove();
+  }
+
+  function requestBetty5CachedReferencesFromPage() {
+    installQuickSwitcherViewBridge();
+    const requestId = `${Date.now()}:${Math.random().toString(36).slice(2)}`;
+
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = (references) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        window.clearTimeout(timeout);
+        document.removeEventListener(
+          QUICK_SWITCHER_VIEW_BRIDGE_RESPONSE,
+          handleResponse,
+        );
+        resolve(references);
+      };
+      const handleResponse = (event) => {
+        try {
+          const payload = JSON.parse(event.detail || "{}");
+          if (payload.requestId !== requestId) {
+            return;
+          }
+          finish(
+            Array.isArray(payload.references)
+              ? payload.references
+                  .map(sanitizeBetty5Reference)
+                  .filter(Boolean)
+              : null,
+          );
+        } catch (_error) {
+          finish(null);
+        }
+      };
+      const timeout = window.setTimeout(() => finish(null), 1000);
+      document.addEventListener(
+        QUICK_SWITCHER_VIEW_BRIDGE_RESPONSE,
+        handleResponse,
+      );
+      document.dispatchEvent(
+        new CustomEvent(QUICK_SWITCHER_VIEW_BRIDGE_REQUEST, {
+          detail: requestId,
+        }),
+      );
+    });
+  }
+
+  function getStoredQuickSwitcherViews(identifier, applicationFamily) {
+    const stored = GM_getValue(QUICK_SWITCHER_VIEW_STORAGE_KEY, {});
+    const entry = stored?.[identifier];
+    if (!entry || !Array.isArray(entry.references)) {
+      return null;
+    }
+    const policy = getQuickSwitcherViewCachePolicy(
+      identifier,
+      applicationFamily,
+    );
+    const cacheVersionMatches =
+      entry.cacheVersion === QUICK_SWITCHER_VIEW_CACHE_VERSION;
+    const isFresh =
+      cacheVersionMatches &&
+      isQuickSwitcherViewCacheFresh(
+        entry,
+        policy,
+        Date.now(),
+        QUICK_SWITCHER_DEVELOPMENT_CACHE_TTL,
+      );
+
+    return {
+      references: entry.references
+        .map(sanitizeBetty5Reference)
+        .filter(Boolean),
+      isFresh,
+      policy,
+    };
+  }
+
+  function storeQuickSwitcherViews(
+    identifier,
+    references,
+    applicationFamily,
+  ) {
+    if (!identifier || !Array.isArray(references)) {
+      return;
+    }
+    const policy = getQuickSwitcherViewCachePolicy(
+      identifier,
+      applicationFamily,
+    );
+    const stored = GM_getValue(QUICK_SWITCHER_VIEW_STORAGE_KEY, {});
+    GM_setValue(QUICK_SWITCHER_VIEW_STORAGE_KEY, {
+      ...(stored && typeof stored === "object" ? stored : {}),
+      [identifier]: {
+        cacheVersion: QUICK_SWITCHER_VIEW_CACHE_VERSION,
+        savedAt: Date.now(),
+        environmentKind: policy.kind,
+        lowerMergeVersions: policy.lowerMergeVersions,
+        references: references
+          .map(sanitizeBetty5Reference)
+          .filter(Boolean),
+      },
+    });
+  }
+
+  async function getBetty5CachedReferences(identifier, applicationFamily) {
+    const directReferences = getDirectBetty5CachedReferences();
+    if (directReferences) {
+      storeQuickSwitcherViews(
+        identifier,
+        directReferences,
+        applicationFamily,
+      );
+      return {
+        references: directReferences,
+        source: "Betty.Cache.references",
+        needsRefresh: false,
+      };
+    }
+
+    const bridgedReferences = await requestBetty5CachedReferencesFromPage();
+    if (bridgedReferences) {
+      storeQuickSwitcherViews(
+        identifier,
+        bridgedReferences,
+        applicationFamily,
+      );
+      return {
+        references: bridgedReferences,
+        source: "Betty page-context bridge",
+        needsRefresh: false,
+      };
+    }
+
+    const storedCache = getStoredQuickSwitcherViews(
+      identifier,
+      applicationFamily,
+    );
+    return storedCache
+      ? {
+          references: storedCache.references,
+          source: "application view cache",
+          needsRefresh: !storedCache.isFresh,
+          policy: storedCache.policy,
+        }
+      : null;
+  }
+
+  function mergeQuickSwitcherViewReferences(
+    identifier,
+    references,
+    applicationFamily,
+  ) {
+    const storedCache = getStoredQuickSwitcherViews(
+      identifier,
+      applicationFamily,
+    );
+    const merged = new Map(
+      (storedCache?.isFresh ? storedCache.references : []).map(
+        (reference) => [String(reference.id), reference],
+      ),
+    );
+    references.forEach((reference) => {
+      const normalized = sanitizeBetty5Reference(reference);
+      if (normalized?.id) {
+        merged.set(String(normalized.id), normalized);
+      }
+    });
+    const result = [...merged.values()];
+    storeQuickSwitcherViews(identifier, result, applicationFamily);
+    return result;
+  }
+
+  async function syncNativeBetty5ViewResults(state, query) {
+    const normalizedQuery = query.trim().replace(/^view\s+/i, "");
+    if (
+      !normalizedQuery ||
+      !state?.identifier ||
+      !state.dialog.classList.contains("open") ||
+      !document.querySelector('[data-nav="search"]')
+    ) {
+      return;
+    }
+
+    const sequence = (state.nativeViewSearchSequence || 0) + 1;
+    state.nativeViewSearchSequence = sequence;
+    let searchbox = document.querySelector("#searchbox");
+    if (!searchbox) {
+      state.nativeSearchOpenedByQuickSwitcher = true;
+      document.querySelector('[data-nav="search"]')?.click();
+      await new Promise((resolve) => window.requestAnimationFrame(resolve));
+      searchbox = document.querySelector("#searchbox");
+    }
+    if (!searchbox || sequence !== state.nativeViewSearchSequence) {
+      return;
+    }
+
+    searchbox.dataset.powerBrowserQuickSwitcherProxy = "true";
+    searchbox.setAttribute("aria-hidden", "true");
+    const nativeInput = searchbox.querySelector("input");
+    if (!nativeInput) {
+      return;
+    }
+
+    nativeInput.value = normalizedQuery;
+    nativeInput.dispatchEvent(new Event("input", { bubbles: true }));
+    await new Promise((resolve) => window.requestAnimationFrame(resolve));
+    if (
+      sequence !== state.nativeViewSearchSequence ||
+      state.input.value.trim() !== query.trim()
+    ) {
+      return;
+    }
+
+    const references = Array.from(
+      searchbox.querySelectorAll('li[data-kind="reference"][data-id]'),
+    ).map((row) => ({
+      id: row.dataset.id,
+      name: row.textContent.trim(),
+      form_id: null,
+      model_id: null,
+      section: "Betty 5",
+    }));
+    if (references.length) {
+      const mergedReferences = mergeQuickSwitcherViewReferences(
+        state.identifier,
+        references,
+        state.applicationFamily,
+      );
+      state.viewEntries = buildBetty5ViewSearchEntries(
+        mergedReferences,
+        state.artifactData,
+      );
+      state.viewsLoaded = true;
+      refreshQuickSwitcherEntries();
+      renderModelSearchResults();
+      console.info(
+        "[Power Browser] Quick switcher+ model views loaded from Betty's native search.",
+        {
+          identifier: state.identifier,
+          query: normalizedQuery,
+          count: references.length,
+        },
+      );
+    }
+    state.input.focus({ preventScroll: true });
+  }
+
+  function closeNativeBetty5SearchProxy(state) {
+    if (!state) {
+      return;
+    }
+    state.nativeViewSearchSequence =
+      (state.nativeViewSearchSequence || 0) + 1;
+    const searchbox = document.querySelector(
+      '#searchbox[data-power-browser-quick-switcher-proxy="true"]',
+    );
+    if (!searchbox) {
+      state.nativeSearchOpenedByQuickSwitcher = false;
+      return;
+    }
+
+    if (state.nativeSearchOpenedByQuickSwitcher) {
+      searchbox.querySelector(".close-popup")?.click();
+    } else {
+      searchbox.removeAttribute("data-power-browser-quick-switcher-proxy");
+      searchbox.removeAttribute("aria-hidden");
+    }
+    state.nativeSearchOpenedByQuickSwitcher = false;
+  }
+
+  function requestBetty5ReferencesWithUserscript(url, headers) {
+    if (typeof globalThis.GM_xmlhttpRequest !== "function") {
+      throw new Error("No authenticated request method is available.");
+    }
+
+    return new Promise((resolve, reject) => {
+      globalThis.GM_xmlhttpRequest({
+        method: "GET",
+        url,
+        headers,
+        timeout: 10000,
+        anonymous: false,
+        onload: (response) => {
+          if (response.status < 200 || response.status >= 300) {
+            reject(
+              new Error(`Betty 5 returned status ${response.status}.`),
+            );
+            return;
+          }
+          try {
+            resolve(JSON.parse(response.responseText));
+          } catch (_error) {
+            reject(new Error("Betty 5 returned invalid reference data."));
+          }
+        },
+        onerror: () =>
+          reject(new Error("The Betty 5 reference request failed.")),
+        ontimeout: () =>
+          reject(new Error("The Betty 5 reference request timed out.")),
+      });
+    });
+  }
+
+  async function requestBetty5References(identifier) {
+    const editorOrigin = `https://${identifier}.${getEnvironmentPrefix()}bettyblocks.com`;
+    const url = `${editorOrigin}/api/v2/bootstrap/references`;
+    const csrfToken =
+      pageWindow.Betty?.CSRF ||
+      getCsrfToken() ||
+      getNextgenLogCsrfToken();
+    const headers = {
+      Accept: "application/json",
+      "application-identifier": identifier,
+      ...(csrfToken ? { "x-csrf-token": csrfToken } : {}),
+      ...(getBearerToken()
+        ? { Authorization: `Bearer ${getBearerToken()}` }
+        : {}),
+    };
+
+    if (
+      location.origin === editorOrigin &&
+      typeof pageWindow.fetch === "function"
+    ) {
+      try {
+        const response = await pageWindow.fetch(url, {
+          method: "GET",
+          credentials: "include",
+          headers,
+        });
+        if (!response.ok) {
+          throw new Error(`Betty 5 returned status ${response.status}.`);
+        }
+        return response.json();
+      } catch (error) {
+        if (typeof globalThis.GM_xmlhttpRequest !== "function") {
+          throw error;
+        }
+        console.debug(
+          "[Power Browser] Betty 5 page request failed; retrying through the userscript request API.",
+          error,
+        );
+      }
+    }
+
+    return requestBetty5ReferencesWithUserscript(url, headers);
+  }
+
+  function normalizeBetty5References(payload) {
+    if (Array.isArray(payload)) {
+      return payload;
+    }
+    if (Array.isArray(payload?.references)) {
+      return payload.references;
+    }
+    if (Array.isArray(payload?.data?.references)) {
+      return payload.data.references;
+    }
+    if (Array.isArray(payload?.data)) {
+      return payload.data;
+    }
+    return [];
+  }
+
+  function buildBetty5ViewSearchEntries(references, artifactData) {
+    const models = normalizeArtifactCollection(artifactData?.models);
+    const modelsById = new Map(
+      models
+        .filter((model) => model?.id)
+        .map((model) => [String(model.id), model]),
+    );
+
+    return references
+      .filter((reference) => {
+        const formId = Object.hasOwn(reference || {}, "form_id")
+          ? reference.form_id
+          : reference?.formId;
+        return (
+          reference?.id &&
+          formId === null &&
+          (reference.name || reference.label)
+        );
+      })
+      .map((reference) => {
+        const id = String(reference.id);
+        const modelId = reference.model_id
+          ? String(reference.model_id)
+          : null;
+        const model = modelId ? modelsById.get(modelId) : null;
+        const modelName = getSearchDisplayName(model, modelId || "");
+        const title = getSearchDisplayName(
+          reference,
+          "Unnamed model view",
+        );
+        const section = reference.section || "Back office";
+        return {
+          type: "view",
+          id,
+          modelId,
+          title,
+          meta: [section, modelName, id].filter(Boolean).join(" · "),
+          searchText: [
+            "view",
+            "model view",
+            "back office",
+            id,
+            title,
+            section,
+            modelId,
+            modelName,
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase(),
+          searchTextWithoutKind: [
+            id,
+            title,
+            section,
+            modelId,
+            modelName,
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase(),
+        };
+      })
+      .sort((left, right) =>
+        left.title.localeCompare(right.title, undefined, {
+          sensitivity: "base",
+        }),
+      );
+  }
+
+  async function fetchQuickSwitcherViews(
+    identifier,
+    artifactData,
+    applicationFamily,
+  ) {
+    const cachedResult = await getBetty5CachedReferences(
+      identifier,
+      applicationFamily,
+    );
+    const nativeSearchAvailable = Boolean(
+      document.querySelector('[data-nav="search"]'),
+    );
+    let payload = cachedResult?.references || null;
+    let source = cachedResult?.source || null;
+
+    if (!cachedResult || cachedResult.needsRefresh) {
+      if (!nativeSearchAvailable && getBearerToken()) {
+        try {
+          payload = await requestBetty5References(identifier);
+          source = "/api/v2/bootstrap/references";
+        } catch (error) {
+          if (!cachedResult) {
+            throw error;
+          }
+          console.warn(
+            "[Power Browser] Quick switcher+ could not refresh its stale model-view cache; retaining cached views.",
+            { identifier, error },
+          );
+        }
+      } else {
+        console.info(
+          nativeSearchAvailable
+            ? "[Power Browser] Quick switcher+ will refresh model views through Betty's native search."
+            : "[Power Browser] Quick switcher+ is retaining cached model views until an authenticated refresh is available.",
+          {
+            identifier,
+            cachePolicy:
+              cachedResult?.policy?.kind ||
+              getQuickSwitcherViewCachePolicy(identifier, applicationFamily)
+                .kind,
+          },
+        );
+      }
+    }
+
+    if (!payload) {
+      return [];
+    }
+    const references = normalizeBetty5References(payload);
+    if (source === "/api/v2/bootstrap/references") {
+      storeQuickSwitcherViews(identifier, references, applicationFamily);
+    }
+    const entries = buildBetty5ViewSearchEntries(
+      references,
+      artifactData,
+    );
+    console.info("[Power Browser] Quick switcher+ model views loaded.", {
+      identifier,
+      count: entries.length,
+      source,
+      cachePolicy: getQuickSwitcherViewCachePolicy(
+        identifier,
+        applicationFamily,
+      ).kind,
+    });
+    return entries;
+  }
+
   function buildModelSearchEntries(artifactData) {
     const models = normalizeArtifactCollection(artifactData?.models);
     const properties = normalizeArtifactCollection(artifactData?.properties);
+    const pages = normalizeArtifactCollection(artifactData?.pages);
     const modelsById = new Map(
       models
         .filter((model) => model?.id)
         .map((model) => [String(model.id), model]),
     );
     const entries = [];
+
+    pages.forEach((page) => {
+      if (!page?.id || !page?.endpointId) {
+        return;
+      }
+
+      const title = page.title || getSearchDisplayName(page, "Unnamed page");
+      const pageName = page.name && page.name !== title ? page.name : null;
+      entries.push({
+        type: "page",
+        id: String(page.id),
+        endpointId: String(page.endpointId),
+        title,
+        meta: [pageName, page.endpointId].filter(Boolean).join(" · "),
+        searchText: [
+          "page",
+          page.id,
+          page.endpointId,
+          page.name,
+          page.title,
+          page.description,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase(),
+        searchTextWithoutKind: [
+          "page",
+          page.id,
+          page.endpointId,
+          page.name,
+          page.title,
+          page.description,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase(),
+      });
+    });
 
     models.forEach((model) => {
       if (!model?.id) {
@@ -13811,7 +14806,10 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       : entries;
 
     if (!normalizedQuery) {
-      return availableEntries.slice(0, limit);
+      return availableEntries
+        .filter((entry) => entry.type === "navigation")
+        .sort((left, right) => left.order - right.order)
+        .slice(0, limit);
     }
 
     const terms = normalizedQuery.split(/\s+/).filter(Boolean);
@@ -13909,7 +14907,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     dialog.className = "power-browser-model-search-dialog-v2";
     dialog.setAttribute("role", "dialog");
     dialog.setAttribute("aria-modal", "true");
-    dialog.setAttribute("aria-label", "Search models and properties");
+    dialog.setAttribute("aria-label", "Quick switcher+");
     dialog.setAttribute("aria-hidden", "true");
     overlay.setAttribute("aria-hidden", "true");
 
@@ -13920,7 +14918,8 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     const input = document.createElement("input");
     input.type = "search";
     input.className = "power-browser-model-search-input-v2";
-    input.placeholder = "Search models, properties, kinds or IDs…";
+    input.placeholder =
+      "Search navigation, pages, actions, views, models, properties or IDs…";
     input.autocomplete = "off";
     input.spellcheck = false;
 
@@ -13956,6 +14955,15 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       count,
       shortcut,
       entries: [],
+      baseEntries: [],
+      actionEntries: [],
+      actionsLoaded: false,
+      viewEntries: [],
+      viewsLoaded: false,
+      artifactData: null,
+      applicationFamily: null,
+      nativeViewSearchSequence: 0,
+      nativeSearchOpenedByQuickSwitcher: false,
       filteredEntries: [],
       activeIndex: -1,
       identifier: null,
@@ -13974,27 +14982,58 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     overlay.addEventListener("click", closeModelSearch);
     input.addEventListener("input", () => {
       clearTimeout(modelSearchDebounce);
-      modelSearchDebounce = setTimeout(renderModelSearchResults, 80);
+      modelSearchDebounce = setTimeout(() => {
+        renderModelSearchResults();
+        void syncNativeBetty5ViewResults(
+          modelSearchState,
+          modelSearchState.input.value,
+        );
+      }, 80);
     });
 
     return modelSearchState;
   }
 
-  function getModelIdeUrl(entry) {
-    if (!modelSearchState?.identifier || !entry?.modelId) {
+  function getQuickSwitcherDestinationUrl(entry) {
+    if (!modelSearchState?.identifier || !entry) {
       return null;
     }
 
     const environmentPrefix = getEnvironmentPrefix();
+    const editorOrigin = `https://${modelSearchState.identifier}.${environmentPrefix}bettyblocks.com`;
+    if (entry.type === "navigation") {
+      if (entry.externalDestination === "block-store") {
+        return `https://my.bettyblocks.com/block-store?appId=${encodeURIComponent(modelSearchState.identifier)}`;
+      }
+      return entry.navigationPath
+        ? `${editorOrigin}${entry.navigationPath}`
+        : null;
+    }
+    if (entry.type === "page" && entry.endpointId) {
+      return `${editorOrigin}/app/page-builder/${entry.endpointId}`;
+    }
+    if (entry.type === "action" && entry.id) {
+      return `${editorOrigin}/app/actions/${entry.id}`;
+    }
+    if (entry.type === "view" && entry.id) {
+      return `${editorOrigin}/#${entry.id}`;
+    }
+    if (!entry.modelId) {
+      return null;
+    }
     const propertyPath =
       entry.type === "property" || entry.type === "relation"
         ? `/properties/${entry.id}`
         : "";
-    return `https://${modelSearchState.identifier}.${environmentPrefix}bettyblocks.com/app/models/${entry.modelId}${propertyPath}`;
+    return `${editorOrigin}/app/models/${entry.modelId}${propertyPath}`;
   }
 
   function getModelBackofficeUrl(entry) {
-    if (!modelSearchState?.identifier || !entry?.modelId) {
+    if (
+      !modelSearchState?.identifier ||
+      !entry?.modelId ||
+      entry.type === "view"
+    ) {
       return null;
     }
 
@@ -14007,15 +15046,17 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
   }
 
   /**
-   * Opens a Power Browser destination in a related foreground tab.
+   * Opens a Power Browser destination in a related tab.
    *
    * @param {string} url
+   * @param {boolean} active
    * @returns {unknown}
    */
-  function openPowerBrowserTab(url) {
+  function openPowerBrowserTab(url, active = true) {
     if (typeof globalThis.GM_openInTab === "function") {
       return globalThis.GM_openInTab(url, {
-        active: true,
+        active,
+        insert: true,
         setParent: true,
       });
     }
@@ -14023,14 +15064,141 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     return window.open(url, "_blank", "noopener");
   }
 
-  function openModelSearchEntry(entry) {
-    const url = getModelIdeUrl(entry);
-
+  function openModelSearchEntry(
+    entry,
+    { newTab = false, active = true } = {},
+  ) {
+    const url = getQuickSwitcherDestinationUrl(entry);
     if (!url) {
       return;
     }
 
-    openPowerBrowserTab(url);
+    closeModelSearch();
+    if (newTab) {
+      openPowerBrowserTab(url, active);
+      return;
+    }
+
+    if (
+      entry?.type === "view" &&
+      new URL(url).origin === location.origin &&
+      typeof pageWindow.Backbone?.history?.navigate === "function"
+    ) {
+      pageWindow.Backbone.history.navigate(entry.id, true);
+      return;
+    }
+
+    if (entry?.type === "navigation" && entry.navigationTestId) {
+      window.requestAnimationFrame(() => {
+        const target = Array.from(
+          document.querySelectorAll('nav [data-testid^="builderbar-"]'),
+        ).find(
+          (element) =>
+            element.getAttribute("data-testid") === entry.navigationTestId,
+        );
+        if (target) {
+          target.click();
+          return;
+        }
+        location.assign(url);
+      });
+      return;
+    }
+    location.assign(url);
+  }
+
+  function refreshQuickSwitcherEntries() {
+    if (!modelSearchState) {
+      return;
+    }
+    modelSearchState.entries = [
+      ...buildQuickSwitcherNavigationEntries(),
+      ...modelSearchState.baseEntries,
+      ...modelSearchState.actionEntries,
+      ...modelSearchState.viewEntries,
+    ];
+  }
+
+  async function loadQuickSwitcherViews(
+    state,
+    identifier,
+    artifactData,
+  ) {
+    const cachePolicy = getQuickSwitcherViewCachePolicy(
+      identifier,
+      state.applicationFamily,
+    );
+    const storedCache = getStoredQuickSwitcherViews(
+      identifier,
+      state.applicationFamily,
+    );
+    const forceRefresh = storedCache?.isFresh === false;
+    const requestKey = `${location.origin}:${identifier}:${cachePolicy.cacheKey}`;
+    state.viewRequestKey = requestKey;
+
+    try {
+      const entries = await getCachedPowerBrowserData(
+        quickSwitcherViewRequestCache,
+        requestKey,
+        () =>
+          fetchQuickSwitcherViews(
+            identifier,
+            artifactData,
+            state.applicationFamily,
+          ),
+        forceRefresh,
+      );
+      if (modelSearchState !== state || state.viewRequestKey !== requestKey) {
+        return;
+      }
+      state.viewEntries = entries;
+      state.viewsLoaded = true;
+      refreshQuickSwitcherEntries();
+      if (state.dialog.classList.contains("open")) {
+        renderModelSearchResults();
+      }
+    } catch (error) {
+      state.viewsLoaded = false;
+      console.warn(
+        `[Power Browser] Quick switcher+ could not load model views: ${error instanceof Error ? error.message : String(error)}`,
+        { identifier, error },
+      );
+    }
+  }
+
+  async function loadQuickSwitcherActions(state, identifier) {
+    if (currentPowerBrowserContext?.siteType !== SiteType.NEXTGEN) {
+      return;
+    }
+    const requestKey = `${location.origin}:${identifier}`;
+    state.actionRequestKey = requestKey;
+
+    try {
+      const entries = await getCachedPowerBrowserData(
+        quickSwitcherActionRequestCache,
+        requestKey,
+        () => fetchQuickSwitcherActions(identifier),
+      );
+      if (modelSearchState !== state || state.actionRequestKey !== requestKey) {
+        return;
+      }
+      state.actionEntries = entries;
+      state.actionsLoaded = true;
+      refreshQuickSwitcherEntries();
+      if (state.dialog.classList.contains("open")) {
+        renderModelSearchResults();
+      }
+    } catch (error) {
+      state.actionsLoaded = false;
+      console.warn(
+        `[Power Browser] Quick switcher+ could not load actions: ${error instanceof Error ? error.message : String(error)}`,
+        {
+        identifier,
+        operationName: "Actions",
+        error,
+        },
+      );
+    }
   }
 
   function setActiveModelSearchResult(index) {
@@ -14072,7 +15240,10 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     if (!matches.length) {
       const empty = document.createElement("div");
       empty.className = "power-browser-model-search-empty-v2";
-      empty.textContent = `No models or properties found for “${modelSearchState.input.value.trim()}”.`;
+      const query = modelSearchState.input.value.trim();
+      empty.textContent = query
+        ? `No Quick switcher+ results found for “${query}”.`
+        : "No navigation destinations are available on this page.";
       modelSearchState.results.appendChild(empty);
       return;
     }
@@ -14081,20 +15252,24 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       const row = document.createElement("div");
       row.className = "power-browser-model-search-result-row-v2";
 
-      const result = document.createElement("button");
-      result.type = "button";
+      const result = document.createElement("div");
       result.className = `power-browser-model-search-result-v2${index === 0 ? " active" : ""}`;
       result.setAttribute("role", "option");
+      result.tabIndex = -1;
       result.setAttribute("aria-selected", String(index === 0));
 
       const chip = document.createElement("span");
       chip.className = `power-browser-model-search-chip-v2 ${entry.type}`;
-      chip.textContent =
-        entry.type === "relation"
-          ? "Relation"
-          : entry.type === "property"
-            ? "Property"
-            : "Model";
+      const typeLabels = {
+        navigation: "Navigation",
+        page: "Page",
+        action: "Action",
+        view: "View",
+        relation: "Relation",
+        property: "Property",
+        model: "Model",
+      };
+      chip.textContent = typeLabels[entry.type] || "Item";
 
       const copy = document.createElement("span");
       copy.className = "power-browser-model-search-copy-v2";
@@ -14107,9 +15282,19 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       meta.className = "power-browser-model-search-meta-v2";
       meta.textContent = entry.meta;
 
-      const open = document.createElement("span");
+      const open = document.createElement("button");
+      open.type = "button";
       open.className = "power-browser-model-search-open-v2";
-      open.textContent = "Open IDE";
+      open.textContent =
+        entry.type === "navigation"
+          ? "Open"
+          : entry.type === "view"
+            ? "Open view"
+            : "Open IDE";
+      open.setAttribute(
+        "aria-label",
+        `Open ${entry.title} in a new foreground tab`,
+      );
 
       copy.appendChild(title);
       copy.appendChild(meta);
@@ -14119,41 +15304,76 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       row.addEventListener("mouseenter", () => {
         setActiveModelSearchResult(index);
       });
-      result.addEventListener("click", () => openModelSearchEntry(entry));
-
-      const backofficeUrl = getModelBackofficeUrl(entry);
-      const backofficeButton = document.createElement("button");
-      backofficeButton.type = "button";
-      backofficeButton.className =
-        "power-browser-model-search-backoffice-v2";
-      backofficeButton.innerHTML = SvgIcons.backoffice;
-      backofficeButton.title = "Open in Betty 5 back office";
-      backofficeButton.setAttribute(
-        "aria-label",
-        `Open ${entry.title} in Betty 5 back office`,
+      result.addEventListener("click", (event) =>
+        openModelSearchEntry(
+          entry,
+          event.ctrlKey || event.metaKey
+            ? { newTab: true, active: false }
+            : { newTab: false },
+        ),
       );
-      backofficeButton.disabled = !backofficeUrl;
-      backofficeButton.addEventListener("click", (event) => {
+      open.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
-
-        if (backofficeUrl) {
-          openPowerBrowserTab(backofficeUrl);
-        }
+        openModelSearchEntry(entry, { newTab: true, active: true });
       });
 
+      const backofficeUrl = getModelBackofficeUrl(entry);
       row.appendChild(result);
-      row.appendChild(backofficeButton);
+      if (backofficeUrl) {
+        const backofficeButton = document.createElement("button");
+        backofficeButton.type = "button";
+        backofficeButton.className =
+          "power-browser-model-search-backoffice-v2";
+        backofficeButton.innerHTML = SvgIcons.backoffice;
+        backofficeButton.title = "Open in Betty 5 back office";
+        backofficeButton.setAttribute(
+          "aria-label",
+          `Open ${entry.title} in Betty 5 back office`,
+        );
+        backofficeButton.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          openPowerBrowserTab(backofficeUrl);
+        });
+        row.appendChild(backofficeButton);
+      }
       modelSearchState.results.appendChild(row);
     });
   }
 
   function openModelSearch() {
-    if (!modelSearchState?.entries.length) {
+    if (!modelSearchState) {
       return;
     }
 
+    refreshQuickSwitcherEntries();
+    if (!modelSearchState.entries.length) {
+      return;
+    }
     modelSearchState.input.value = "";
+    if (!modelSearchState.actionsLoaded && modelSearchState.identifier) {
+      void loadQuickSwitcherActions(
+        modelSearchState,
+        modelSearchState.identifier,
+      );
+    }
+    const storedViewCache = modelSearchState.identifier
+      ? getStoredQuickSwitcherViews(
+          modelSearchState.identifier,
+          modelSearchState.applicationFamily,
+        )
+      : null;
+    if (
+      modelSearchState.identifier &&
+      (!modelSearchState.viewsLoaded || storedViewCache?.isFresh === false)
+    ) {
+      void loadQuickSwitcherViews(
+        modelSearchState,
+        modelSearchState.identifier,
+        modelSearchState.artifactData,
+      );
+    }
     modelSearchState.shortcut.textContent = getModelSearchShortcut();
     modelSearchState.overlay.classList.add("open");
     modelSearchState.dialog.classList.add("open");
@@ -14163,7 +15383,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       overlay: modelSearchState.overlay,
       close: closeModelSearch,
       initialFocus: modelSearchState.input,
-      announcement: "Model search opened.",
+      announcement: "Quick switcher+ opened.",
     });
   }
 
@@ -14174,6 +15394,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
 
     modelSearchState.overlay.classList.remove("open");
     modelSearchState.dialog.classList.remove("open");
+    closeNativeBetty5SearchProxy(modelSearchState);
     closePowerBrowserModal(modelSearchState.dialog);
   }
 
@@ -14228,22 +15449,38 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     }
   }
 
-  function configureModelSearch(navigator, artifactData, identifier) {
+  function configureModelSearch(
+    navigator,
+    artifactData,
+    identifier,
+    applicationFamily = null,
+  ) {
     const button = navigator.controls.get("buttonRuntimeModelSearch");
     const entries = buildModelSearchEntries(artifactData);
 
-    if (!button || !entries.length || !identifier) {
+    if (!button || !identifier) {
       button?.classList.add("power-browser-hidden-v2");
       return;
     }
 
     const state = ensureModelSearchDialog();
-    state.entries = entries;
+    if (state.identifier !== identifier) {
+      state.actionEntries = [];
+      state.actionsLoaded = false;
+      state.viewEntries = [];
+      state.viewsLoaded = false;
+    }
+    state.baseEntries = entries;
+    state.artifactData = artifactData;
+    state.applicationFamily = applicationFamily;
     state.identifier = identifier;
+    refreshQuickSwitcherEntries();
     button.classList.remove("power-browser-hidden-v2", NAV_DISABLED_CLASS);
     button.disabled = false;
     button.setAttribute("aria-disabled", "false");
-    button.title = `Search models and properties (${getModelSearchShortcut()})`;
+    button.title = `Quick switcher+ (${getModelSearchShortcut()})`;
+    void loadQuickSwitcherActions(state, identifier);
+    void loadQuickSwitcherViews(state, identifier, artifactData);
 
     if (!button.dataset.powerBrowserListener) {
       button.dataset.powerBrowserListener = "true";
@@ -15310,22 +16547,22 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
         : "Updated";
       state.title.textContent = "What’s new";
       state.description.textContent =
-        "Version 3.5.6 improves action-canvas synchronization and makes paste placement clearer and more complete.";
+        "Version 3.5.7 introduces Quick switcher+, a faster way to move around your Betty Blocks application.";
       [
         [
-          "↻",
-          "Keep every canvas step visible",
-          "Duplicating or pasting a step now refreshes only the complete action-canvas query and validates the full graph before updating it, preventing other steps from temporarily disappearing.",
+          "⌕",
+          "Quick switcher+",
+          "Search pages, actions, Betty 5 model views, models, properties, relations, and builder navigation from one place. Click to navigate here, Ctrl+click for a background tab, or use Open for a foreground tab.",
         ],
         [
-          "◎",
-          "Paste at every insertion point",
-          "Round paste buttons now appear in empty condition paths, loop bodies, and before Finish. Pasted steps keep the selected condition or loop scope, and the Paste button was removed from action-step quick actions in favor of these precise canvas insertion controls.",
+          "↗",
+          "Current navigation first",
+          "Open Quick switcher+ without typing to see the standard builder destinations in their familiar order. They remain available and searchable on pages or environments where the navigation bar is not rendered.",
         ],
         [
-          "⌘",
-          "Keep condition scope actions current",
-          "Condition scope actions now update when nested steps are added or deleted, so empty scopes lose their scope menu and populated scopes gain it immediately.",
+          "☰",
+          "Configurable navigation shortcuts",
+          "Add Actions, Pages, Models, Logs, Configurations, Roles and permissions, Translations, or Theme builder from Next-gen → Navigation. Each shortcut uses Betty Blocks’ own navigation icon.",
         ],
       ].forEach((feature) =>
         state.body.appendChild(
@@ -15445,8 +16682,8 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
         },
       },
       {
-        label: "Search models and properties",
-        keywords: "runtime model relation field",
+        label: "Open Quick switcher+",
+        keywords: "navigation page action model relation property field switcher",
         available: Boolean(modelSearchState?.entries.length),
         action: openModelSearch,
       },
@@ -15847,6 +17084,25 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
 
     ["buttonRuntime", "buttonPagebuilder", "buttonProcoderMode"].forEach(
       (id) => updateNavigatorLink(navigator, id, null, false),
+    );
+    const builderNavigationDestinations = {
+      nextgenActionsButton: "/app/actions",
+      nextgenPagesButton: "/app/pages",
+      nextgenModelsButton: "/app/models",
+      nextgenLogsButton: "/app/logs",
+      nextgenConfigurationsButton: "/app/configurations",
+      nextgenRolesButton: "/app/roles",
+      nextgenTranslationsButton: "/app/translations",
+      nextgenThemeBuilderButton: "/app/theme-builder",
+    };
+    Object.entries(builderNavigationDestinations).forEach(
+      ([controlId, path]) =>
+        updateNavigatorLink(
+          navigator,
+          controlId,
+          `https://${builderHost}${path}`,
+          true,
+        ),
     );
 
     const builderPageId = getBuilderPageId();
@@ -16265,6 +17521,12 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       identifier,
       currentPowerBrowserContext?.siteType || SiteType.UNKNOWN,
     );
+    configureModelSearch(
+      activePowerBrowserNavigator,
+      artifactData,
+      identifier,
+      applicationFamily,
+    );
   }
 
   featureRegistry.register({
@@ -16457,6 +17719,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     navigator,
     artifactData,
     applicationIdentifier,
+    applicationFamily,
   );
   configureNavigator(navigator, {
     artifactData,

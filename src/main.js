@@ -35,6 +35,12 @@
       identifier,
       currentPowerBrowserContext?.siteType || SiteType.UNKNOWN,
     );
+    configureModelSearch(
+      activePowerBrowserNavigator,
+      artifactData,
+      identifier,
+      applicationFamily,
+    );
   }
 
   featureRegistry.register({
@@ -227,6 +233,7 @@
     navigator,
     artifactData,
     applicationIdentifier,
+    applicationFamily,
   );
   configureNavigator(navigator, {
     artifactData,

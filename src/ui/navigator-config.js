@@ -55,6 +55,25 @@
     ["buttonRuntime", "buttonPagebuilder", "buttonProcoderMode"].forEach(
       (id) => updateNavigatorLink(navigator, id, null, false),
     );
+    const builderNavigationDestinations = {
+      nextgenActionsButton: "/app/actions",
+      nextgenPagesButton: "/app/pages",
+      nextgenModelsButton: "/app/models",
+      nextgenLogsButton: "/app/logs",
+      nextgenConfigurationsButton: "/app/configurations",
+      nextgenRolesButton: "/app/roles",
+      nextgenTranslationsButton: "/app/translations",
+      nextgenThemeBuilderButton: "/app/theme-builder",
+    };
+    Object.entries(builderNavigationDestinations).forEach(
+      ([controlId, path]) =>
+        updateNavigatorLink(
+          navigator,
+          controlId,
+          `https://${builderHost}${path}`,
+          true,
+        ),
+    );
 
     const builderPageId = getBuilderPageId();
 

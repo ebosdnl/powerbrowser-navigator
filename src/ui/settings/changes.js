@@ -22,7 +22,8 @@
       definition.key.endsWith("Hidden") ||
       definition.key === "buttonB5Models" ||
       definition.key === "buttonB5Monitoring" ||
-      definition.key === "sandboxSwitcherHidden"
+      definition.key === "sandboxSwitcherHidden" ||
+      definition.key.startsWith("nextgenNavigation")
     ) {
       applyNavigatorVisibilitySettings(navigator);
     }
@@ -114,7 +115,7 @@
         "buttonRuntimeModelSearch",
       );
       if (searchButton) {
-        searchButton.title = `Search models and properties (${value || "No shortcut"})`;
+        searchButton.title = `Quick switcher+ (${value || "No shortcut"})`;
       }
     }
   }

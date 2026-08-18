@@ -292,7 +292,12 @@
       identifier,
       siteType,
     );
-    configureModelSearch(navigator, artifactData, identifier);
+    configureModelSearch(
+      navigator,
+      artifactData,
+      identifier,
+      applicationFamily,
+    );
     if (
       powerBrowserDiagnostics.artifact.status === "error" ||
       powerBrowserDiagnostics.applicationFamily.status === "error"

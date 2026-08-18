@@ -136,22 +136,22 @@
         : "Updated";
       state.title.textContent = "What’s new";
       state.description.textContent =
-        "Version 3.5.6 improves action-canvas synchronization and makes paste placement clearer and more complete.";
+        "Version 3.5.7 introduces Quick switcher+, a faster way to move around your Betty Blocks application.";
       [
         [
-          "↻",
-          "Keep every canvas step visible",
-          "Duplicating or pasting a step now refreshes only the complete action-canvas query and validates the full graph before updating it, preventing other steps from temporarily disappearing.",
+          "⌕",
+          "Quick switcher+",
+          "Search pages, actions, Betty 5 model views, models, properties, relations, and builder navigation from one place. Click to navigate here, Ctrl+click for a background tab, or use Open for a foreground tab.",
         ],
         [
-          "◎",
-          "Paste at every insertion point",
-          "Round paste buttons now appear in empty condition paths, loop bodies, and before Finish. Pasted steps keep the selected condition or loop scope, and the Paste button was removed from action-step quick actions in favor of these precise canvas insertion controls.",
+          "↗",
+          "Current navigation first",
+          "Open Quick switcher+ without typing to see the standard builder destinations in their familiar order. They remain available and searchable on pages or environments where the navigation bar is not rendered.",
         ],
         [
-          "⌘",
-          "Keep condition scope actions current",
-          "Condition scope actions now update when nested steps are added or deleted, so empty scopes lose their scope menu and populated scopes gain it immediately.",
+          "☰",
+          "Configurable navigation shortcuts",
+          "Add Actions, Pages, Models, Logs, Configurations, Roles and permissions, Translations, or Theme builder from Next-gen → Navigation. Each shortcut uses Betty Blocks’ own navigation icon.",
         ],
       ].forEach((feature) =>
         state.body.appendChild(

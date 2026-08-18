@@ -8,7 +8,7 @@
       SettingsTabs[0];
     const descriptions = {
       info: "Application, sandbox and runtime artifact details for the current page.",
-      general: "Choose which navigation tools are visible and how model search behaves.",
+      general: "Choose which navigation tools are visible and how Quick switcher+ behaves.",
       betty5: "Legacy Betty 5 behavior and editor preferences.",
       nextgen: "Action, Page Builder and log tooling for Next-gen applications.",
       uiBuilder: "Tools for the Betty 5 UI Builder preview.",
@@ -317,9 +317,12 @@
         wrapper.className = "power-browser-settings-toggle-v2";
         const input = document.createElement("input");
         input.type = "checkbox";
-        input.checked = Boolean(
+        const storedValue = Boolean(
           getEditableSettingValue(definition.key),
         );
+        input.checked = definition.invertedValue
+          ? !storedValue
+          : storedValue;
         input.disabled = settingDisabled;
         input.setAttribute("aria-label", definition.label);
         const track = document.createElement("span");
@@ -329,7 +332,12 @@
             "Enable Icons only to use this setting.";
         }
         input.addEventListener("change", () => {
-          setSettingValue(definition.key, input.checked);
+          setSettingValue(
+            definition.key,
+            definition.invertedValue
+              ? !input.checked
+              : input.checked,
+          );
           applySettingChange(
             navigator,
             definition,

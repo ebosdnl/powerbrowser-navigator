@@ -35,8 +35,10 @@
     csvCell: powerBrowserCsvCell,
     diffArtifactSnapshots,
     getArtifactRelationships,
+    getQuickSwitcherViewCachePolicy,
     hasApplicationOverride,
     isAuthenticationError: isPowerBrowserAuthenticationError,
+    isQuickSwitcherViewCacheFresh,
     isVersionNewer,
     normalizeEndpoints: normalizePowerBrowserEndpoints,
     removeApplicationOverride,
@@ -396,6 +398,8 @@
   const artifactRequestCache = new Map();
   const applicationFamilyRequestCache = new Map();
   const actionSettingsRequestCache = new Map();
+  const quickSwitcherActionRequestCache = new Map();
+  const quickSwitcherViewRequestCache = new Map();
   const powerBrowserNavigationSubscribers = new Set();
   let powerBrowserNavigationInitialized = false;
   let powerBrowserNavigationScheduled = false;

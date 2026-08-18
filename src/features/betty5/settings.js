@@ -205,6 +205,26 @@
           Boolean(getSettingValue(settingKey)),
         );
     });
+    const nextgenNavigationSettings = {
+      nextgenNavigationActions: "nextgenActionsButton",
+      nextgenNavigationPages: "nextgenPagesButton",
+      nextgenNavigationModels: "nextgenModelsButton",
+      nextgenNavigationLogs: "nextgenLogsButton",
+      nextgenNavigationConfigurations: "nextgenConfigurationsButton",
+      nextgenNavigationRoles: "nextgenRolesButton",
+      nextgenNavigationTranslations: "nextgenTranslationsButton",
+      nextgenNavigationThemeBuilder: "nextgenThemeBuilderButton",
+    };
+    Object.entries(nextgenNavigationSettings).forEach(
+      ([settingKey, controlId]) => {
+        navigator.controls
+          .get(controlId)
+          ?.classList.toggle(
+            "power-browser-setting-hidden-v2",
+            !getSettingValue(settingKey),
+          );
+      },
+    );
     navigator.stateSwitcher.classList.toggle(
       "power-browser-setting-hidden-v2",
       Boolean(getSettingValue("sandboxSwitcherHidden")),
