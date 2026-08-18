@@ -602,6 +602,16 @@
       defaultValue: "Ctrl+Shift+M",
     },
     {
+      key: "nextgenActionStepPasteShortcut",
+      tab: "shortcuts",
+      section: "Next-gen actions",
+      label: "Show action-step paste points",
+      description:
+        "Show the round action-canvas paste buttons while this key or key combination is held.",
+      type: "shortcut",
+      defaultValue: "Ctrl",
+    },
+    {
       key: "nextgenActionStepUndoShortcut",
       tab: "shortcuts",
       section: "Next-gen actions",

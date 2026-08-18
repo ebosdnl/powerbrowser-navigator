@@ -89,6 +89,10 @@
       applyNextgenDuplicateActionStepSetting();
     }
 
+    if (definition.key === "nextgenActionStepPasteShortcut") {
+      resetNextgenActionStepPasteShortcut();
+    }
+
     if (
       [
         "nextgenActionStepHistory",

@@ -2318,6 +2318,16 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       defaultValue: "Ctrl+Shift+M",
     },
     {
+      key: "nextgenActionStepPasteShortcut",
+      tab: "shortcuts",
+      section: "Next-gen actions",
+      label: "Show action-step paste points",
+      description:
+        "Show the round action-canvas paste buttons while this key or key combination is held.",
+      type: "shortcut",
+      defaultValue: "Ctrl",
+    },
+    {
       key: "nextgenActionStepUndoShortcut",
       tab: "shortcuts",
       section: "Next-gen actions",
@@ -6349,6 +6359,8 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     "power-browser-action-step-edge-paste";
   const NEXTGEN_ACTION_STEP_EDGE_PASTE_STYLE_ID =
     "power-browser-action-step-edge-paste-style";
+  const NEXTGEN_ACTION_STEP_EDGE_PASTE_ACTIVE_CLASS =
+    "power-browser-action-step-edge-paste-shortcut-active";
   const NEXTGEN_ACTION_STEP_CLIPBOARD_KEY =
     "powerBrowserNextgenActionStepClipboardV1";
   const NEXTGEN_RESERVED_ACTION_STEP_IDS = new Set(["start", "finish"]);
@@ -6359,6 +6371,8 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
   const nextgenPasteFunctionMatchCache = new Map();
   const nextgenAnimatedEdgePasteKeys = new Set();
   let nextgenEdgePasteClipboardKey = "";
+  let nextgenActionStepPasteShortcutInstalled = false;
+  let nextgenActionStepPasteShortcutActive = false;
   let nextgenScopeMenuDocumentListenerInstalled = false;
   let nextgenScopeMenuCheckSequence = 0;
   const nextgenScopeActionFetches = new Map();
@@ -8209,12 +8223,106 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       ?.remove();
   }
 
+  function setNextgenActionStepPasteShortcutActive(active) {
+    nextgenActionStepPasteShortcutActive = Boolean(active);
+    document.documentElement.classList.toggle(
+      NEXTGEN_ACTION_STEP_EDGE_PASTE_ACTIVE_CLASS,
+      nextgenActionStepPasteShortcutActive,
+    );
+  }
+
+  function getNextgenActionStepPasteShortcutParts() {
+    return String(
+      getSettingValue("nextgenActionStepPasteShortcut") || "",
+    )
+      .split("+")
+      .map((part) => part.trim().toLowerCase())
+      .filter(Boolean);
+  }
+
+  function nextgenActionStepPasteShortcutIncludesReleasedKey(event) {
+    const shortcutParts = getNextgenActionStepPasteShortcutParts();
+    const releasedKeyAliases = {
+      control: ["control", "ctrl"],
+      meta: ["meta", "cmd", "command"],
+      alt: ["alt", "option"],
+      shift: ["shift"],
+    };
+    const releasedKey = event.key.toLowerCase();
+    const aliases = releasedKeyAliases[releasedKey] || [releasedKey];
+    if (aliases.some((key) => shortcutParts.includes(key))) return true;
+
+    const isMac = window.navigator.platform.toLowerCase().includes("mac");
+    const expectsCtrl =
+      shortcutParts.includes("ctrl") || shortcutParts.includes("control");
+    const expectsMeta = ["meta", "cmd", "command"].some((key) =>
+      shortcutParts.includes(key),
+    );
+    return isMac && releasedKey === "meta" && expectsCtrl && !expectsMeta;
+  }
+
+  function handleNextgenActionStepPasteShortcutKeydown(event) {
+    if (
+      !nextgenActionStepPasteShortcutActive &&
+      shortcutMatchesEvent(
+        String(getSettingValue("nextgenActionStepPasteShortcut") || ""),
+        event,
+      )
+    ) {
+      setNextgenActionStepPasteShortcutActive(true);
+    }
+  }
+
+  function handleNextgenActionStepPasteShortcutKeyup(event) {
+    if (
+      nextgenActionStepPasteShortcutActive &&
+      nextgenActionStepPasteShortcutIncludesReleasedKey(event)
+    ) {
+      setNextgenActionStepPasteShortcutActive(false);
+    }
+  }
+
+  function installNextgenActionStepPasteShortcut() {
+    if (nextgenActionStepPasteShortcutInstalled) return;
+    document.addEventListener(
+      "keydown",
+      handleNextgenActionStepPasteShortcutKeydown,
+    );
+    document.addEventListener(
+      "keyup",
+      handleNextgenActionStepPasteShortcutKeyup,
+    );
+    window.addEventListener("blur", resetNextgenActionStepPasteShortcut);
+    nextgenActionStepPasteShortcutInstalled = true;
+  }
+
+  function resetNextgenActionStepPasteShortcut() {
+    setNextgenActionStepPasteShortcutActive(false);
+  }
+
+  function cleanupNextgenActionStepPasteShortcut() {
+    if (nextgenActionStepPasteShortcutInstalled) {
+      document.removeEventListener(
+        "keydown",
+        handleNextgenActionStepPasteShortcutKeydown,
+      );
+      document.removeEventListener(
+        "keyup",
+        handleNextgenActionStepPasteShortcutKeyup,
+      );
+      window.removeEventListener("blur", resetNextgenActionStepPasteShortcut);
+      nextgenActionStepPasteShortcutInstalled = false;
+    }
+    resetNextgenActionStepPasteShortcut();
+  }
+
   function ensureNextgenActionStepEdgePasteStyles() {
     if (document.getElementById(NEXTGEN_ACTION_STEP_EDGE_PASTE_STYLE_ID)) return;
     const style = document.createElement("style");
     style.id = NEXTGEN_ACTION_STEP_EDGE_PASTE_STYLE_ID;
     style.textContent = `
-      .${NEXTGEN_ACTION_STEP_EDGE_PASTE_CLASS}{overflow:visible;pointer-events:all}
+      .${NEXTGEN_ACTION_STEP_EDGE_PASTE_CLASS}{display:none;overflow:visible;pointer-events:none}
+      html.${NEXTGEN_ACTION_STEP_EDGE_PASTE_ACTIVE_CLASS} .${NEXTGEN_ACTION_STEP_EDGE_PASTE_CLASS}{display:block;pointer-events:all}
       .react-flow__edge:not(.inactive)>.${NEXTGEN_ACTION_STEP_EDGE_PASTE_CLASS},.react-flow__edge:has(circle.scale-100)>.${NEXTGEN_ACTION_STEP_EDGE_PASTE_CLASS}{display:none;pointer-events:none}
       .${NEXTGEN_ACTION_STEP_EDGE_PASTE_CLASS}>div{display:flex;width:32px;height:32px;align-items:center;justify-content:center;transform-origin:center}
       .${NEXTGEN_ACTION_STEP_EDGE_PASTE_CLASS}>div.is-new{animation:power-browser-edge-paste-in .18s ease-out}
@@ -8778,8 +8886,10 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
         ?.remove();
     }
     if (getSettingValue("nextgenActionStepCopyPaste")) {
+      installNextgenActionStepPasteShortcut();
       void installNextgenActionStepEdgePasteButtons();
     } else {
+      cleanupNextgenActionStepPasteShortcut();
       cleanupNextgenActionStepEdgePasteButtons();
     }
   }
@@ -8821,6 +8931,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       .querySelectorAll(".power-browser-action-scope-menu")
       .forEach((menu) => menu.remove());
     document.getElementById(NEXTGEN_ACTION_STEP_QUICK_ACTIONS_STYLE_ID)?.remove();
+    cleanupNextgenActionStepPasteShortcut();
     cleanupNextgenActionStepEdgePasteButtons();
   }
 
@@ -11082,6 +11193,10 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       ].includes(definition.key)
     ) {
       applyNextgenDuplicateActionStepSetting();
+    }
+
+    if (definition.key === "nextgenActionStepPasteShortcut") {
+      resetNextgenActionStepPasteShortcut();
     }
 
     if (
