@@ -500,8 +500,19 @@
     version.textContent = scriptVersion
       ? `Power Browser v${scriptVersion}`
       : "Power Browser";
+    const feedbackButton = document.createElement("button");
+    feedbackButton.type = "button";
+    feedbackButton.className = "power-browser-settings-feedback-v2";
+    feedbackButton.innerHTML =
+      '<span>Report bugs &amp; request features</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M9 2h5v5h-1.5V4.56L7.53 9.53 6.47 8.47l4.97-4.97H9V2Z"/><path d="M3.5 3H7v1.5H3.5v8h8V9H13v3.5A1.5 1.5 0 0 1 11.5 14h-8A1.5 1.5 0 0 1 2 12.5v-8A1.5 1.5 0 0 1 3.5 3Z"/></svg>';
+    feedbackButton.addEventListener("click", () =>
+      openPowerBrowserTab(
+        "https://github.com/ebosdnl/powerbrowser-navigator/issues",
+      ),
+    );
     sidebar.appendChild(brand);
-    sidebar.appendChild(tabs);  
+    sidebar.appendChild(tabs);
+    sidebar.appendChild(feedbackButton);
     sidebar.appendChild(version);
 
     const main = document.createElement("main");

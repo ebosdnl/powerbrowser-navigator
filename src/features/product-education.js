@@ -136,22 +136,17 @@
         : "Updated";
       state.title.textContent = "What’s new";
       state.description.textContent =
-        "Version 3.5.7 introduces Quick switcher+, a faster way to move around your Betty Blocks application.";
+        `Version ${version || "3.5.8"} makes it easier to share feedback about Power Browser.`;
       [
         [
-          "⌕",
-          "Quick switcher+",
-          "Search pages, actions, Betty 5 model views, models, properties, relations, and builder navigation from one place. Click to navigate here, Ctrl+click for a background tab, or use Open for a foreground tab.",
+          "!",
+          "Report bugs and request features",
+          "Use the new button above the version number in Settings to open the Power Browser GitHub issues page.",
         ],
         [
-          "↗",
-          "Current navigation first",
-          "Open Quick switcher+ without typing to see the standard builder destinations in their familiar order. They remain available and searchable on pages or environments where the navigation bar is not rendered.",
-        ],
-        [
-          "☰",
-          "Configurable navigation shortcuts",
-          "Add Actions, Pages, Models, Logs, Configurations, Roles and permissions, Translations, or Theme builder from Next-gen → Navigation. Each shortcut uses Betty Blocks’ own navigation icon.",
+          "▣",
+          "Clearer interface details",
+          "The feedback button now shows a pop-out icon, the settings scope chevron has more breathing room, and Next-gen Pages uses a distinct multi-page icon.",
         ],
       ].forEach((feature) =>
         state.body.appendChild(

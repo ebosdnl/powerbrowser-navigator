@@ -1333,6 +1333,41 @@
       font-size: 10px;
     }
 
+    .power-browser-settings-feedback-v2 {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      width: 100%;
+      padding: 9px 10px;
+      color: #c7cad4;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 8px;
+      font: 600 11px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .power-browser-settings-feedback-v2 svg {
+      width: 14px;
+      height: 14px;
+      flex: 0 0 14px;
+      fill: currentColor;
+    }
+
+    .power-browser-settings-feedback-v2:hover,
+    .power-browser-settings-feedback-v2:focus-visible {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.35);
+    }
+
+    .power-browser-settings-feedback-v2:focus-visible {
+      outline: 2px solid #e9004c;
+      outline-offset: 2px;
+    }
+
     .power-browser-settings-main-v2 {
       display: flex;
       min-width: 0;
@@ -1546,13 +1581,18 @@
 
     .power-browser-settings-scope-v2 {
       box-sizing: border-box;
+      appearance: none;
       width: min(240px, 34vw);
       min-width: 210px;
       min-height: 38px;
       margin-left: auto;
-      padding: 8px 11px;
+      padding: 8px 38px 8px 11px;
       color: #4e5360;
-      background: #fff;
+      background-color: #fff;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='m1 1 5 5 5-5' fill='none' stroke='%234e5360' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5'/%3E%3C/svg%3E");
+      background-position: right 16px center;
+      background-repeat: no-repeat;
+      background-size: 12px 8px;
       border: 1px solid #d9dbe2;
       border-radius: 8px;
       outline: none;
@@ -1566,7 +1606,7 @@
     }
 
     .power-browser-settings-scope-v2:hover {
-      background: #fafafd;
+      background-color: #fafafd;
       border-color: #bfc3cc;
     }
 
@@ -2869,12 +2909,13 @@
     .power-browser-dark-v2 .power-browser-settings-scope-v2 {
       color: #f4f5f7;
       color-scheme: dark;
-      background: #202431;
+      background-color: #202431;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='m1 1 5 5 5-5' fill='none' stroke='%23f4f5f7' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5'/%3E%3C/svg%3E");
       border-color: #4a5061;
     }
 
     .power-browser-dark-v2 .power-browser-settings-scope-v2:hover {
-      background: #292e3c;
+      background-color: #292e3c;
       border-color: #737b91;
     }
 
@@ -3215,13 +3256,13 @@
     .power-browser-betty-theme-v2
       .power-browser-settings-scope-v2 {
       color: #29304a;
-      background: #f8f9ff;
+      background-color: #f8f9ff;
       border-color: #bec9ff;
     }
 
     .power-browser-betty-theme-v2
       .power-browser-settings-scope-v2:hover {
-      background: #eef2ff;
+      background-color: #eef2ff;
       border-color: #8ca0ff;
     }
 
@@ -3377,6 +3418,8 @@
     .power-browser-settings-dialog-v2
       .power-browser-settings-brand-v2 span,
     .power-browser-settings-dialog-v2
+      .power-browser-settings-feedback-v2,
+    .power-browser-settings-dialog-v2
       .power-browser-settings-version-v2,
     .power-browser-settings-dialog-v2
       .power-browser-settings-theme-option-v2,
@@ -3435,6 +3478,13 @@
         overflow-x: auto;
         overflow-y: hidden;
         touch-action: pan-x;
+      }
+
+      .power-browser-settings-feedback-v2 {
+        width: auto;
+        flex: 0 0 auto;
+        margin-top: 8px;
+        text-align: center;
       }
 
       .power-browser-settings-tab-v2 {
