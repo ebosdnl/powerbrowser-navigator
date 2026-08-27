@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Power Browser Navigator V2
-// @description  Easier navigation to the playground, page-builder and backoffice. Feature flag setter and extra productivity scripts.
+// @description  Navigation, Quick switcher+, settings, diagnostics, and developer productivity tools for Betty Blocks.
 // @tag          Productivity
 // @version      3.5.8
 // @updateURL    https://github.com/ebosdnl/powerbrowser-navigator/releases/latest/download/bb-powerbrowser.user.js
@@ -1957,7 +1957,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       tab: "general",
       section: "Navigation visibility",
       label: "Show Home page shortcut",
-      description: "Show the runtime home-page shortcut.",
+      description: "Show the runtime home page shortcut.",
       type: "toggle",
       defaultValue: false,
       invertedValue: true,
@@ -2033,7 +2033,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       key: "extraB5Highlighting",
       tab: "betty5",
       section: "Editor preferences",
-      label: "Better highlighting actions",
+      label: "Improved action highlighting",
       description: "Keep the selected Betty 5 action clearly highlighted while navigating action stacks.",
       type: "toggle",
       defaultValue: true,
@@ -2042,7 +2042,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       key: "extraB5PasswordRevealer",
       tab: "betty5",
       section: "Editor preferences",
-      label: "Reveal Passwords",
+      label: "Reveal passwords",
       description: "Reveal masked configuration passwords and blur them until hovered.",
       type: "toggle",
       defaultValue: false,
@@ -17092,7 +17092,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
         : "Updated";
       state.title.textContent = "What’s new";
       state.description.textContent =
-        `Version ${version || "3.6.0"} makes Quick switcher+ priorities personal and action tests safer to start.`;
+        `Version ${version || "3.5.8"} makes Quick switcher+ priorities personal and action tests safer to start.`;
       [
         [
           "↕",
@@ -17114,7 +17114,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
           createPowerBrowserEducationFeature(...feature),
         ),
       );
-      secondary.textContent = "Open Info";
+      secondary.textContent = "Open info";
       secondary.addEventListener("click", () => {
         closePowerBrowserEducation();
         settingsState.activeTab = "info";

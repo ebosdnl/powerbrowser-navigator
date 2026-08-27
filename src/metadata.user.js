@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Power Browser Navigator V2
-// @description  Easier navigation to the playground, page-builder and backoffice. Feature flag setter and extra productivity scripts.
+// @description  Navigation, Quick switcher+, settings, diagnostics, and developer productivity tools for Betty Blocks.
 // @tag          Productivity
 // @version      3.5.8
 // @updateURL    https://github.com/ebosdnl/powerbrowser-navigator/releases/latest/download/bb-powerbrowser.user.js
