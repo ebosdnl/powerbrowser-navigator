@@ -1,5 +1,127 @@
   const powerBrowserModalStates = new WeakMap();
+  const powerBrowserActiveModals = new Set();
+  const powerBrowserBackgroundStates = new Map();
   let powerBrowserLiveRegion = null;
+  let powerBrowserDocumentScrollState = null;
+
+  function capturePowerBrowserStyle(element, property) {
+    return {
+      value: element.style.getPropertyValue(property),
+      priority: element.style.getPropertyPriority(property),
+    };
+  }
+
+  function restorePowerBrowserStyle(element, property, state) {
+    if (state.value) {
+      element.style.setProperty(
+        property,
+        state.value,
+        state.priority,
+      );
+      return;
+    }
+    element.style.removeProperty(property);
+  }
+
+  function lockPowerBrowserDocumentScroll() {
+    if (powerBrowserDocumentScrollState) {
+      return;
+    }
+    const root = document.documentElement;
+    const body = document.body;
+    powerBrowserDocumentScrollState = {
+      rootOverflow: capturePowerBrowserStyle(root, "overflow"),
+      rootOverscroll: capturePowerBrowserStyle(
+        root,
+        "overscroll-behavior",
+      ),
+      bodyOverflow: capturePowerBrowserStyle(body, "overflow"),
+      bodyOverscroll: capturePowerBrowserStyle(
+        body,
+        "overscroll-behavior",
+      ),
+    };
+    root.style.setProperty("overflow", "hidden", "important");
+    root.style.setProperty(
+      "overscroll-behavior",
+      "none",
+      "important",
+    );
+    body.style.setProperty("overflow", "hidden", "important");
+    body.style.setProperty(
+      "overscroll-behavior",
+      "none",
+      "important",
+    );
+  }
+
+  function unlockPowerBrowserDocumentScroll() {
+    if (!powerBrowserDocumentScrollState) {
+      return;
+    }
+    const root = document.documentElement;
+    const body = document.body;
+    restorePowerBrowserStyle(
+      root,
+      "overflow",
+      powerBrowserDocumentScrollState.rootOverflow,
+    );
+    restorePowerBrowserStyle(
+      root,
+      "overscroll-behavior",
+      powerBrowserDocumentScrollState.rootOverscroll,
+    );
+    restorePowerBrowserStyle(
+      body,
+      "overflow",
+      powerBrowserDocumentScrollState.bodyOverflow,
+    );
+    restorePowerBrowserStyle(
+      body,
+      "overscroll-behavior",
+      powerBrowserDocumentScrollState.bodyOverscroll,
+    );
+    powerBrowserDocumentScrollState = null;
+  }
+
+  function restorePowerBrowserBackground() {
+    powerBrowserBackgroundStates.forEach((wasInert, element) => {
+      if (element.isConnected) {
+        element.inert = wasInert;
+      }
+    });
+    powerBrowserBackgroundStates.clear();
+  }
+
+  function updatePowerBrowserModalIsolation() {
+    restorePowerBrowserBackground();
+    if (!powerBrowserActiveModals.size) {
+      unlockPowerBrowserDocumentScroll();
+      return;
+    }
+
+    lockPowerBrowserDocumentScroll();
+    const modalElements = [];
+    powerBrowserActiveModals.forEach((dialog) => {
+      const state = powerBrowserModalStates.get(dialog);
+      modalElements.push(dialog);
+      if (state?.overlay) {
+        modalElements.push(state.overlay);
+      }
+    });
+
+    [...document.body.children].forEach((element) => {
+      const containsModal = modalElements.some(
+        (modalElement) =>
+          modalElement === element || element.contains(modalElement),
+      );
+      if (containsModal || element === powerBrowserLiveRegion) {
+        return;
+      }
+      powerBrowserBackgroundStates.set(element, element.inert);
+      element.inert = true;
+    });
+  }
 
   function getPowerBrowserFocusableElements(dialog) {
     return [...dialog.querySelectorAll(
@@ -97,6 +219,8 @@
       handleKeydown,
       handleFocusIn,
     });
+    powerBrowserActiveModals.add(dialog);
+    updatePowerBrowserModalIsolation();
     window.setTimeout(() => {
       const target =
         (typeof initialFocus === "function"
@@ -134,6 +258,8 @@
     dialog.setAttribute("aria-hidden", "true");
     state.overlay?.setAttribute("aria-hidden", "true");
     powerBrowserModalStates.delete(dialog);
+    powerBrowserActiveModals.delete(dialog);
+    updatePowerBrowserModalIsolation();
     if (restoreFocus && state.previouslyFocused?.isConnected) {
       state.previouslyFocused.focus();
     }

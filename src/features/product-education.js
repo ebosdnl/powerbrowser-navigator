@@ -136,7 +136,7 @@
         : "Updated";
       state.title.textContent = "What’s new";
       state.description.textContent =
-        `Version ${version || "3.5.8"} makes Quick switcher+ priorities personal and action tests safer to start.`;
+        `Version ${version || "3.6.0"} makes Quick switcher+ priorities personal and action tests safer to start.`;
       [
         [
           "↕",
