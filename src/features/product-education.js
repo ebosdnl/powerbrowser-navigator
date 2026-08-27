@@ -136,17 +136,22 @@
         : "Updated";
       state.title.textContent = "What’s new";
       state.description.textContent =
-        `Version ${version || "3.5.8"} improves Quick switcher+ ranking and polish, and refreshes the Next-gen Pages icon.`;
+        `Version ${version || "3.6.0"} makes Quick switcher+ priorities personal and action tests safer to start.`;
       [
         [
           "↕",
-          "Prioritize views and navigation",
-          "Enable the new Quick switcher+ setting to place matching views and navigation destinations before other results.",
+          "Your result order",
+          "Drag Quick switcher+ result types into priority order, or hide types you do not need.",
         ],
         [
-          "🗏",
-          "Updated Pages icon",
-          "Next-gen Pages now uses a compact multi-page icon that fits cleanly alongside the other navigation icons.",
+          "★",
+          "Frequently visited",
+          "Quick switcher+ remembers destinations per application without treating URL parameters as separate visits.",
+        ],
+        [
+          "{}",
+          "Empty test variables",
+          "Generated Action Playground variables now start empty instead of using their type labels as values.",
         ],
       ].forEach((feature) =>
         state.body.appendChild(

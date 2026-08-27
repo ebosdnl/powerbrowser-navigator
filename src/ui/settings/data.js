@@ -91,7 +91,9 @@
         Number.isFinite(value) &&
         Number.isInteger(value) &&
         value >= Number(definition.min) &&
-        value <= Number(definition.max))
+        value <= Number(definition.max)) ||
+      (definition.type === "sortable-list" &&
+        isQuickSwitcherResultPreferences(value))
     );
   }
 

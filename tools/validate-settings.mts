@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import vm from "node:vm";
+import { QUICK_SWITCHER_RESULT_TYPES } from "../src/core/quick-switcher-preferences.js";
 import { validateSettingsDefinitions } from "../src/core/settings-validation.js";
 import type { SettingDefinition, SettingsTab } from "../src/core/types.js";
 
@@ -8,6 +9,7 @@ const source = (await readFile("src/config/definitions.js", "utf8")).replace(
   "",
 );
 const context = vm.createContext({
+  QUICK_SWITCHER_RESULT_TYPES,
   SiteType: Object.freeze({
     RUNTIME: "runtime",
     NEXTGEN: "nextgen",

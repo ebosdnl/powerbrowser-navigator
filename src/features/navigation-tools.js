@@ -268,6 +268,10 @@
   const QUICK_SWITCHER_VIEW_BRIDGE_RESPONSE =
     "power-browser:betty5-references:response";
   const QUICK_SWITCHER_VIEW_STORAGE_KEY = "powerBrowserQuickSwitcherViews";
+  const QUICK_SWITCHER_VISITS_STORAGE_KEY =
+    "powerBrowserQuickSwitcherVisits";
+  const QUICK_SWITCHER_VISIT_LIMIT = 100;
+  const QUICK_SWITCHER_FREQUENT_RESULT_LIMIT = 10;
   const QUICK_SWITCHER_VIEW_CACHE_VERSION = 2;
   const QUICK_SWITCHER_DEVELOPMENT_CACHE_TTL = 5 * 60 * 1000;
   let quickSwitcherViewBridgeInstalled = false;
@@ -1084,34 +1088,53 @@
 
   function searchModelEntries(entries, query, limit = 75) {
     const normalizedQuery = query.trim().toLowerCase();
-    const includeKind = Boolean(getSettingValue("runtimeSearchIncludeKind"));
-    const excludeRelations = Boolean(
-      getSettingValue("runtimeSearchExcludeRelations"),
+    const resultPreferences = normalizeQuickSwitcherResultPreferences(
+      getSettingValue("runtimeSearchResultTypes"),
     );
-    const prioritizeViewsAndNavigation = Boolean(
-      getSettingValue("runtimeSearchPrioritizeViewsAndNavigation"),
+    const enabledTypes = new Set(
+      resultPreferences
+        .filter((preference) => preference.enabled)
+        .map((preference) => preference.id),
     );
-    const availableEntries = excludeRelations
-      ? entries.filter((entry) => entry.type !== "relation")
-      : entries;
+    const typePriorities = new Map(
+      resultPreferences.map((preference, index) => [preference.id, index]),
+    );
+    const availableEntries = entries.filter((entry) =>
+      enabledTypes.has(entry.type),
+    );
 
     if (!normalizedQuery) {
+      const visits = getQuickSwitcherVisits();
       return availableEntries
-        .filter((entry) => entry.type === "navigation")
-        .sort((left, right) => left.order - right.order)
-        .slice(0, limit);
+        .filter((entry) => entry.type !== "navigation")
+        .map((entry) => ({
+          entry,
+          visit: getQuickSwitcherVisit(entry, visits),
+        }))
+        .filter(({ visit }) => visit)
+        .sort(
+          (left, right) =>
+            right.visit.count - left.visit.count ||
+            right.visit.lastVisited - left.visit.lastVisited ||
+            (typePriorities.get(left.entry.type) ?? Number.MAX_SAFE_INTEGER) -
+              (typePriorities.get(right.entry.type) ?? Number.MAX_SAFE_INTEGER) ||
+            left.entry.title.localeCompare(right.entry.title, undefined, {
+              sensitivity: "base",
+          }),
+        )
+        .slice(0, Math.min(limit, QUICK_SWITCHER_FREQUENT_RESULT_LIMIT))
+        .map(({ entry, visit }) => ({
+          ...entry,
+          quickSwitcherFrequent: true,
+          quickSwitcherVisitCount: visit.count,
+        }));
     }
 
     const terms = normalizedQuery.split(/\s+/).filter(Boolean);
 
     return availableEntries
       .filter((entry) =>
-        terms.every((term) =>
-          (includeKind
-            ? entry.searchText
-            : entry.searchTextWithoutKind
-          ).includes(term),
-        ),
+        terms.every((term) => entry.searchText.includes(term)),
       )
       .map((entry) => {
         const normalizedTitle = entry.title.toLowerCase();
@@ -1131,14 +1154,8 @@
       })
       .sort(
         (left, right) =>
-          (prioritizeViewsAndNavigation
-            ? Number(
-                !["view", "navigation"].includes(left.entry.type),
-              ) -
-              Number(
-                !["view", "navigation"].includes(right.entry.type),
-              )
-            : 0) ||
+          (typePriorities.get(left.entry.type) ?? Number.MAX_SAFE_INTEGER) -
+            (typePriorities.get(right.entry.type) ?? Number.MAX_SAFE_INTEGER) ||
           left.score - right.score ||
           left.entry.title.localeCompare(right.entry.title, undefined, {
             sensitivity: "base",
@@ -1265,8 +1282,13 @@
       filteredEntries: [],
       activeIndex: -1,
       identifier: null,
+      observedVisitUrl: null,
+      currentVisitRecorded: false,
       lastFocusedElement: null,
     };
+    subscribePowerBrowserNavigation(() =>
+      recordCurrentQuickSwitcherVisit(),
+    );
     const theme = getPowerBrowserTheme();
     modelSearchState.dialog.classList.toggle(
       "power-browser-dark-v2",
@@ -1324,6 +1346,108 @@
         ? `/properties/${entry.id}`
         : "";
     return `${editorOrigin}/app/models/${entry.modelId}${propertyPath}`;
+  }
+
+  function getQuickSwitcherVisits() {
+    if (!modelSearchState?.identifier) {
+      return {};
+    }
+
+    const stored = GM_getValue(QUICK_SWITCHER_VISITS_STORAGE_KEY, {});
+    const visits = stored?.[modelSearchState.identifier];
+    return visits && typeof visits === "object" ? visits : {};
+  }
+
+  function getQuickSwitcherVisit(entry, visits = getQuickSwitcherVisits()) {
+    const url = normalizeUrlWithoutQuery(
+      getQuickSwitcherDestinationUrl(entry),
+    );
+    if (!url) {
+      return null;
+    }
+
+    const visit = visits[url];
+    return visit &&
+      Number.isFinite(visit.count) &&
+      Number.isFinite(visit.lastVisited)
+      ? visit
+      : null;
+  }
+
+  function recordQuickSwitcherVisit(entry) {
+    if (!modelSearchState?.identifier) {
+      return;
+    }
+
+    const url = normalizeUrlWithoutQuery(
+      getQuickSwitcherDestinationUrl(entry),
+    );
+    if (!url) {
+      return;
+    }
+
+    const stored = GM_getValue(QUICK_SWITCHER_VISITS_STORAGE_KEY, {});
+    const visits = stored?.[modelSearchState.identifier];
+    const currentVisits =
+      visits && typeof visits === "object" ? visits : {};
+    const currentVisit = currentVisits[url];
+    const nextVisits = {
+      ...currentVisits,
+      [url]: {
+        count:
+          (Number.isFinite(currentVisit?.count) ? currentVisit.count : 0) + 1,
+        lastVisited: Date.now(),
+      },
+    };
+    const limitedVisits = Object.fromEntries(
+      Object.entries(nextVisits)
+        .sort(
+          ([, left], [, right]) =>
+            right.lastVisited - left.lastVisited,
+        )
+        .slice(0, QUICK_SWITCHER_VISIT_LIMIT),
+    );
+
+    GM_setValue(QUICK_SWITCHER_VISITS_STORAGE_KEY, {
+      ...(stored && typeof stored === "object" ? stored : {}),
+      [modelSearchState.identifier]: limitedVisits,
+    });
+  }
+
+  function recordCurrentQuickSwitcherVisit() {
+    if (!modelSearchState?.identifier) {
+      return;
+    }
+
+    const currentUrl = normalizeUrlWithoutQuery(location.href);
+    if (modelSearchState.observedVisitUrl !== currentUrl) {
+      modelSearchState.observedVisitUrl = currentUrl;
+      modelSearchState.currentVisitRecorded = false;
+    }
+    if (modelSearchState.currentVisitRecorded) {
+      return;
+    }
+
+    const enabledTypes = new Set(
+      normalizeQuickSwitcherResultPreferences(
+        getSettingValue("runtimeSearchResultTypes"),
+      )
+        .filter((preference) => preference.enabled)
+        .map((preference) => preference.id),
+    );
+    const matchingEntry = modelSearchState.entries.find(
+      (entry) =>
+        entry.type !== "navigation" &&
+        enabledTypes.has(entry.type) &&
+        normalizeUrlWithoutQuery(getQuickSwitcherDestinationUrl(entry)) ===
+          currentUrl,
+    );
+    if (!matchingEntry) {
+      return;
+    }
+
+    recordQuickSwitcherVisit(matchingEntry);
+    modelSearchState.currentVisitRecorded = true;
   }
 
   function getModelBackofficeUrl(entry) {
@@ -1415,6 +1539,7 @@
       ...modelSearchState.actionEntries,
       ...modelSearchState.viewEntries,
     ];
+    recordCurrentQuickSwitcherVisit();
   }
 
   async function loadQuickSwitcherViews(
@@ -1541,7 +1666,7 @@
       const query = modelSearchState.input.value.trim();
       empty.textContent = query
         ? `No Quick switcher+ results found for “${query}”.`
-        : "No navigation destinations are available on this page.";
+        : "No frequently opened destinations yet.";
       modelSearchState.results.appendChild(empty);
       return;
     }
@@ -1578,7 +1703,9 @@
 
       const meta = document.createElement("span");
       meta.className = "power-browser-model-search-meta-v2";
-      meta.textContent = entry.meta;
+      meta.textContent = entry.quickSwitcherFrequent
+        ? `Frequently visited ${entry.quickSwitcherVisitCount} ${entry.quickSwitcherVisitCount === 1 ? "time" : "times"} · ${entry.meta}`
+        : entry.meta;
 
       const open = document.createElement("button");
       open.type = "button";
@@ -1645,6 +1772,7 @@
       return;
     }
 
+    closeSettings();
     refreshQuickSwitcherEntries();
     if (!modelSearchState.entries.length) {
       return;
@@ -1767,6 +1895,8 @@
       state.actionsLoaded = false;
       state.viewEntries = [];
       state.viewsLoaded = false;
+      state.observedVisitUrl = null;
+      state.currentVisitRecorded = false;
     }
     state.baseEntries = entries;
     state.artifactData = artifactData;

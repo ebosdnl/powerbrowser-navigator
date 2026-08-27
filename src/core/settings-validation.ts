@@ -6,6 +6,7 @@ const VALID_TYPES = new Set<SettingType>([
   "theme",
   "size",
   "number",
+  "sortable-list",
 ]);
 
 export function validateSettingsDefinitions(
@@ -68,6 +69,15 @@ export function validateSettingsDefinitions(
           `Number setting "${definition.key}" needs a default between its min and max.`,
         );
       }
+    }
+    if (
+      definition?.type === "sortable-list" &&
+      (!Array.isArray(definition.defaultValue) ||
+        !Array.isArray(definition.items))
+    ) {
+      errors.push(
+        `Sortable list "${definition.key}" needs item and default-value arrays.`,
+      );
     }
   }
 

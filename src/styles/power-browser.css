@@ -1549,6 +1549,90 @@
       border-color: #d4d6dd;
     }
 
+    .power-browser-settings-card-list-v2 {
+      grid-template-columns: minmax(0, 1fr);
+      align-items: start;
+    }
+
+    .power-browser-settings-sortable-list-v2 {
+      display: grid;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .power-browser-settings-sortable-item-v2 {
+      display: grid;
+      grid-template-columns: auto auto minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+      padding: 9px 10px;
+      color: #303442;
+      background: #f8f8fa;
+      border: 1px solid #e0e2e7;
+      border-radius: 8px;
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-drag: none;
+    }
+
+    .power-browser-settings-sortable-item-v2:focus-visible {
+      border-color: #e9004c;
+      outline: 3px solid rgba(233, 0, 76, 0.12);
+    }
+
+    .power-browser-settings-sortable-item-v2.dragging {
+      opacity: 0.48;
+    }
+
+    .power-browser-settings-sortable-list-v2.dragging,
+    .power-browser-settings-sortable-list-v2.dragging * {
+      cursor: grabbing !important;
+    }
+
+    html.power-browser-settings-sorting-v2,
+    html.power-browser-settings-sorting-v2 * {
+      cursor: grabbing !important;
+      user-select: none !important;
+      -webkit-user-drag: none !important;
+    }
+
+    .power-browser-settings-drag-handle-v2 {
+      display: inline-flex;
+      width: 18px;
+      height: 18px;
+      color: #8a8f9d;
+      user-select: none;
+    }
+
+    .power-browser-settings-drag-handle-v2 svg {
+      width: 100%;
+      height: 100%;
+    }
+
+    .power-browser-settings-priority-v2 {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      color: #6a6f7d;
+      background: #fff;
+      border: 1px solid #d9dbe2;
+      border-radius: 50%;
+      font-size: 10px;
+      font-weight: 750;
+    }
+
+    .power-browser-settings-sortable-item-v2 > strong {
+      overflow: hidden;
+      font-size: 12px;
+      font-weight: 650;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
     .power-browser-settings-card-v2.setting-flash {
       animation: power-browser-settings-flash-v2 1.65s ease;
     }
@@ -2910,6 +2994,19 @@
     }
 
     .power-browser-dark-v2
+      .power-browser-settings-sortable-item-v2 {
+      color: #f4f5f7;
+      background: #202431;
+      border-color: #4a5061;
+    }
+
+    .power-browser-dark-v2 .power-browser-settings-priority-v2 {
+      color: #d5d8e0;
+      background: #343949;
+      border-color: #565d70;
+    }
+
+    .power-browser-dark-v2
       .power-browser-settings-search-v2 input {
       color: #f4f5f7;
       background: #202431;
@@ -3261,6 +3358,19 @@
       .power-browser-settings-card-v2 {
       background: #fff;
       border-color: #dce2ff;
+    }
+
+    .power-browser-betty-theme-v2
+      .power-browser-settings-sortable-item-v2 {
+      color: #29304a;
+      background: #f8f9ff;
+      border-color: #dce2ff;
+    }
+
+    .power-browser-betty-theme-v2
+      .power-browser-settings-priority-v2 {
+      color: #395afc;
+      border-color: #bec9ff;
     }
 
     .power-browser-betty-theme-v2

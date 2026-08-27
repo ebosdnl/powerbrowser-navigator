@@ -36,6 +36,13 @@ export {
   getQuickSwitcherViewCachePolicy,
   isQuickSwitcherViewCacheFresh,
 } from "./view-cache-policy.js";
+export {
+  QUICK_SWITCHER_RESULT_TYPES,
+  emptyJsonLeafValues,
+  isQuickSwitcherResultPreferences,
+  normalizeQuickSwitcherResultPreferences,
+  normalizeUrlWithoutQuery,
+} from "./quick-switcher-preferences.js";
 export type {
   AuthSnapshot,
   AuthStatus,

@@ -312,6 +312,187 @@
           renderSettingsTab(navigator);
         });
         card.appendChild(input);
+      } else if (definition.type === "sortable-list") {
+        card.classList.add("power-browser-settings-card-list-v2");
+        const sortableList = document.createElement("div");
+        sortableList.className = "power-browser-settings-sortable-list-v2";
+        sortableList.setAttribute("role", "list");
+        sortableList.setAttribute("aria-label", definition.label);
+        sortableList.addEventListener(
+          "dragstart",
+          (event) => event.preventDefault(),
+          true,
+        );
+        const preferences = normalizeQuickSwitcherResultPreferences(
+          getEditableSettingValue(definition.key),
+        );
+        const labels = new Map(
+          (definition.items || []).map((item) => [item.id, item.label]),
+        );
+        const persistPreferences = (nextPreferences) => {
+          setSettingValue(definition.key, nextPreferences);
+          applySettingChange(
+            navigator,
+            definition,
+            getSettingValue(definition.key),
+          );
+          renderSettingsTab(navigator);
+        };
+        const readCurrentOrder = () => {
+          const byId = new Map(
+            preferences.map((preference) => [preference.id, preference]),
+          );
+          return Array.from(sortableList.children).map(({ dataset }) => ({
+            ...byId.get(dataset.resultType),
+          }));
+        };
+
+        preferences.forEach((preference, index) => {
+          const item = document.createElement("div");
+          item.className = "power-browser-settings-sortable-item-v2";
+          item.dataset.resultType = preference.id;
+          item.tabIndex = 0;
+          item.setAttribute("role", "listitem");
+          item.setAttribute(
+            "aria-label",
+            `${labels.get(preference.id) || preference.id}, priority ${index + 1}`,
+          );
+
+          const handle = document.createElement("span");
+          handle.className = "power-browser-settings-drag-handle-v2";
+          handle.innerHTML = SvgIcons.dragVertical;
+          handle.title = "Drag to change priority";
+          handle.setAttribute("aria-hidden", "true");
+          const priority = document.createElement("span");
+          priority.className = "power-browser-settings-priority-v2";
+          priority.textContent = String(index + 1);
+          const itemLabel = document.createElement("strong");
+          itemLabel.textContent = labels.get(preference.id) || preference.id;
+
+          const toggle = document.createElement("label");
+          toggle.className = "power-browser-settings-toggle-v2";
+          const input = document.createElement("input");
+          input.type = "checkbox";
+          input.checked = preference.enabled;
+          input.setAttribute(
+            "aria-label",
+            `Show ${labels.get(preference.id) || preference.id} results`,
+          );
+          const track = document.createElement("span");
+          track.className = "power-browser-settings-toggle-track-v2";
+          input.addEventListener("change", () => {
+            persistPreferences(
+              preferences.map((itemPreference) =>
+                itemPreference.id === preference.id
+                  ? { ...itemPreference, enabled: input.checked }
+                  : itemPreference,
+              ),
+            );
+          });
+          toggle.append(input, track);
+          item.append(handle, priority, itemLabel, toggle);
+
+          const updateDisplayedPriorities = () => {
+            Array.from(sortableList.children).forEach(
+              (orderedItem, priorityIndex) => {
+                orderedItem.querySelector(
+                  ".power-browser-settings-priority-v2",
+                ).textContent = String(priorityIndex + 1);
+              },
+            );
+          };
+          let activePointerId = null;
+          const movePointerDrag = (event) => {
+            if (activePointerId !== event.pointerId) {
+              return;
+            }
+            event.preventDefault();
+            const beforeItem = Array.from(sortableList.children)
+              .filter((candidate) => candidate !== item)
+              .find(
+                (candidate) =>
+                  event.clientY <
+                  candidate.getBoundingClientRect().top +
+                    candidate.offsetHeight / 2,
+              );
+            sortableList.insertBefore(item, beforeItem || null);
+            updateDisplayedPriorities();
+          };
+          const finishPointerDrag = (event, canceled = false) => {
+            if (activePointerId !== event.pointerId) {
+              return;
+            }
+            activePointerId = null;
+            window.removeEventListener("pointermove", movePointerDrag, true);
+            window.removeEventListener("pointerup", finishPointerDrag, true);
+            window.removeEventListener("pointercancel", cancelPointerDrag, true);
+            window.removeEventListener("blur", cancelPointerDrag, true);
+            item.classList.remove("dragging");
+            sortableList.classList.remove("dragging");
+            document.documentElement.classList.remove(
+              "power-browser-settings-sorting-v2",
+            );
+            if (canceled) {
+              renderSettingsTab(navigator);
+              return;
+            }
+            const nextPreferences = readCurrentOrder();
+            if (
+              nextPreferences.some(
+                ({ id }, preferenceIndex) =>
+                  id !== preferences[preferenceIndex]?.id,
+              )
+            ) {
+              persistPreferences(nextPreferences);
+            }
+          };
+          const cancelPointerDrag = () => {
+            if (activePointerId !== null) {
+              finishPointerDrag({ pointerId: activePointerId }, true);
+            }
+          };
+          item.addEventListener("pointerdown", (event) => {
+            if (
+              event.button !== 0 ||
+              event.target.closest(".power-browser-settings-toggle-v2")
+            ) {
+              return;
+            }
+            event.preventDefault();
+            activePointerId = event.pointerId;
+            item.classList.add("dragging");
+            sortableList.classList.add("dragging");
+            document.documentElement.classList.add(
+              "power-browser-settings-sorting-v2",
+            );
+            window.addEventListener("pointermove", movePointerDrag, true);
+            window.addEventListener("pointerup", finishPointerDrag, true);
+            window.addEventListener("pointercancel", cancelPointerDrag, true);
+            window.addEventListener("blur", cancelPointerDrag, true);
+          });
+          item.addEventListener("keydown", (event) => {
+            if (
+              event.target !== item ||
+              !["ArrowUp", "ArrowDown"].includes(event.key)
+            ) {
+              return;
+            }
+            event.preventDefault();
+            const sibling =
+              event.key === "ArrowUp"
+                ? item.previousElementSibling
+                : item.nextElementSibling;
+            if (!sibling) return;
+            sortableList.insertBefore(
+              item,
+              event.key === "ArrowUp" ? sibling : sibling.nextSibling,
+            );
+            persistPreferences(readCurrentOrder());
+          });
+
+          sortableList.appendChild(item);
+        });
+        card.appendChild(sortableList);
       } else if (definition.type === "toggle") {
         const wrapper = document.createElement("label");
         wrapper.className = "power-browser-settings-toggle-v2";
@@ -697,6 +878,7 @@
   }
 
   function openSettings(navigator) {
+    closeModelSearch();
     const state = ensureSettingsDialog(navigator);
     state.sectionsExpanded = true;
     renderSettingsTab(navigator);

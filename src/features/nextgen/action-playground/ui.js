@@ -790,9 +790,25 @@
         "data-power-browser-action-variables-v2",
         "",
       );
-      const savedVariables =
+      let savedVariables =
         variablesTextarea.dataset
           .powerBrowserActionVariablesDraftV350;
+      if (savedVariables === undefined) {
+        try {
+          const generatedVariables = JSON.parse(
+            variablesTextarea.value || "{}",
+          );
+          savedVariables = JSON.stringify(
+            emptyJsonLeafValues(generatedVariables),
+            null,
+            2,
+          );
+          variablesTextarea.dataset.powerBrowserActionVariablesDraftV350 =
+            savedVariables;
+        } catch {
+          // Leave invalid native placeholder content available for manual edits.
+        }
+      }
       if (
         savedVariables !== undefined &&
         variablesTextarea.value !== savedVariables

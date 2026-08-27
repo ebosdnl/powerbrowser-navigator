@@ -54,7 +54,8 @@ export interface SettingsTab {
   label: string;
 }
 
-export type SettingType = "toggle" | "shortcut" | "theme" | "size" | "number";
+export type SettingType =
+  "toggle" | "shortcut" | "theme" | "size" | "number" | "sortable-list";
 
 export interface SettingDefinition {
   key: string;

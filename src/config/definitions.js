@@ -21,6 +21,8 @@
       '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 10.63A2.63 2.63 0 1 0 8 5.37a2.63 2.63 0 0 0 0 5.26zm5.35-1.94 1.51 1.15-1.38 2.89-1.78-.69c-.47.33-1.01.64-1.65.82L9.78 15H6.22l-.27-2.14a5.9 5.9 0 0 1-1.65-.82l-1.78.69-1.38-2.89 1.51-1.15A5.2 5.2 0 0 1 2.62 8c0-.31.01-.54.03-.69L1.14 6.16l1.38-2.89 1.78.69c.47-.33 1.01-.64 1.65-.82L6.22 1h3.56l.27 2.14c.64.18 1.18.49 1.65.82l1.78-.69 1.38 2.89-1.51 1.15c.02.15.03.38.03.69s-.01.54-.03.69z"/></svg>',
     switch:
       '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 4-4v3h9v2h-9v3L7 7zm10 10-4 4v-3H4v-2h9v-3l4 4z"/></svg>',
+    dragVertical:
+      '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M14 18C14 18.5523 14.4477 19 15 19C15.5523 19 16 18.5523 16 18C16 17.4477 15.5523 17 15 17C14.4477 17 14 17.4477 14 18Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 18C8 18.5523 8.44772 19 9 19C9.55228 19 10 18.5523 10 18C10 17.4477 9.55228 17 9 17C8.44772 17 8 17.4477 8 18Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 12C14 12.5523 14.4477 13 15 13C15.5523 13 16 12.5523 16 12C16 11.4477 15.5523 11 15 11C14.4477 11 14 11.4477 14 12Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 12C8 12.5523 8.44772 13 9 13C9.55228 13 10 12.5523 10 12C10 11.4477 9.55228 11 9 11C8.44772 11 8 11.4477 8 12Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 6C14 6.55228 14.4477 7 15 7C15.5523 7 16 6.55228 16 6C16 5.44772 15.5523 5 15 5C14.4477 5 14 5.44772 14 6Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 6C8 6.55228 8.44772 7 9 7C9.55228 7 10 6.55228 10 6C10 5.44772 9.55228 5 9 5C8.44772 5 8 5.44772 8 6Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     action:
       '<svg viewBox="0 0 14 14" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M5.69976 0.33991C5.82627 0.12906 6.05412 0.00005 6.3 0.00005L11.9 0.00005C12.16215 0.00005 12.40243 0.1466 12.52239 0.37975C12.64235 0.6129 12.62196 0.89355 12.46962 1.10692L9.41019 4.90005H11.2C11.48306 4.90005 11.73839 5.0706 11.84671 5.33217C11.95504 5.59374 11.89519 5.89482 11.69499 6.09502L3.99499 13.79499C3.75223 14.0378 3.36923 14.06869 3.09072 13.86787C2.81221 13.66715 2.72038 13.29405 2.87392 12.98701L5.16738 8.40004H2.10002C1.84783 8.40004 1.61514 8.26439 1.49088 8.04493C1.36663 7.82548 1.37002 7.55615 1.49978 7.3399L5.69976 0.33991Z"/></svg>',
     nextgenPage:
@@ -165,6 +167,16 @@
       invertedValue: true,
     },
     {
+      key: "buttonPlaygroundHidden",
+      tab: "general",
+      section: "Navigation visibility",
+      label: "Show Playground shortcut",
+      description: "Show the GraphQL playground shortcut.",
+      type: "toggle",
+      defaultValue: false,
+      invertedValue: true,
+    },
+    {
       key: "environmentSafetyBadge",
       tab: "general",
       section: "Environment safety",
@@ -199,16 +211,6 @@
       section: "Navigation visibility",
       label: "Show Monitoring shortcut",
       description: "Show the application monitoring shortcut.",
-      type: "toggle",
-      defaultValue: false,
-      invertedValue: true,
-    },
-    {
-      key: "buttonPlaygroundHidden",
-      tab: "general",
-      section: "Navigation visibility",
-      label: "Show Playground shortcut",
-      description: "Show the GraphQL playground shortcut.",
       type: "toggle",
       defaultValue: false,
       invertedValue: true,
@@ -544,31 +546,17 @@
       invertedValue: true,
     },
     {
-      key: "runtimeSearchIncludeKind",
+      key: "runtimeSearchResultTypes",
       tab: "general",
       section: "Quick switcher+",
-      label: "Search property kinds",
-      description: "Include kinds such as text, belongs_to and has_many in Quick switcher+ searches.",
-      type: "toggle",
-      defaultValue: true,
-    },
-    {
-      key: "runtimeSearchExcludeRelations",
-      tab: "general",
-      section: "Quick switcher+",
-      label: "Exclude relation properties",
-      description: "Hide belongs-to, has-many and HABTM relations from Quick switcher+ searches.",
-      type: "toggle",
-      defaultValue: false,
-    },
-    {
-      key: "runtimeSearchPrioritizeViewsAndNavigation",
-      tab: "general",
-      section: "Quick switcher+",
-      label: "Prioritize views and navigation",
-      description: "Show matching views and navigation destinations before other Quick switcher+ results.",
-      type: "toggle",
-      defaultValue: false,
+      label: "Result types",
+      description: "Drag result types into priority order and turn off the types you want to hide.",
+      type: "sortable-list",
+      items: QUICK_SWITCHER_RESULT_TYPES,
+      defaultValue: QUICK_SWITCHER_RESULT_TYPES.map(({ id }) => ({
+        id,
+        enabled: true,
+      })),
     },
     {
       key: "extraMenuHideModifier",
