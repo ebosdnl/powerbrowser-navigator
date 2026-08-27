@@ -136,17 +136,17 @@
         : "Updated";
       state.title.textContent = "What’s new";
       state.description.textContent =
-        `Version ${version || "3.5.8"} makes it easier to share feedback about Power Browser.`;
+        `Version ${version || "3.5.8"} improves Quick switcher+ ranking and polish, and refreshes the Next-gen Pages icon.`;
       [
         [
-          "!",
-          "Report bugs and request features",
-          "Use the new button above the version number in Settings to open the Power Browser GitHub issues page.",
+          "↕",
+          "Prioritize views and navigation",
+          "Enable the new Quick switcher+ setting to place matching views and navigation destinations before other results.",
         ],
         [
-          "▣",
-          "Clearer interface details",
-          "The feedback button now shows a pop-out icon, the settings scope chevron has more breathing room, and Next-gen Pages uses a distinct multi-page icon.",
+          "🗏",
+          "Updated Pages icon",
+          "Next-gen Pages now uses a compact multi-page icon that fits cleanly alongside the other navigation icons.",
         ],
       ].forEach((feature) =>
         state.body.appendChild(

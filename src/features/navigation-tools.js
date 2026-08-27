@@ -636,6 +636,7 @@
 
     const sequence = (state.nativeViewSearchSequence || 0) + 1;
     state.nativeViewSearchSequence = sequence;
+    document.documentElement.dataset.powerBrowserNativeSearchProxy = "true";
     let searchbox = document.querySelector("#searchbox");
     if (!searchbox) {
       state.nativeSearchOpenedByQuickSwitcher = true;
@@ -702,6 +703,9 @@
     if (!state) {
       return;
     }
+    document.documentElement.removeAttribute(
+      "data-power-browser-native-search-proxy",
+    );
     state.nativeViewSearchSequence =
       (state.nativeViewSearchSequence || 0) + 1;
     const searchbox = document.querySelector(
@@ -1084,6 +1088,9 @@
     const excludeRelations = Boolean(
       getSettingValue("runtimeSearchExcludeRelations"),
     );
+    const prioritizeViewsAndNavigation = Boolean(
+      getSettingValue("runtimeSearchPrioritizeViewsAndNavigation"),
+    );
     const availableEntries = excludeRelations
       ? entries.filter((entry) => entry.type !== "relation")
       : entries;
@@ -1124,6 +1131,14 @@
       })
       .sort(
         (left, right) =>
+          (prioritizeViewsAndNavigation
+            ? Number(
+                !["view", "navigation"].includes(left.entry.type),
+              ) -
+              Number(
+                !["view", "navigation"].includes(right.entry.type),
+              )
+            : 0) ||
           left.score - right.score ||
           left.entry.title.localeCompare(right.entry.title, undefined, {
             sensitivity: "base",

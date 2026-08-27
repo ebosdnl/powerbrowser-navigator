@@ -103,9 +103,11 @@
     }
 
     if (
-      ["runtimeSearchIncludeKind", "runtimeSearchExcludeRelations"].includes(
-        definition.key,
-      ) &&
+      [
+        "runtimeSearchIncludeKind",
+        "runtimeSearchExcludeRelations",
+        "runtimeSearchPrioritizeViewsAndNavigation",
+      ].includes(definition.key) &&
       modelSearchState?.dialog.classList.contains("open")
     ) {
       renderModelSearchResults();

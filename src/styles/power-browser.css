@@ -479,6 +479,7 @@
       display: block;
     }
 
+    :root[data-power-browser-native-search-proxy="true"] #searchbox,
     #searchbox[data-power-browser-quick-switcher-proxy="true"] {
       display: none !important;
     }
@@ -542,8 +543,10 @@
       display: flex;
       flex-direction: column;
       gap: 4px;
+      min-width: 0;
       margin: 0;
       padding: 8px;
+      overflow-x: hidden;
       overflow-y: auto;
       list-style: none;
     }
@@ -553,13 +556,16 @@
       grid-template-columns: minmax(0, 1fr) auto;
       align-items: stretch;
       gap: 4px;
+      min-width: 0;
     }
 
     .power-browser-model-search-result-v2 {
+      box-sizing: border-box;
       display: grid;
       grid-template-columns: auto minmax(0, 1fr) auto;
       align-items: center;
       gap: 12px;
+      min-width: 0;
       width: 100%;
       padding: 11px 12px;
       border: 0;
@@ -642,12 +648,14 @@
     }
 
     .power-browser-model-search-open-v2 {
+      box-sizing: border-box;
       padding: 5px 8px;
       border: 1px solid #d9dbe2;
       border-radius: 6px;
       color: #4e5360;
       background: #fff;
       font-size: 11px;
+      white-space: nowrap;
       cursor: pointer;
       appearance: none;
     }
@@ -660,9 +668,11 @@
     }
 
     .power-browser-model-search-backoffice-v2 {
+      box-sizing: border-box;
       display: inline-flex;
       align-items: center;
       justify-content: center;
+      min-width: 42px;
       width: 42px;
       padding: 0;
       border: 1px solid transparent;
