@@ -2,7 +2,7 @@
 // @name         Power Browser Navigator V2
 // @description  Navigation, Quick switcher+, settings, diagnostics, and developer productivity tools for Betty Blocks.
 // @tag          Productivity
-// @version      3.6.1
+// @version      3.6.2
 // @updateURL    https://github.com/ebosdnl/powerbrowser-navigator/releases/latest/download/bb-powerbrowser.user.js
 // @downloadURL  https://github.com/ebosdnl/powerbrowser-navigator/releases/latest/download/bb-powerbrowser.user.js
 // @author       Enrique Bos, Menno Weijling (OG grondlegger), Sven Truschel, Hacker

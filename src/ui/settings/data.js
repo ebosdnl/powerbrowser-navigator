@@ -12,7 +12,9 @@
     });
     GM_deleteValue("powerBrowserApplicationProfiles");
     GM_deleteValue("powerBrowserApplicationProfileNames");
+    GM_deleteValue(POWER_BROWSER_NAVIGATION_HIDDEN_KEY);
     applyEffectiveSettings(navigator);
+    applyPersistentNavigatorVisibility(navigator, false);
     renderSettingsTab(navigator);
   }
 

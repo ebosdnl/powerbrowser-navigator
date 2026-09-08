@@ -944,9 +944,7 @@
       )
     ) {
       event.preventDefault();
-      navigator.navigatorBar.classList.toggle(
-        "power-browser-setting-hidden-v2",
-      );
+      togglePersistentNavigatorVisibility(navigator);
     }
   }
 
@@ -1008,6 +1006,14 @@
         }
       },
     );
+    globalThis.GM_addValueChangeListener(
+      POWER_BROWSER_NAVIGATION_HIDDEN_KEY,
+      (_key, _oldValue, newValue, remote) => {
+        if (remote) {
+          applyPersistentNavigatorVisibility(navigator, newValue);
+        }
+      },
+    );
   }
 
   function initializeSettings(navigator) {
@@ -1035,6 +1041,10 @@
     initializeSettingSynchronization(navigator);
     applyAppearanceSettings(navigator);
     applyNavigatorVisibilitySettings(navigator);
+    applyPersistentNavigatorVisibility(
+      navigator,
+      GM_getValue(POWER_BROWSER_NAVIGATION_HIDDEN_KEY, false),
+    );
   }
 
   function initializeHoldToHideMenu(navigator) {

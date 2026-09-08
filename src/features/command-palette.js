@@ -52,10 +52,7 @@
       {
         label: "Toggle navigation bar",
         keywords: "show hide menu",
-        action: () =>
-          navigator.navigatorBar.classList.toggle(
-            "power-browser-setting-hidden-v2",
-          ),
+        action: () => togglePersistentNavigatorVisibility(navigator),
       },
     ];
 

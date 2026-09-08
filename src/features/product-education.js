@@ -138,6 +138,11 @@
       state.description.textContent = "";
       [
         [
+          "◫",
+          "Persistent navigation visibility",
+          "When you hide the navigation bar, it stays hidden after reloads and syncs across open tabs.",
+        ],
+        [
           "↪",
           "Automatic Sub Action names",
           "Optionally name a Sub Action step after the action selected in its Action setting. Enable it under Next-gen → Actions.",

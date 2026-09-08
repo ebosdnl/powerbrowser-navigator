@@ -1,3 +1,21 @@
+  const POWER_BROWSER_NAVIGATION_HIDDEN_KEY =
+    "powerBrowserNavigationHidden";
+
+  function applyPersistentNavigatorVisibility(navigator, hidden) {
+    navigator.navigatorBar.classList.toggle(
+      "power-browser-setting-hidden-v2",
+      Boolean(hidden),
+    );
+  }
+
+  function togglePersistentNavigatorVisibility(navigator) {
+    const hidden = !Boolean(
+      GM_getValue(POWER_BROWSER_NAVIGATION_HIDDEN_KEY, false),
+    );
+    GM_setValue(POWER_BROWSER_NAVIGATION_HIDDEN_KEY, hidden);
+    applyPersistentNavigatorVisibility(navigator, hidden);
+  }
+
   function getSettingDefinition(key) {
     return SettingsDefinitions.find((setting) => setting.key === key) || null;
   }

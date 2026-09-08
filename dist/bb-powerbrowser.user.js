@@ -2,7 +2,7 @@
 // @name         Power Browser Navigator V2
 // @description  Navigation, Quick switcher+, settings, diagnostics, and developer productivity tools for Betty Blocks.
 // @tag          Productivity
-// @version      3.6.1
+// @version      3.6.2
 // @updateURL    https://github.com/ebosdnl/powerbrowser-navigator/releases/latest/download/bb-powerbrowser.user.js
 // @downloadURL  https://github.com/ebosdnl/powerbrowser-navigator/releases/latest/download/bb-powerbrowser.user.js
 // @author       Enrique Bos, Menno Weijling (OG grondlegger), Sven Truschel, Hacker
@@ -3509,6 +3509,24 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       stateRetryButton,
       environmentBadge,
     };
+  }
+
+  const POWER_BROWSER_NAVIGATION_HIDDEN_KEY =
+    "powerBrowserNavigationHidden";
+
+  function applyPersistentNavigatorVisibility(navigator, hidden) {
+    navigator.navigatorBar.classList.toggle(
+      "power-browser-setting-hidden-v2",
+      Boolean(hidden),
+    );
+  }
+
+  function togglePersistentNavigatorVisibility(navigator) {
+    const hidden = !Boolean(
+      GM_getValue(POWER_BROWSER_NAVIGATION_HIDDEN_KEY, false),
+    );
+    GM_setValue(POWER_BROWSER_NAVIGATION_HIDDEN_KEY, hidden);
+    applyPersistentNavigatorVisibility(navigator, hidden);
   }
 
   function getSettingDefinition(key) {
@@ -12543,7 +12561,9 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     });
     GM_deleteValue("powerBrowserApplicationProfiles");
     GM_deleteValue("powerBrowserApplicationProfileNames");
+    GM_deleteValue(POWER_BROWSER_NAVIGATION_HIDDEN_KEY);
     applyEffectiveSettings(navigator);
+    applyPersistentNavigatorVisibility(navigator, false);
     renderSettingsTab(navigator);
   }
 
@@ -14431,9 +14451,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       )
     ) {
       event.preventDefault();
-      navigator.navigatorBar.classList.toggle(
-        "power-browser-setting-hidden-v2",
-      );
+      togglePersistentNavigatorVisibility(navigator);
     }
   }
 
@@ -14495,6 +14513,14 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
         }
       },
     );
+    globalThis.GM_addValueChangeListener(
+      POWER_BROWSER_NAVIGATION_HIDDEN_KEY,
+      (_key, _oldValue, newValue, remote) => {
+        if (remote) {
+          applyPersistentNavigatorVisibility(navigator, newValue);
+        }
+      },
+    );
   }
 
   function initializeSettings(navigator) {
@@ -14522,6 +14548,10 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     initializeSettingSynchronization(navigator);
     applyAppearanceSettings(navigator);
     applyNavigatorVisibilitySettings(navigator);
+    applyPersistentNavigatorVisibility(
+      navigator,
+      GM_getValue(POWER_BROWSER_NAVIGATION_HIDDEN_KEY, false),
+    );
   }
 
   function initializeHoldToHideMenu(navigator) {
@@ -17563,6 +17593,11 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       state.description.textContent = "";
       [
         [
+          "◫",
+          "Persistent navigation visibility",
+          "When you hide the navigation bar, it stays hidden after reloads and syncs across open tabs.",
+        ],
+        [
           "↪",
           "Automatic Sub Action names",
           "Optionally name a Sub Action step after the action selected in its Action setting. Enable it under Next-gen → Actions.",
@@ -17705,10 +17740,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       {
         label: "Toggle navigation bar",
         keywords: "show hide menu",
-        action: () =>
-          navigator.navigatorBar.classList.toggle(
-            "power-browser-setting-hidden-v2",
-          ),
+        action: () => togglePersistentNavigatorVisibility(navigator),
       },
     ];
 
