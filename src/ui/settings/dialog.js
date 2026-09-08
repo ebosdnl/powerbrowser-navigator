@@ -214,6 +214,41 @@
           picker.appendChild(option);
         });
         card.appendChild(picker);
+      } else if (definition.type === "choice") {
+        const picker = document.createElement("div");
+        picker.className =
+          "power-browser-settings-choice-picker-v2";
+        picker.setAttribute("role", "radiogroup");
+        picker.setAttribute("aria-label", definition.label);
+        const selectedValue = getEditableSettingValue(definition.key);
+        definition.options.forEach(({ value: optionValue, label: optionLabel }) => {
+          const option = document.createElement("button");
+          option.type = "button";
+          option.className =
+            "power-browser-settings-choice-option-v2";
+          option.dataset.value = optionValue;
+          option.textContent = optionLabel;
+          option.classList.toggle(
+            "active",
+            optionValue === selectedValue,
+          );
+          option.setAttribute("role", "radio");
+          option.setAttribute(
+            "aria-checked",
+            String(optionValue === selectedValue),
+          );
+          option.addEventListener("click", () => {
+            setSettingValue(definition.key, optionValue);
+            applySettingChange(
+              navigator,
+              definition,
+              getSettingValue(definition.key),
+            );
+            renderSettingsTab(navigator);
+          });
+          picker.appendChild(option);
+        });
+        card.appendChild(picker);
       } else if (definition.type === "size") {
         const picker = document.createElement("div");
         picker.className =
@@ -854,8 +889,10 @@
       lastFocusedElement: null,
     };
 
-    overlay.addEventListener("click", closeSettings);
-    closeButton.addEventListener("click", closeSettings);
+    const closeSettingsFromClick = (event) =>
+      closeSettings({ restoreFocus: event.detail === 0 });
+    overlay.addEventListener("click", closeSettingsFromClick);
+    closeButton.addEventListener("click", closeSettingsFromClick);
     searchInput.addEventListener("input", () => {
       settingsState.searchQuery = searchInput.value;
       settingsState.content.scrollTop = 0;
@@ -901,14 +938,20 @@
     openSettings(navigator);
   }
 
-  function closeSettings() {
+  function closeSettings({ restoreFocus = true } = {}) {
     if (!settingsState?.dialog.classList.contains("open")) {
       return;
     }
 
     settingsState.overlay.classList.remove("open");
     settingsState.dialog.classList.remove("open");
-    closePowerBrowserModal(settingsState.dialog);
+    closePowerBrowserModal(settingsState.dialog, { restoreFocus });
+    if (
+      !restoreFocus &&
+      settingsState.dialog.contains(document.activeElement)
+    ) {
+      document.activeElement.blur?.();
+    }
   }
 
   function handleSettingsGlobalShortcut(event, navigator) {

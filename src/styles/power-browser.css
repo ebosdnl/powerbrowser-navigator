@@ -214,6 +214,70 @@
       font-family: Arial, sans-serif;
     }
 
+    .power-browser-navigation-handle-v2 {
+      position: absolute;
+      top: 44px;
+      left: 50%;
+      display: none;
+      box-sizing: border-box;
+      width: 48px;
+      height: 20px;
+      align-items: center;
+      justify-content: center;
+      padding: 0 14px 3px;
+      color: #555a68;
+      background: rgba(255, 255, 255, 0.96);
+      border: 1px solid rgba(31, 35, 48, 0.16);
+      border-top: 0;
+      border-radius: 0 0 12px 12px;
+      box-shadow: 0 3px 7px rgba(0, 0, 0, 0.1);
+      transform: translateX(-50%);
+      cursor: pointer;
+    }
+
+    .power-browser-navigation-handle-v2 svg {
+      width: 13px;
+      height: 13px;
+      fill: currentColor;
+      transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .power-browser-navigation-handle-v2:focus-visible {
+      outline: 2px solid #e9004c;
+      outline-offset: 2px;
+    }
+
+    .power-browser-navigation-auto-hide-v2 {
+      box-sizing: border-box;
+      width: 48px;
+      min-width: 48px;
+      height: 64px;
+      padding: 0;
+      transform: translate(-50%, -44px);
+      transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+      will-change: transform;
+    }
+
+    .power-browser-navigation-auto-hide-v2.power-browser-navigation-open-v2 {
+      transform: translate(-50%, 0);
+    }
+
+    .power-browser-navigation-auto-hide-v2
+      .power-browser-navigation-handle-v2 {
+      display: inline-flex;
+    }
+
+    .power-browser-navigation-auto-hide-v2
+      .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 {
+      top: 6px;
+    }
+
+    .power-browser-navigation-auto-hide-v2.power-browser-navigation-open-v2
+      .power-browser-navigation-handle-v2
+      svg {
+      transform: rotate(180deg);
+    }
+
     .dropdown-1aaab757-b16d-413a-9499-a72197bb1732 {
       position: absolute;
       top: 50%;
@@ -2536,6 +2600,33 @@
       width: min(310px, 100%);
     }
 
+    .power-browser-settings-choice-picker-v2 {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(110px, 1fr));
+      gap: 6px;
+      width: min(300px, 100%);
+    }
+
+    .power-browser-settings-choice-option-v2 {
+      padding: 9px 12px;
+      color: #555a68;
+      background: #fff;
+      border: 1px solid #d9dbe1;
+      border-radius: 9px;
+      font: 650 10px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      cursor: pointer;
+    }
+
+    .power-browser-settings-choice-option-v2:hover {
+      border-color: #aeb2bf;
+    }
+
+    .power-browser-settings-choice-option-v2.active {
+      color: #262a3a;
+      border-color: #e9004c;
+      box-shadow: 0 0 0 2px rgba(233, 0, 76, 0.12);
+    }
+
     .power-browser-settings-theme-option-v2 {
       display: flex;
       min-width: 0;
@@ -2845,6 +2936,28 @@
       background: #262a3a;
     }
 
+    .power-browser-dark-v2 .power-browser-navigation-handle-v2 {
+      color: #f4f5f7;
+      background: rgba(38, 42, 58, 0.97);
+      border-color: #444a5b;
+    }
+
+    .power-browser-dark-v2 .power-browser-settings-choice-option-v2 {
+      color: #d5d8e0;
+      background: #282d3b;
+      border-color: #565c6d;
+    }
+
+    .power-browser-dark-v2 .power-browser-settings-choice-option-v2:hover {
+      border-color: #737b91;
+    }
+
+    .power-browser-dark-v2 .power-browser-settings-choice-option-v2.active {
+      color: #fff;
+      border-color: #ff5c91;
+      box-shadow: 0 0 0 2px rgba(255, 92, 145, 0.14);
+    }
+
     .power-browser-dark-v2 {
       scrollbar-color: #5d6476 #202431;
     }
@@ -2903,6 +3016,18 @@
     .dropdown-1aaab757-b16d-413a-9499-a72197bb1732.power-browser-hotfix-active-v2 > .power-browser-state-switcher-v2 > .power-browser-state-toggle-v2 {
       color: #4a111b !important;
       background: #ff9c9c !important;
+    }
+
+    .nav-container-1c7b2759-c793-4d17-b89b-1da6c5c5cf5b.power-browser-hotfix-active-v2
+      .power-browser-navigation-handle-v2 {
+      color: #4a111b !important;
+      background: #ff9c9c !important;
+      border-color: #e47d83 !important;
+    }
+
+    .nav-container-1c7b2759-c793-4d17-b89b-1da6c5c5cf5b.power-browser-hotfix-active-v2
+      .power-browser-navigation-handle-v2:hover {
+      background: #ffd1d1 !important;
     }
 
     .dropdown-1aaab757-b16d-413a-9499-a72197bb1732.power-browser-hotfix-active-v2 > a:hover,
@@ -3305,6 +3430,23 @@
         transparent;
       border-radius: 12px;
       box-shadow: none;
+    }
+
+    .power-browser-betty-theme-v2 .power-browser-navigation-handle-v2 {
+      color: #fff;
+      background: linear-gradient(
+        259deg,
+        rgb(233, 0, 76) 0%,
+        rgb(57, 90, 252) 52%,
+        rgb(17, 171, 209) 100%
+      );
+      border-color: transparent;
+    }
+
+    .power-browser-betty-theme-v2
+      .power-browser-settings-choice-option-v2.active {
+      border-color: #395afc;
+      box-shadow: 0 0 0 2px rgba(57, 90, 252, 0.14);
     }
 
     .power-browser-betty-theme-v2
@@ -3785,6 +3927,10 @@
         width: 100%;
       }
 
+      .power-browser-settings-choice-picker-v2 {
+        width: 100%;
+      }
+
       .power-browser-education-body-v2 {
         grid-template-columns: minmax(0, 1fr);
       }
@@ -3800,6 +3946,11 @@
     }
 
     @media (prefers-reduced-motion: reduce) {
+      .power-browser-navigation-auto-hide-v2,
+      .power-browser-navigation-handle-v2 svg {
+        transition-duration: 0.01ms !important;
+      }
+
       :is(
           .power-browser-settings-dialog-v2,
           .power-browser-model-search-dialog-v2,

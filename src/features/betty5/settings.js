@@ -154,6 +154,27 @@
     return SETTINGS_SIZE_VALUES.includes(value) ? value : "md";
   }
 
+  function applyNavigatorAppearanceMode(
+    navigator,
+    mode = getSettingValue("navigationBarStyle"),
+  ) {
+    const autoHide = mode === "auto-hide";
+    navigator.navigatorBar.classList.toggle(
+      "power-browser-navigation-auto-hide-v2",
+      autoHide,
+    );
+    navigator.navigatorBar.classList.remove(
+      "power-browser-navigation-open-v2",
+    );
+    navigator.autoHideHandle.hidden = !autoHide;
+    navigator.autoHideHandle.setAttribute("aria-expanded", "false");
+    navigator.autoHideHandle.setAttribute(
+      "aria-label",
+      "Reveal navigation bar",
+    );
+    navigator.autoHideHandle.title = "Reveal navigation bar";
+  }
+
   function applyAppearanceSettings(navigator) {
     migrateLegacySeniorDeveloperMode();
     const theme = getPowerBrowserTheme();
@@ -194,6 +215,7 @@
       "power-browser-show-sandbox-name-v2",
       showSandboxName,
     );
+    applyNavigatorAppearanceMode(navigator);
     if (settingsState?.dialog) {
       settingsState.dialog.dataset.dialogSize = dialogSize;
       settingsState.dialog.dataset.textSize = textSize;
@@ -297,12 +319,14 @@
     const hotfixEnabled =
       currentPowerBrowserContext?.siteType === SiteType.BETTY5 &&
       Boolean(getSettingValue("extraHotfix"));
-    document
-      .getElementById("dropdownMenu")
-      ?.classList.toggle(
-        "power-browser-hotfix-active-v2",
-        hotfixEnabled,
-      );
+    ["navigatorBar", "dropdownMenu"].forEach((elementId) => {
+      document
+        .getElementById(elementId)
+        ?.classList.toggle(
+          "power-browser-hotfix-active-v2",
+          hotfixEnabled,
+        );
+    });
   }
 
   function applyBetty5Setting(key, value) {

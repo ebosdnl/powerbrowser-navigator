@@ -3,6 +3,7 @@
       [
         "themeMode",
         "iconOnlyMode",
+        "navigationBarStyle",
         "settingsDialogSize",
         "settingsTextSize",
         "sandboxSwitcherShowApplicationName",

@@ -51,4 +51,28 @@ describe("settings validation", () => {
       'Number setting "historyLength" needs a default between its min and max.',
     );
   });
+
+  it("validates choices and their defaults", () => {
+    const tabs = [{ id: "settings", label: "Settings" }];
+    const choice: SettingDefinition = {
+      key: "navigationStyle",
+      tab: "settings",
+      label: "Navigation style",
+      description: "Choose a navigation style.",
+      type: "choice",
+      options: [
+        { value: "default", label: "Default" },
+        { value: "auto-hide", label: "Auto-hide" },
+      ],
+      defaultValue: "default",
+    };
+    expect(validateSettingsDefinitions(tabs, [choice])).toEqual([]);
+    expect(
+      validateSettingsDefinitions(tabs, [
+        { ...choice, defaultValue: "missing" },
+      ]),
+    ).toContain(
+      'Choice "navigationStyle" needs labelled options containing its default.',
+    );
+  });
 });

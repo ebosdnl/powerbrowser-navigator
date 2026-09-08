@@ -99,6 +99,20 @@
       defaultValue: true,
     },
     {
+      key: "navigationBarStyle",
+      tab: "settings",
+      section: "Appearance",
+      label: "Navigation bar style",
+      description:
+        "Keep the navigation bar visible or reveal it from the top edge when needed.",
+      type: "choice",
+      options: [
+        { value: "default", label: "Default" },
+        { value: "auto-hide", label: "Hidden / Auto-hide" },
+      ],
+      defaultValue: "default",
+    },
+    {
       key: "settingsSectionsExpandedByDefault",
       tab: "settings",
       section: "Appearance",

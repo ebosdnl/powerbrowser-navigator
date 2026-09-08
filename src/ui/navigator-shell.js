@@ -1,3 +1,13 @@
+  function isPointNearNavigationElement(x, y, element, margin = 16) {
+    const rect = element.getBoundingClientRect();
+    return (
+      x >= rect.left - margin &&
+      x <= rect.right + margin &&
+      y >= rect.top - margin &&
+      y <= rect.bottom + margin
+    );
+  }
+
   function initializeNavigator() {
     const navigatorBar = document.createElement("divider");
     navigatorBar.id = "navigatorBar";
@@ -9,6 +19,105 @@
     dropdown.id = "dropdownMenu";
     dropdown.className =
       "dropdown-1aaab757-b16d-413a-9499-a72197bb1732";
+
+    const autoHideHandle = document.createElement("button");
+    autoHideHandle.type = "button";
+    autoHideHandle.className = "power-browser-navigation-handle-v2";
+    autoHideHandle.hidden = true;
+    autoHideHandle.setAttribute("aria-controls", dropdown.id);
+    autoHideHandle.setAttribute("aria-expanded", "false");
+    autoHideHandle.setAttribute("aria-label", "Reveal navigation bar");
+    autoHideHandle.title = "Reveal navigation bar";
+    autoHideHandle.innerHTML =
+      '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5.25 7.5 4.75 4.75 4.75-4.75 1.5 1.5L10 15.25 3.75 9l1.5-1.5Z"/></svg>';
+
+    let autoHideCloseTimer = null;
+    const clearAutoHideCloseTimer = () => {
+      if (autoHideCloseTimer !== null) {
+        window.clearTimeout(autoHideCloseTimer);
+        autoHideCloseTimer = null;
+      }
+    };
+    const setAutoHideOpen = (open) => {
+      clearAutoHideCloseTimer();
+      const expanded =
+        navigatorBar.classList.contains(
+          "power-browser-navigation-auto-hide-v2",
+        ) && Boolean(open);
+      navigatorBar.classList.toggle(
+        "power-browser-navigation-open-v2",
+        expanded,
+      );
+      autoHideHandle.setAttribute("aria-expanded", String(expanded));
+      autoHideHandle.setAttribute(
+        "aria-label",
+        expanded ? "Navigation bar revealed" : "Reveal navigation bar",
+      );
+      autoHideHandle.title = expanded
+        ? "Navigation bar revealed"
+        : "Reveal navigation bar";
+    };
+
+    const isPointerNearNavigation = (event) => {
+      const proximityElements = navigatorBar.classList.contains(
+        "power-browser-navigation-open-v2",
+      )
+        ? [autoHideHandle, dropdown]
+        : [autoHideHandle];
+      return proximityElements.some((element) =>
+        isPointNearNavigationElement(
+          event.clientX,
+          event.clientY,
+          element,
+        ),
+      );
+    };
+    const scheduleAutoHideClose = () => {
+      clearAutoHideCloseTimer();
+      autoHideCloseTimer = window.setTimeout(() => {
+        autoHideCloseTimer = null;
+        if (!navigatorBar.contains(document.activeElement)) {
+          setAutoHideOpen(false);
+        }
+      }, 160);
+    };
+
+    navigatorBar.addEventListener("pointerenter", () => setAutoHideOpen(true));
+    navigatorBar.addEventListener("pointerleave", (event) => {
+      if (isPointerNearNavigation(event)) {
+        clearAutoHideCloseTimer();
+        return;
+      }
+      scheduleAutoHideClose();
+    });
+    document.addEventListener("pointermove", (event) => {
+      if (
+        !navigatorBar.classList.contains(
+          "power-browser-navigation-auto-hide-v2",
+        ) ||
+        navigatorBar.contains(document.activeElement)
+      ) {
+        return;
+      }
+
+      if (isPointerNearNavigation(event)) {
+        setAutoHideOpen(true);
+      } else if (
+        navigatorBar.classList.contains(
+          "power-browser-navigation-open-v2",
+        ) &&
+        autoHideCloseTimer === null
+      ) {
+        scheduleAutoHideClose();
+      }
+    });
+    navigatorBar.addEventListener("focusin", () => setAutoHideOpen(true));
+    navigatorBar.addEventListener("focusout", (event) => {
+      if (!navigatorBar.contains(event.relatedTarget)) {
+        scheduleAutoHideClose();
+      }
+    });
+    autoHideHandle.addEventListener("click", () => setAutoHideOpen(true));
 
     const controls = new Map();
     let stateSwitcher;
@@ -130,7 +239,7 @@
     settingsButton.title = "Settings will be added in a later v2 step.";
     dropdown.appendChild(settingsButton);
 
-    navigatorBar.appendChild(dropdown);
+    navigatorBar.append(autoHideHandle, dropdown);
     (document.body || document.documentElement).appendChild(navigatorBar);
 
     document.addEventListener("click", (event) => {
@@ -150,6 +259,7 @@
 
     return {
       navigatorBar,
+      autoHideHandle,
       dropdown,
       controls,
       stateSwitcher,

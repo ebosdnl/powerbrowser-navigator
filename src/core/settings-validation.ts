@@ -5,6 +5,7 @@ const VALID_TYPES = new Set<SettingType>([
   "shortcut",
   "theme",
   "size",
+  "choice",
   "number",
   "sortable-list",
 ]);
@@ -49,6 +50,33 @@ export function validateSettingsDefinitions(
       typeof definition.defaultValue !== "boolean"
     ) {
       errors.push(`Toggle "${definition.key}" must have a boolean default.`);
+    }
+    if (definition?.type === "choice") {
+      const options = Array.isArray(definition.options)
+        ? definition.options
+        : [];
+      const values = options.map((option) =>
+        option && typeof option === "object" && "value" in option
+          ? option.value
+          : undefined,
+      );
+      if (
+        options.length < 2 ||
+        options.some(
+          (option) =>
+            !option ||
+            typeof option !== "object" ||
+            !("value" in option) ||
+            !("label" in option) ||
+            typeof option.label !== "string" ||
+            !option.label,
+        ) ||
+        !values.includes(definition.defaultValue)
+      ) {
+        errors.push(
+          `Choice "${definition.key}" needs labelled options containing its default.`,
+        );
+      }
     }
     if (definition?.type === "number") {
       const min = Number(definition.min);

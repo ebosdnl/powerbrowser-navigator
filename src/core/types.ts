@@ -55,7 +55,13 @@ export interface SettingsTab {
 }
 
 export type SettingType =
-  "toggle" | "shortcut" | "theme" | "size" | "number" | "sortable-list";
+  | "toggle"
+  | "shortcut"
+  | "theme"
+  | "size"
+  | "choice"
+  | "number"
+  | "sortable-list";
 
 export interface SettingDefinition {
   key: string;
