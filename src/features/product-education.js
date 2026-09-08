@@ -135,23 +135,12 @@
         ? `Updated to ${version}`
         : "Updated";
       state.title.textContent = "What’s new";
-      state.description.textContent =
-        `Version ${version || "3.6.0"} makes Quick switcher+ priorities personal and action tests safer to start.`;
+      state.description.textContent = "";
       [
         [
-          "↕",
-          "Your result order",
-          "Drag Quick switcher+ result types into priority order, or hide types you do not need.",
-        ],
-        [
-          "★",
-          "Frequently visited",
-          "Quick switcher+ remembers destinations per application without treating URL parameters as separate visits.",
-        ],
-        [
-          "{}",
-          "Empty test variables",
-          "Generated Action Playground variables now start empty instead of using their type labels as values.",
+          "↪",
+          "Automatic Sub Action names",
+          "Optionally name a Sub Action step after the action selected in its Action setting. Enable it under Next-gen → Actions.",
         ],
       ].forEach((feature) =>
         state.body.appendChild(

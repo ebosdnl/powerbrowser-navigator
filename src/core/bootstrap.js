@@ -93,9 +93,11 @@
         apolloClients: [],
         reduxStores: [],
         actionMutationHooks: [],
+        graphqlResponseHooks: [],
         suppressActionHistory: 0,
       });
     bridge.actionMutationHooks ||= [];
+    bridge.graphqlResponseHooks ||= [];
     bridge.suppressActionHistory ||= 0;
     bridge.apolloActionHistoryDepth ||= 0;
     const getActionMutationDetails = (mutation, variables = {}) => {
@@ -137,6 +139,19 @@
               error,
             );
             return null;
+          }
+        }),
+      );
+    const runGraphqlResponseHooks = async (payload, result) =>
+      Promise.all(
+        (bridge.graphqlResponseHooks || []).map(async (hook) => {
+          try {
+            await hook({ payload, result });
+          } catch (error) {
+            console.error(
+              "[Power Browser] Unable to process a GraphQL response hook.",
+              error,
+            );
           }
         }),
       );
@@ -249,15 +264,14 @@
       const originalFetch = currentFetch;
       async function powerBrowserFetch(input, init) {
         const hooks = bridge.actionMutationHooks || [];
+        const responseHooks = bridge.graphqlResponseHooks || [];
         const url =
           typeof input === "string" || input instanceof URL
             ? String(input)
             : input?.url || "";
         if (
-          !hooks.length ||
-          bridge.suppressActionHistory > 0 ||
-          bridge.apolloActionHistoryDepth > 0 ||
-          !url.includes("/api/meta/graphql")
+          !url.includes("/api/meta/graphql") ||
+          (!hooks.length && !responseHooks.length)
         ) {
           return Reflect.apply(originalFetch, this, [input, init]);
         }
@@ -281,37 +295,42 @@
             : query.includes("deleteActionStep(input:")
               ? "delete"
               : null;
-        if (!mutationType) {
-          return Reflect.apply(originalFetch, this, [input, init]);
-        }
-        const details = {
-          mutationType,
-          operationName: payload.operationName || "",
-          query,
-          variables: payload.variables || {},
-        };
-        const captures = await Promise.all(
-          hooks.map(async (hook) => {
-            try {
-              return await hook.before?.(details);
-            } catch (error) {
-              console.error(
-                "[Power Browser] Unable to capture action history before mutation.",
-                error,
-              );
-              return null;
+        const details = mutationType
+          ? {
+              mutationType,
+              operationName: payload.operationName || "",
+              query,
+              variables: payload.variables || {},
             }
-          }),
-        );
+          : null;
+        const captures =
+          details &&
+          bridge.suppressActionHistory === 0 &&
+          bridge.apolloActionHistoryDepth === 0
+            ? await Promise.all(
+                hooks.map(async (hook) => {
+                  try {
+                    return await hook.before?.(details);
+                  } catch (error) {
+                    console.error(
+                      "[Power Browser] Unable to capture action history before mutation.",
+                      error,
+                    );
+                    return null;
+                  }
+                }),
+              )
+            : null;
         const response = await Reflect.apply(originalFetch, this, [input, init]);
         let succeeded = response.ok;
+        let result = null;
         try {
-          const result = await response.clone().json();
+          result = await response.clone().json();
           succeeded = succeeded && !result.errors?.length;
         } catch {
           // Preserve the HTTP success result when the response is not JSON.
         }
-        if (succeeded) {
+        if (succeeded && captures) {
           await Promise.all(
             hooks.map(async (hook, index) => {
               try {
@@ -324,6 +343,9 @@
               }
             }),
           );
+        }
+        if (succeeded && result && responseHooks.length) {
+          await runGraphqlResponseHooks(payload, result);
         }
         return response;
       }

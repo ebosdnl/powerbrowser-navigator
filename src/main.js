@@ -110,6 +110,12 @@
     stop: cleanupNextgenActionTypeIcons,
   });
   featureRegistry.register({
+    name: "nextgen-sub-action-auto-name",
+    start: applyNextgenSubActionAutoNameSetting,
+    sync: applyNextgenSubActionAutoNameSetting,
+    stop: cleanupNextgenSubActionAutoName,
+  });
+  featureRegistry.register({
     name: "nextgen-duplicate-action-step",
     start: applyNextgenDuplicateActionStepSetting,
     sync: applyNextgenDuplicateActionStepSetting,
@@ -171,6 +177,7 @@
   // finished, so its observer must start independently of main initialization.
   applyNextgenActionPlaygroundSetting();
   applyNextgenActionTypeIconsSetting();
+  applyNextgenSubActionAutoNameSetting();
   applyNextgenDuplicateActionStepSetting();
 
   const navigator = initializeNavigator();

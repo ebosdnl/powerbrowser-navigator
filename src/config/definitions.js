@@ -299,6 +299,16 @@
       defaultValue: true,
     },
     {
+      key: "nextgenSubActionAutoName",
+      tab: "nextgen",
+      section: "Actions",
+      label: "Name Sub Action steps automatically",
+      description:
+        "Set a Sub Action step label to the selected action name when its Action setting is chosen.",
+      type: "toggle",
+      defaultValue: false,
+    },
+    {
       key: "nextgenDuplicateActionStep",
       tab: "nextgen",
       section: "Actions",

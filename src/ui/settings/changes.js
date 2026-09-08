@@ -79,6 +79,10 @@
       applyNextgenActionTypeIconsSetting();
     }
 
+    if (definition.key === "nextgenSubActionAutoName") {
+      applyNextgenSubActionAutoNameSetting();
+    }
+
     if (
       [
         "nextgenDuplicateActionStep",

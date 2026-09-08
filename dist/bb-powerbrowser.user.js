@@ -2,7 +2,7 @@
 // @name         Power Browser Navigator V2
 // @description  Navigation, Quick switcher+, settings, diagnostics, and developer productivity tools for Betty Blocks.
 // @tag          Productivity
-// @version      3.6.0
+// @version      3.6.1
 // @updateURL    https://github.com/ebosdnl/powerbrowser-navigator/releases/latest/download/bb-powerbrowser.user.js
 // @downloadURL  https://github.com/ebosdnl/powerbrowser-navigator/releases/latest/download/bb-powerbrowser.user.js
 // @author       Enrique Bos, Menno Weijling (OG grondlegger), Sven Truschel, Hacker
@@ -1092,9 +1092,11 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
         apolloClients: [],
         reduxStores: [],
         actionMutationHooks: [],
+        graphqlResponseHooks: [],
         suppressActionHistory: 0,
       });
     bridge.actionMutationHooks ||= [];
+    bridge.graphqlResponseHooks ||= [];
     bridge.suppressActionHistory ||= 0;
     bridge.apolloActionHistoryDepth ||= 0;
     const getActionMutationDetails = (mutation, variables = {}) => {
@@ -1136,6 +1138,19 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
               error,
             );
             return null;
+          }
+        }),
+      );
+    const runGraphqlResponseHooks = async (payload, result) =>
+      Promise.all(
+        (bridge.graphqlResponseHooks || []).map(async (hook) => {
+          try {
+            await hook({ payload, result });
+          } catch (error) {
+            console.error(
+              "[Power Browser] Unable to process a GraphQL response hook.",
+              error,
+            );
           }
         }),
       );
@@ -1248,15 +1263,14 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       const originalFetch = currentFetch;
       async function powerBrowserFetch(input, init) {
         const hooks = bridge.actionMutationHooks || [];
+        const responseHooks = bridge.graphqlResponseHooks || [];
         const url =
           typeof input === "string" || input instanceof URL
             ? String(input)
             : input?.url || "";
         if (
-          !hooks.length ||
-          bridge.suppressActionHistory > 0 ||
-          bridge.apolloActionHistoryDepth > 0 ||
-          !url.includes("/api/meta/graphql")
+          !url.includes("/api/meta/graphql") ||
+          (!hooks.length && !responseHooks.length)
         ) {
           return Reflect.apply(originalFetch, this, [input, init]);
         }
@@ -1280,37 +1294,42 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
             : query.includes("deleteActionStep(input:")
               ? "delete"
               : null;
-        if (!mutationType) {
-          return Reflect.apply(originalFetch, this, [input, init]);
-        }
-        const details = {
-          mutationType,
-          operationName: payload.operationName || "",
-          query,
-          variables: payload.variables || {},
-        };
-        const captures = await Promise.all(
-          hooks.map(async (hook) => {
-            try {
-              return await hook.before?.(details);
-            } catch (error) {
-              console.error(
-                "[Power Browser] Unable to capture action history before mutation.",
-                error,
-              );
-              return null;
+        const details = mutationType
+          ? {
+              mutationType,
+              operationName: payload.operationName || "",
+              query,
+              variables: payload.variables || {},
             }
-          }),
-        );
+          : null;
+        const captures =
+          details &&
+          bridge.suppressActionHistory === 0 &&
+          bridge.apolloActionHistoryDepth === 0
+            ? await Promise.all(
+                hooks.map(async (hook) => {
+                  try {
+                    return await hook.before?.(details);
+                  } catch (error) {
+                    console.error(
+                      "[Power Browser] Unable to capture action history before mutation.",
+                      error,
+                    );
+                    return null;
+                  }
+                }),
+              )
+            : null;
         const response = await Reflect.apply(originalFetch, this, [input, init]);
         let succeeded = response.ok;
+        let result = null;
         try {
-          const result = await response.clone().json();
+          result = await response.clone().json();
           succeeded = succeeded && !result.errors?.length;
         } catch {
           // Preserve the HTTP success result when the response is not JSON.
         }
-        if (succeeded) {
+        if (succeeded && captures) {
           await Promise.all(
             hooks.map(async (hook, index) => {
               try {
@@ -1323,6 +1342,9 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
               }
             }),
           );
+        }
+        if (succeeded && result && responseHooks.length) {
+          await runGraphqlResponseHooks(payload, result);
         }
         return response;
       }
@@ -2219,6 +2241,16 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
         "Show whether each action step uses an application, Block Store or native function.",
       type: "toggle",
       defaultValue: true,
+    },
+    {
+      key: "nextgenSubActionAutoName",
+      tab: "nextgen",
+      section: "Actions",
+      label: "Name Sub Action steps automatically",
+      description:
+        "Set a Sub Action step label to the selected action name when its Action setting is chosen.",
+      type: "toggle",
+      defaultValue: false,
     },
     {
       key: "nextgenDuplicateActionStep",
@@ -6570,6 +6602,308 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       renderNextgenActionTypeIcons();
     } catch (error) {
       logger.warn("Unable to load Next-gen action function types", error);
+    }
+  }
+  let nextgenSubActionAutoNameSequence = 0;
+  let nextgenSubActionAutoNameLastTrigger = null;
+  let nextgenSubActionAutoNamePendingSelection = null;
+  let nextgenSubActionAutoNameClickListenerInstalled = false;
+
+  function getNextgenSubActionEditorContext() {
+    const match = location.pathname.match(
+      /\/app\/actions\/([^/?#]+)\/steps\/([^/?#]+)/i,
+    );
+    return match ? { actionId: match[1], stepId: match[2] } : null;
+  }
+
+  function getNextgenSubActionDialog() {
+    return (
+      Array.from(document.querySelectorAll('[role="dialog"]')).find(
+        (dialog) =>
+          dialog.getAttribute("aria-hidden") !== "true" &&
+          dialog.querySelector('button[data-test="select-variable"]'),
+      ) || null
+    );
+  }
+
+  function synchronizeNextgenSubActionLabel(label, stepId) {
+    const dialog = getNextgenSubActionDialog();
+    const heading = dialog?.querySelector("h6");
+    if (heading && heading.textContent !== label) {
+      heading.textContent = label;
+    }
+
+    const canvasLabel = document.querySelector(
+      `.react-flow__node-step[data-id="${CSS.escape(stepId)}"] p.truncate.text-xs`,
+    );
+    if (canvasLabel && canvasLabel.textContent !== label) {
+      canvasLabel.textContent = label;
+    }
+  }
+
+  function keepNextgenSubActionLabelSynchronized(label, stepId, sequence) {
+    let observer = null;
+    const synchronize = () => {
+      if (
+        sequence !== nextgenSubActionAutoNameSequence ||
+        !getSettingValue("nextgenSubActionAutoName") ||
+        getNextgenSubActionEditorContext()?.stepId !== stepId
+      ) {
+        observer?.disconnect();
+        return;
+      }
+      synchronizeNextgenSubActionLabel(label, stepId);
+    };
+    synchronize();
+    observer = new MutationObserver(synchronize);
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+    setTimeout(() => {
+      synchronize();
+      observer.disconnect();
+    }, 5000);
+  }
+
+  function refreshNextgenSubActionLabelState(context, label) {
+    const bridge = pageWindow[NEXTGEN_RUNTIME_BRIDGE_KEY];
+    for (const client of bridge?.apolloClients || []) {
+      const cache = client?.cache;
+      if (!cache || typeof cache.modify !== "function") continue;
+      try {
+        const cacheId = cache.identify?.({
+          __typename: "ActionStep",
+          id: context.stepId,
+        });
+        if (cacheId) {
+          cache.modify({ id: cacheId, fields: { label: () => label } });
+          cache.broadcastWatches?.();
+        }
+      } catch (error) {
+        console.debug(
+          "[Power Browser] Unable to refresh the Sub Action label in Apollo.",
+          error,
+        );
+      }
+    }
+
+    const store = (bridge?.reduxStores || []).find((candidate) => {
+      try {
+        return candidate.getState()?.action?.action?.id === context.actionId;
+      } catch {
+        return false;
+      }
+    });
+    if (!store) return;
+    const action = store.getState()?.action?.action;
+    const actionSteps = action?.actionSteps;
+    if (!Array.isArray(actionSteps)) return;
+    store.dispatch({
+      type: "action/setAction",
+      payload: {
+        ...action,
+        actionSteps: actionSteps.map((actionStep) =>
+          actionStep.id === context.stepId
+            ? { ...actionStep, label }
+            : actionStep,
+        ),
+      },
+    });
+  }
+
+  function getCachedNextgenActionIdByName(name) {
+    const matches = Array.from(quickSwitcherActionRequestCache.values())
+      .flatMap((entry) => entry?.value || [])
+      .filter(
+        (entry) =>
+          entry?.type === "action" &&
+          entry.title?.trim() === name &&
+          entry.id,
+      );
+    return matches.length === 1 ? matches[0].id : null;
+  }
+
+  async function resolveNextgenActionIdByName(name) {
+    const cachedId = getCachedNextgenActionIdByName(name);
+    if (cachedId) return cachedId;
+    const data = await requestNextgenActionStepGraphql(
+      "PowerBrowserResolveSubAction",
+      `query PowerBrowserResolveSubAction($filter: ActionFilter, $order: [ActionOrder]) {
+        actions(perPage: 50, page: 1, filter: $filter, order: $order) {
+          results { id name }
+        }
+      }`,
+      {
+        filter: { field: { name: { like: name } } },
+        order: [{ field: "name", direction: "ASC" }],
+      },
+    );
+    const matches = (data.actions?.results || []).filter(
+      (action) => action?.name?.trim() === name && action.id,
+    );
+    return matches.length === 1 ? matches[0].id : null;
+  }
+
+  async function autoNameNextgenSelectedSubAction(actionName) {
+    const selectedActionId = await resolveNextgenActionIdByName(actionName);
+    if (!selectedActionId) {
+      throw new Error(`Unable to uniquely resolve the selected action “${actionName}”.`);
+    }
+    const data = await requestNextgenActionStepGraphql(
+      "ActionName",
+      `query ActionName($input: ActionInput!) {
+        action(input: $input) {
+          name
+          __typename
+        }
+      }`,
+      { input: { id: selectedActionId } },
+    );
+    const selectedActionName = data.action?.name?.trim();
+    if (!selectedActionName) return;
+    return autoNameNextgenSubAction(selectedActionId, selectedActionName);
+  }
+
+  async function autoNameNextgenSubAction(
+    selectedActionId,
+    selectedActionName,
+  ) {
+    if (!getSettingValue("nextgenSubActionAutoName")) return;
+    const context = getNextgenSubActionEditorContext();
+    if (!context || !selectedActionId || !selectedActionName) return;
+    const trigger = `${context.stepId}:${selectedActionId}:${selectedActionName}`;
+    const now = Date.now();
+    if (
+      nextgenSubActionAutoNameLastTrigger?.key === trigger &&
+      now - nextgenSubActionAutoNameLastTrigger.time < 1000
+    ) {
+      return;
+    }
+    nextgenSubActionAutoNameLastTrigger = { key: trigger, time: now };
+
+    const sequence = ++nextgenSubActionAutoNameSequence;
+    const data = await requestNextgenActionStepGraphql(
+      "PowerBrowserSubActionAutoNameStep",
+      `query PowerBrowserSubActionAutoNameStep($input: ActionStepInput) {
+        actionStep(input: $input) {
+          id
+          label
+          nativeFunction { name }
+        }
+      }`,
+      { input: { id: context.stepId } },
+    );
+    const step = data.actionStep;
+    if (
+      sequence !== nextgenSubActionAutoNameSequence ||
+      !getSettingValue("nextgenSubActionAutoName") ||
+      getNextgenSubActionEditorContext()?.stepId !== context.stepId ||
+      step?.id !== context.stepId ||
+      step.nativeFunction?.name !== "subAction"
+    ) {
+      return;
+    }
+
+    if (step.label !== selectedActionName) {
+      await requestNextgenActionStepGraphql(
+        "UpdateActionStepWithSync",
+        `mutation UpdateActionStepWithSync($updateInput: UpdateActionStepInput!, $toggleSyncInput: ToggleSyncActionStepWithPageComponentInput) {
+          updateActionStep(input: $updateInput) {
+            __typename
+            id
+            actionStepPaths {
+              __typename
+              id
+            }
+          }
+          toggleSyncActionStepWithPageComponent(input: $toggleSyncInput)
+        }`,
+        {
+          updateInput: { id: context.stepId, label: selectedActionName },
+          toggleSyncInput: null,
+        },
+      );
+    }
+    refreshNextgenSubActionLabelState(context, selectedActionName);
+    // Keep the visible labels stable while Betty Blocks processes its own
+    // asynchronous renders after the Apollo and Redux state refreshes.
+    keepNextgenSubActionLabelSynchronized(
+      selectedActionName,
+      context.stepId,
+      sequence,
+    );
+  }
+
+  function commitNextgenSubActionAutoNameSelection() {
+    const selection = nextgenSubActionAutoNamePendingSelection;
+    nextgenSubActionAutoNamePendingSelection = null;
+    const context = getNextgenSubActionEditorContext();
+    if (
+      !selection ||
+      !context ||
+      selection.stepId !== context.stepId ||
+      Date.now() - selection.capturedAt > 30000
+    ) {
+      return;
+    }
+    queueMicrotask(() => {
+      void autoNameNextgenSelectedSubAction(selection.name).catch((error) =>
+        console.error(
+          "[Power Browser] Unable to name the selected Sub Action step.",
+          error,
+        ),
+      );
+    });
+  }
+
+  function handleNextgenSubActionAutoNameClick(event) {
+    if (!getSettingValue("nextgenSubActionAutoName")) return;
+    const control = event.target.closest?.('button, [role="button"]');
+    if (!control) return;
+    if (control.querySelector('svg[aria-label="Action"]')) {
+      const context = getNextgenSubActionEditorContext();
+      const name = control.textContent?.trim();
+      nextgenSubActionAutoNamePendingSelection =
+        context && name
+          ? { name, stepId: context.stepId, capturedAt: Date.now() }
+          : null;
+      if (event.detail >= 2) {
+        commitNextgenSubActionAutoNameSelection();
+      }
+      return;
+    }
+    if (control.textContent?.trim() !== "Select") return;
+    commitNextgenSubActionAutoNameSelection();
+  }
+
+  function cleanupNextgenSubActionAutoName() {
+    nextgenSubActionAutoNameSequence += 1;
+    nextgenSubActionAutoNameLastTrigger = null;
+    nextgenSubActionAutoNamePendingSelection = null;
+    if (nextgenSubActionAutoNameClickListenerInstalled) {
+      document.removeEventListener(
+        "click",
+        handleNextgenSubActionAutoNameClick,
+        true,
+      );
+      nextgenSubActionAutoNameClickListenerInstalled = false;
+    }
+  }
+
+  function applyNextgenSubActionAutoNameSetting() {
+    if (!getSettingValue("nextgenSubActionAutoName")) {
+      cleanupNextgenSubActionAutoName();
+      return;
+    }
+    if (!nextgenSubActionAutoNameClickListenerInstalled) {
+      document.addEventListener(
+        "click",
+        handleNextgenSubActionAutoNameClick,
+        true,
+      );
+      nextgenSubActionAutoNameClickListenerInstalled = true;
     }
   }
   const NEXTGEN_DUPLICATE_STEP_BUTTON_TEST_ID =
@@ -11406,6 +11740,10 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
 
     if (definition.key === "nextgenActionTypeIcons") {
       applyNextgenActionTypeIconsSetting();
+    }
+
+    if (definition.key === "nextgenSubActionAutoName") {
+      applyNextgenSubActionAutoNameSetting();
     }
 
     if (
@@ -17222,23 +17560,12 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
         ? `Updated to ${version}`
         : "Updated";
       state.title.textContent = "What’s new";
-      state.description.textContent =
-        `Version ${version || "3.6.0"} makes Quick switcher+ priorities personal and action tests safer to start.`;
+      state.description.textContent = "";
       [
         [
-          "↕",
-          "Your result order",
-          "Drag Quick switcher+ result types into priority order, or hide types you do not need.",
-        ],
-        [
-          "★",
-          "Frequently visited",
-          "Quick switcher+ remembers destinations per application without treating URL parameters as separate visits.",
-        ],
-        [
-          "{}",
-          "Empty test variables",
-          "Generated Action Playground variables now start empty instead of using their type labels as values.",
+          "↪",
+          "Automatic Sub Action names",
+          "Optionally name a Sub Action step after the action selected in its Action setting. Enable it under Next-gen → Actions.",
         ],
       ].forEach((feature) =>
         state.body.appendChild(
@@ -18272,6 +18599,12 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     stop: cleanupNextgenActionTypeIcons,
   });
   featureRegistry.register({
+    name: "nextgen-sub-action-auto-name",
+    start: applyNextgenSubActionAutoNameSetting,
+    sync: applyNextgenSubActionAutoNameSetting,
+    stop: cleanupNextgenSubActionAutoName,
+  });
+  featureRegistry.register({
     name: "nextgen-duplicate-action-step",
     start: applyNextgenDuplicateActionStepSetting,
     sync: applyNextgenDuplicateActionStepSetting,
@@ -18333,6 +18666,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
   // finished, so its observer must start independently of main initialization.
   applyNextgenActionPlaygroundSetting();
   applyNextgenActionTypeIconsSetting();
+  applyNextgenSubActionAutoNameSetting();
   applyNextgenDuplicateActionStepSetting();
 
   const navigator = initializeNavigator();
