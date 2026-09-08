@@ -2,7 +2,7 @@
 // @name         Power Browser Navigator V2
 // @description  Navigation, Quick switcher+, settings, diagnostics, and developer productivity tools for Betty Blocks.
 // @tag          Productivity
-// @version      3.6.2
+// @version      3.6.3
 // @updateURL    https://github.com/ebosdnl/powerbrowser-navigator/releases/latest/download/bb-powerbrowser.user.js
 // @downloadURL  https://github.com/ebosdnl/powerbrowser-navigator/releases/latest/download/bb-powerbrowser.user.js
 // @author       Enrique Bos, Menno Weijling (OG grondlegger), Sven Truschel, Hacker
@@ -6443,6 +6443,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
   const NEXTGEN_ACTION_TYPE_ICON_STYLE_ID =
     "power-browser-action-type-icon-styles";
   const nextgenActionTypeIconTemplates = new Map();
+  const nextgenPendingActionTypeIconNodes = new Set();
 
   function getNextgenActionTypeIconRouteId() {
     return location.pathname.match(/\/app\/actions\/([^/?#]+)/i)?.[1] || null;
@@ -6488,8 +6489,8 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       .forEach((icon) => icon.remove());
   }
 
-  function renderNextgenActionTypeIcons() {
-    const nodes = document.querySelectorAll(
+  function renderNextgenActionTypeIcons(nodes = null) {
+    nodes ||= document.querySelectorAll(
       ".react-flow__node-step[data-id], .react-flow__node-yieldsAll[data-id]",
     );
     nodes.forEach((node) => {
@@ -6562,14 +6563,34 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     }, new Map());
   }
 
-  function scheduleNextgenActionTypeIconRender() {
+  function scheduleNextgenActionTypeIconRender(mutations) {
+    const selector =
+      ".react-flow__node-step[data-id], .react-flow__node-yieldsAll[data-id]";
+    for (const mutation of mutations) {
+      const targetActionNode =
+        mutation.target instanceof Element
+          ? mutation.target.closest(selector)
+          : mutation.target.parentElement?.closest(selector);
+      if (targetActionNode && mutation.removedNodes.length) {
+        nextgenPendingActionTypeIconNodes.add(targetActionNode);
+      }
+      mutation.addedNodes.forEach((node) => {
+        if (!(node instanceof Element)) return;
+        if (node.matches(selector)) nextgenPendingActionTypeIconNodes.add(node);
+        node
+          .querySelectorAll(selector)
+          .forEach((actionNode) => nextgenPendingActionTypeIconNodes.add(actionNode));
+      });
+    }
+    if (nextgenPendingActionTypeIconNodes.size === 0) return;
     clearTimeout(nextgenActionTypeIconsTimer);
     nextgenActionTypeIconsTimer = setTimeout(() => {
-      renderNextgenActionTypeIcons();
-      const hasUnmappedStep = Array.from(
-        document.querySelectorAll(".react-flow__node-step[data-id]"),
-      ).some(
+      const nodes = Array.from(nextgenPendingActionTypeIconNodes);
+      nextgenPendingActionTypeIconNodes.clear();
+      renderNextgenActionTypeIcons(nodes);
+      const hasUnmappedStep = nodes.some(
         (node) =>
+          node.classList.contains("react-flow__node-step") &&
           !nextgenActionTypeIconsById.has(node.getAttribute("data-id")),
       );
       if (hasUnmappedStep) {
@@ -6586,6 +6607,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     nextgenActionTypeIconsById = new Map();
     nextgenActionTypeIconsRoute = "";
     nextgenActionTypeIconsRequest += 1;
+    nextgenPendingActionTypeIconNodes.clear();
     clearNextgenActionTypeIcons();
     document.getElementById(NEXTGEN_ACTION_TYPE_ICON_STYLE_ID)?.remove();
   }
@@ -6951,6 +6973,11 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
   let nextgenScopeMenuDocumentListenerInstalled = false;
   let nextgenScopeMenuCheckSequence = 0;
   const nextgenScopeActionFetches = new Map();
+  const nextgenPendingActionStepNodes = new Set();
+  let nextgenActionStepEnhancementFrame = 0;
+  let nextgenActionStepDrawerRefreshPending = false;
+  let nextgenActionStepEdgeRefreshPending = false;
+  let nextgenActionStepMenuCleanupPending = false;
   GM_addValueChangeListener(
     NEXTGEN_ACTION_STEP_CLIPBOARD_KEY,
     (_key, _oldValue, newValue) => {
@@ -8804,6 +8831,11 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       NEXTGEN_ACTION_STEP_EDGE_PASTE_ACTIVE_CLASS,
       nextgenActionStepPasteShortcutActive,
     );
+    if (nextgenActionStepPasteShortcutActive) {
+      void installNextgenActionStepEdgePasteButtons();
+    } else {
+      cleanupNextgenActionStepEdgePasteButtons();
+    }
   }
 
   function getNextgenActionStepPasteShortcutParts() {
@@ -8973,6 +9005,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
 
   async function installNextgenActionStepEdgePasteButtons() {
     if (
+      !nextgenActionStepPasteShortcutActive ||
       !getSettingValue("nextgenActionStepCopyPaste") ||
       !isValidNextgenActionStepClipboard(nextgenActionStepClipboard)
     ) {
@@ -9343,7 +9376,26 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     }
   }
 
-  function installNextgenActionStepQuickActions() {
+  function getNextgenActionStepNodes(roots = null) {
+    const selector =
+      ".react-flow__node-step[data-id], .react-flow__node-yieldsAll[data-id]";
+    if (!roots) return Array.from(document.querySelectorAll(selector));
+    const nodes = new Set();
+    roots.forEach((root) => {
+      if (!(root instanceof Element)) return;
+      if (root.matches(selector)) nodes.add(root);
+      root.querySelectorAll(selector).forEach((node) => nodes.add(node));
+    });
+    return Array.from(nodes);
+  }
+
+  function cleanupDetachedNextgenActionScopeMenus() {
+    document.querySelectorAll(".power-browser-action-scope-menu").forEach((menu) => {
+      if (!menu.powerBrowserScopeTrigger?.isConnected) menu.remove();
+    });
+  }
+
+  function installNextgenActionStepQuickActions(roots = null) {
     if (!getSettingValue("nextgenActionStepQuickActions")) return;
     const copyPasteEnabled = Boolean(
       getSettingValue("nextgenActionStepCopyPaste"),
@@ -9351,14 +9403,8 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     const actionId = location.pathname.match(/\/app\/actions\/([^/?#]+)/i)?.[1];
     if (!actionId) return;
     ensureNextgenActionStepQuickActionStyles();
-    document.querySelectorAll(".power-browser-action-scope-menu").forEach((menu) => {
-      if (!menu.powerBrowserScopeTrigger?.isConnected) menu.remove();
-    });
-    document
-      .querySelectorAll(
-        ".react-flow__node-step[data-id], .react-flow__node-yieldsAll[data-id]",
-      )
-      .forEach((node) => {
+    if (!roots) cleanupDetachedNextgenActionScopeMenus();
+    getNextgenActionStepNodes(roots).forEach((node) => {
         const existingToolbar = node.querySelector(
           `:scope > .${NEXTGEN_ACTION_STEP_QUICK_ACTIONS_CLASS}`,
         );
@@ -9420,7 +9466,82 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
         toolbar.append(...actionButtons);
         node.appendChild(toolbar);
         void installNextgenActionScopeMenu(toolbar, context);
+    });
+  }
+
+  function nodeContainsNextgenActionElement(node, selector) {
+    return (
+      node instanceof Element &&
+      (node.matches(selector) || Boolean(node.querySelector(selector)))
+    );
+  }
+
+  function scheduleNextgenActionStepEnhancements(mutations) {
+    const actionNodeSelector =
+      ".react-flow__node-step[data-id], .react-flow__node-yieldsAll[data-id]";
+    const drawerSelector =
+      '[role="dialog"] button[data-test="cancel-step"], [role="dialog"] button[data-test="save-step"]';
+    for (const mutation of mutations) {
+      const targetActionNode =
+        mutation.target instanceof Element
+          ? mutation.target.closest(actionNodeSelector)
+          : mutation.target.parentElement?.closest(actionNodeSelector);
+      if (targetActionNode && mutation.removedNodes.length) {
+        nextgenPendingActionStepNodes.add(targetActionNode);
+      }
+      mutation.addedNodes.forEach((node) => {
+        if (nodeContainsNextgenActionElement(node, actionNodeSelector)) {
+          if (node instanceof Element && node.matches(actionNodeSelector)) {
+            nextgenPendingActionStepNodes.add(node);
+          } else if (node instanceof Element) {
+            node
+              .querySelectorAll(actionNodeSelector)
+              .forEach((actionNode) => nextgenPendingActionStepNodes.add(actionNode));
+          }
+        }
+        if (nodeContainsNextgenActionElement(node, drawerSelector)) {
+          nextgenActionStepDrawerRefreshPending = true;
+        }
+        if (
+          nextgenActionStepPasteShortcutActive &&
+          nodeContainsNextgenActionElement(node, ".react-flow__edge")
+        ) {
+          nextgenActionStepEdgeRefreshPending = true;
+        }
       });
+      mutation.removedNodes.forEach((node) => {
+        if (nodeContainsNextgenActionElement(node, actionNodeSelector)) {
+          nextgenActionStepMenuCleanupPending = true;
+        }
+      });
+    }
+    if (
+      nextgenPendingActionStepNodes.size === 0 &&
+      !nextgenActionStepDrawerRefreshPending &&
+      !nextgenActionStepEdgeRefreshPending &&
+      !nextgenActionStepMenuCleanupPending
+    ) {
+      return;
+    }
+    if (nextgenActionStepEnhancementFrame) return;
+    nextgenActionStepEnhancementFrame = window.requestAnimationFrame(() => {
+      nextgenActionStepEnhancementFrame = 0;
+      const actionNodes = Array.from(nextgenPendingActionStepNodes);
+      nextgenPendingActionStepNodes.clear();
+      if (nextgenActionStepMenuCleanupPending) {
+        nextgenActionStepMenuCleanupPending = false;
+        cleanupDetachedNextgenActionScopeMenus();
+      }
+      if (nextgenActionStepDrawerRefreshPending) {
+        nextgenActionStepDrawerRefreshPending = false;
+        installNextgenDuplicateActionStepButton();
+      }
+      if (actionNodes.length) installNextgenActionStepQuickActions(actionNodes);
+      if (nextgenActionStepEdgeRefreshPending) {
+        nextgenActionStepEdgeRefreshPending = false;
+        void installNextgenActionStepEdgePasteButtons();
+      }
+    });
   }
 
   function installNextgenActionStepEnhancements() {
@@ -9462,7 +9583,9 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     }
     if (getSettingValue("nextgenActionStepCopyPaste")) {
       installNextgenActionStepPasteShortcut();
-      void installNextgenActionStepEdgePasteButtons();
+      if (nextgenActionStepPasteShortcutActive) {
+        void installNextgenActionStepEdgePasteButtons();
+      }
     } else {
       cleanupNextgenActionStepPasteShortcut();
       cleanupNextgenActionStepEdgePasteButtons();
@@ -9493,6 +9616,14 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
   function cleanupNextgenDuplicateActionStep() {
     nextgenDuplicateActionStepObserver?.disconnect();
     nextgenDuplicateActionStepObserver = null;
+    if (nextgenActionStepEnhancementFrame) {
+      window.cancelAnimationFrame(nextgenActionStepEnhancementFrame);
+      nextgenActionStepEnhancementFrame = 0;
+    }
+    nextgenPendingActionStepNodes.clear();
+    nextgenActionStepDrawerRefreshPending = false;
+    nextgenActionStepEdgeRefreshPending = false;
+    nextgenActionStepMenuCleanupPending = false;
     document
       .querySelectorAll(`[data-test="${NEXTGEN_DUPLICATE_STEP_BUTTON_TEST_ID}"]`)
       .forEach((button) => button.remove());
@@ -9522,7 +9653,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     installNextgenActionStepEnhancements();
     if (!nextgenDuplicateActionStepObserver) {
       nextgenDuplicateActionStepObserver = new MutationObserver(
-        installNextgenActionStepEnhancements,
+        scheduleNextgenActionStepEnhancements,
       );
       nextgenDuplicateActionStepObserver.observe(document.body, {
         childList: true,
@@ -9547,6 +9678,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
   let nextgenActionHistoryHookInstalled = false;
   let nextgenActionHistoryDialogState = null;
   let nextgenActionVersionDialogState = null;
+  let nextgenActionHistoryInstallFrame = 0;
   GM_addValueChangeListener(
     NEXTGEN_ACTION_HISTORY_STORAGE_KEY,
     (_key, _oldValue, _newValue, remote) => {
@@ -11046,6 +11178,27 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     updateNextgenActionHistoryControls();
   }
 
+  function scheduleNextgenActionHistoryControls(mutations) {
+    const containsCanvas = (node) =>
+      node instanceof Element &&
+      (node.matches(".react-flow") || Boolean(node.querySelector(".react-flow")));
+    const canvasChanged = mutations.some(
+      (mutation) =>
+        Array.from(mutation.addedNodes).some(containsCanvas) ||
+        Array.from(mutation.removedNodes).some(
+          (node) =>
+            containsCanvas(node) ||
+            (node instanceof Element &&
+              node.classList.contains(NEXTGEN_ACTION_HISTORY_CONTROLS_CLASS)),
+        ),
+    );
+    if (!canvasChanged || nextgenActionHistoryInstallFrame) return;
+    nextgenActionHistoryInstallFrame = window.requestAnimationFrame(() => {
+      nextgenActionHistoryInstallFrame = 0;
+      installNextgenActionHistoryControls();
+    });
+  }
+
   function handleNextgenActionHistoryShortcut(event) {
     if (!getSettingValue("nextgenActionStepHistory")) return;
     const target = event.target;
@@ -11085,6 +11238,10 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
   function cleanupNextgenActionStepHistory() {
     nextgenActionHistoryObserver?.disconnect();
     nextgenActionHistoryObserver = null;
+    if (nextgenActionHistoryInstallFrame) {
+      window.cancelAnimationFrame(nextgenActionHistoryInstallFrame);
+      nextgenActionHistoryInstallFrame = 0;
+    }
     document.removeEventListener("keydown", handleNextgenActionHistoryShortcut, true);
     document
       .querySelectorAll(`.${NEXTGEN_ACTION_HISTORY_CONTROLS_CLASS}`)
@@ -11123,7 +11280,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     document.addEventListener("keydown", handleNextgenActionHistoryShortcut, true);
     if (!nextgenActionHistoryObserver) {
       nextgenActionHistoryObserver = new MutationObserver(
-        installNextgenActionHistoryControls,
+        scheduleNextgenActionHistoryControls,
       );
       nextgenActionHistoryObserver.observe(document.body, {
         childList: true,

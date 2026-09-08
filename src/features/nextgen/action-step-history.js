@@ -15,6 +15,7 @@
   let nextgenActionHistoryHookInstalled = false;
   let nextgenActionHistoryDialogState = null;
   let nextgenActionVersionDialogState = null;
+  let nextgenActionHistoryInstallFrame = 0;
   GM_addValueChangeListener(
     NEXTGEN_ACTION_HISTORY_STORAGE_KEY,
     (_key, _oldValue, _newValue, remote) => {
@@ -1514,6 +1515,27 @@
     updateNextgenActionHistoryControls();
   }
 
+  function scheduleNextgenActionHistoryControls(mutations) {
+    const containsCanvas = (node) =>
+      node instanceof Element &&
+      (node.matches(".react-flow") || Boolean(node.querySelector(".react-flow")));
+    const canvasChanged = mutations.some(
+      (mutation) =>
+        Array.from(mutation.addedNodes).some(containsCanvas) ||
+        Array.from(mutation.removedNodes).some(
+          (node) =>
+            containsCanvas(node) ||
+            (node instanceof Element &&
+              node.classList.contains(NEXTGEN_ACTION_HISTORY_CONTROLS_CLASS)),
+        ),
+    );
+    if (!canvasChanged || nextgenActionHistoryInstallFrame) return;
+    nextgenActionHistoryInstallFrame = window.requestAnimationFrame(() => {
+      nextgenActionHistoryInstallFrame = 0;
+      installNextgenActionHistoryControls();
+    });
+  }
+
   function handleNextgenActionHistoryShortcut(event) {
     if (!getSettingValue("nextgenActionStepHistory")) return;
     const target = event.target;
@@ -1553,6 +1575,10 @@
   function cleanupNextgenActionStepHistory() {
     nextgenActionHistoryObserver?.disconnect();
     nextgenActionHistoryObserver = null;
+    if (nextgenActionHistoryInstallFrame) {
+      window.cancelAnimationFrame(nextgenActionHistoryInstallFrame);
+      nextgenActionHistoryInstallFrame = 0;
+    }
     document.removeEventListener("keydown", handleNextgenActionHistoryShortcut, true);
     document
       .querySelectorAll(`.${NEXTGEN_ACTION_HISTORY_CONTROLS_CLASS}`)
@@ -1591,7 +1617,7 @@
     document.addEventListener("keydown", handleNextgenActionHistoryShortcut, true);
     if (!nextgenActionHistoryObserver) {
       nextgenActionHistoryObserver = new MutationObserver(
-        installNextgenActionHistoryControls,
+        scheduleNextgenActionHistoryControls,
       );
       nextgenActionHistoryObserver.observe(document.body, {
         childList: true,

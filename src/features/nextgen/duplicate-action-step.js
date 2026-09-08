@@ -25,6 +25,11 @@
   let nextgenScopeMenuDocumentListenerInstalled = false;
   let nextgenScopeMenuCheckSequence = 0;
   const nextgenScopeActionFetches = new Map();
+  const nextgenPendingActionStepNodes = new Set();
+  let nextgenActionStepEnhancementFrame = 0;
+  let nextgenActionStepDrawerRefreshPending = false;
+  let nextgenActionStepEdgeRefreshPending = false;
+  let nextgenActionStepMenuCleanupPending = false;
   GM_addValueChangeListener(
     NEXTGEN_ACTION_STEP_CLIPBOARD_KEY,
     (_key, _oldValue, newValue) => {
@@ -1878,6 +1883,11 @@
       NEXTGEN_ACTION_STEP_EDGE_PASTE_ACTIVE_CLASS,
       nextgenActionStepPasteShortcutActive,
     );
+    if (nextgenActionStepPasteShortcutActive) {
+      void installNextgenActionStepEdgePasteButtons();
+    } else {
+      cleanupNextgenActionStepEdgePasteButtons();
+    }
   }
 
   function getNextgenActionStepPasteShortcutParts() {
@@ -2047,6 +2057,7 @@
 
   async function installNextgenActionStepEdgePasteButtons() {
     if (
+      !nextgenActionStepPasteShortcutActive ||
       !getSettingValue("nextgenActionStepCopyPaste") ||
       !isValidNextgenActionStepClipboard(nextgenActionStepClipboard)
     ) {
@@ -2417,7 +2428,26 @@
     }
   }
 
-  function installNextgenActionStepQuickActions() {
+  function getNextgenActionStepNodes(roots = null) {
+    const selector =
+      ".react-flow__node-step[data-id], .react-flow__node-yieldsAll[data-id]";
+    if (!roots) return Array.from(document.querySelectorAll(selector));
+    const nodes = new Set();
+    roots.forEach((root) => {
+      if (!(root instanceof Element)) return;
+      if (root.matches(selector)) nodes.add(root);
+      root.querySelectorAll(selector).forEach((node) => nodes.add(node));
+    });
+    return Array.from(nodes);
+  }
+
+  function cleanupDetachedNextgenActionScopeMenus() {
+    document.querySelectorAll(".power-browser-action-scope-menu").forEach((menu) => {
+      if (!menu.powerBrowserScopeTrigger?.isConnected) menu.remove();
+    });
+  }
+
+  function installNextgenActionStepQuickActions(roots = null) {
     if (!getSettingValue("nextgenActionStepQuickActions")) return;
     const copyPasteEnabled = Boolean(
       getSettingValue("nextgenActionStepCopyPaste"),
@@ -2425,14 +2455,8 @@
     const actionId = location.pathname.match(/\/app\/actions\/([^/?#]+)/i)?.[1];
     if (!actionId) return;
     ensureNextgenActionStepQuickActionStyles();
-    document.querySelectorAll(".power-browser-action-scope-menu").forEach((menu) => {
-      if (!menu.powerBrowserScopeTrigger?.isConnected) menu.remove();
-    });
-    document
-      .querySelectorAll(
-        ".react-flow__node-step[data-id], .react-flow__node-yieldsAll[data-id]",
-      )
-      .forEach((node) => {
+    if (!roots) cleanupDetachedNextgenActionScopeMenus();
+    getNextgenActionStepNodes(roots).forEach((node) => {
         const existingToolbar = node.querySelector(
           `:scope > .${NEXTGEN_ACTION_STEP_QUICK_ACTIONS_CLASS}`,
         );
@@ -2494,7 +2518,82 @@
         toolbar.append(...actionButtons);
         node.appendChild(toolbar);
         void installNextgenActionScopeMenu(toolbar, context);
+    });
+  }
+
+  function nodeContainsNextgenActionElement(node, selector) {
+    return (
+      node instanceof Element &&
+      (node.matches(selector) || Boolean(node.querySelector(selector)))
+    );
+  }
+
+  function scheduleNextgenActionStepEnhancements(mutations) {
+    const actionNodeSelector =
+      ".react-flow__node-step[data-id], .react-flow__node-yieldsAll[data-id]";
+    const drawerSelector =
+      '[role="dialog"] button[data-test="cancel-step"], [role="dialog"] button[data-test="save-step"]';
+    for (const mutation of mutations) {
+      const targetActionNode =
+        mutation.target instanceof Element
+          ? mutation.target.closest(actionNodeSelector)
+          : mutation.target.parentElement?.closest(actionNodeSelector);
+      if (targetActionNode && mutation.removedNodes.length) {
+        nextgenPendingActionStepNodes.add(targetActionNode);
+      }
+      mutation.addedNodes.forEach((node) => {
+        if (nodeContainsNextgenActionElement(node, actionNodeSelector)) {
+          if (node instanceof Element && node.matches(actionNodeSelector)) {
+            nextgenPendingActionStepNodes.add(node);
+          } else if (node instanceof Element) {
+            node
+              .querySelectorAll(actionNodeSelector)
+              .forEach((actionNode) => nextgenPendingActionStepNodes.add(actionNode));
+          }
+        }
+        if (nodeContainsNextgenActionElement(node, drawerSelector)) {
+          nextgenActionStepDrawerRefreshPending = true;
+        }
+        if (
+          nextgenActionStepPasteShortcutActive &&
+          nodeContainsNextgenActionElement(node, ".react-flow__edge")
+        ) {
+          nextgenActionStepEdgeRefreshPending = true;
+        }
       });
+      mutation.removedNodes.forEach((node) => {
+        if (nodeContainsNextgenActionElement(node, actionNodeSelector)) {
+          nextgenActionStepMenuCleanupPending = true;
+        }
+      });
+    }
+    if (
+      nextgenPendingActionStepNodes.size === 0 &&
+      !nextgenActionStepDrawerRefreshPending &&
+      !nextgenActionStepEdgeRefreshPending &&
+      !nextgenActionStepMenuCleanupPending
+    ) {
+      return;
+    }
+    if (nextgenActionStepEnhancementFrame) return;
+    nextgenActionStepEnhancementFrame = window.requestAnimationFrame(() => {
+      nextgenActionStepEnhancementFrame = 0;
+      const actionNodes = Array.from(nextgenPendingActionStepNodes);
+      nextgenPendingActionStepNodes.clear();
+      if (nextgenActionStepMenuCleanupPending) {
+        nextgenActionStepMenuCleanupPending = false;
+        cleanupDetachedNextgenActionScopeMenus();
+      }
+      if (nextgenActionStepDrawerRefreshPending) {
+        nextgenActionStepDrawerRefreshPending = false;
+        installNextgenDuplicateActionStepButton();
+      }
+      if (actionNodes.length) installNextgenActionStepQuickActions(actionNodes);
+      if (nextgenActionStepEdgeRefreshPending) {
+        nextgenActionStepEdgeRefreshPending = false;
+        void installNextgenActionStepEdgePasteButtons();
+      }
+    });
   }
 
   function installNextgenActionStepEnhancements() {
@@ -2536,7 +2635,9 @@
     }
     if (getSettingValue("nextgenActionStepCopyPaste")) {
       installNextgenActionStepPasteShortcut();
-      void installNextgenActionStepEdgePasteButtons();
+      if (nextgenActionStepPasteShortcutActive) {
+        void installNextgenActionStepEdgePasteButtons();
+      }
     } else {
       cleanupNextgenActionStepPasteShortcut();
       cleanupNextgenActionStepEdgePasteButtons();
@@ -2567,6 +2668,14 @@
   function cleanupNextgenDuplicateActionStep() {
     nextgenDuplicateActionStepObserver?.disconnect();
     nextgenDuplicateActionStepObserver = null;
+    if (nextgenActionStepEnhancementFrame) {
+      window.cancelAnimationFrame(nextgenActionStepEnhancementFrame);
+      nextgenActionStepEnhancementFrame = 0;
+    }
+    nextgenPendingActionStepNodes.clear();
+    nextgenActionStepDrawerRefreshPending = false;
+    nextgenActionStepEdgeRefreshPending = false;
+    nextgenActionStepMenuCleanupPending = false;
     document
       .querySelectorAll(`[data-test="${NEXTGEN_DUPLICATE_STEP_BUTTON_TEST_ID}"]`)
       .forEach((button) => button.remove());
@@ -2596,7 +2705,7 @@
     installNextgenActionStepEnhancements();
     if (!nextgenDuplicateActionStepObserver) {
       nextgenDuplicateActionStepObserver = new MutationObserver(
-        installNextgenActionStepEnhancements,
+        scheduleNextgenActionStepEnhancements,
       );
       nextgenDuplicateActionStepObserver.observe(document.body, {
         childList: true,

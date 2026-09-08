@@ -2,6 +2,7 @@
   const NEXTGEN_ACTION_TYPE_ICON_STYLE_ID =
     "power-browser-action-type-icon-styles";
   const nextgenActionTypeIconTemplates = new Map();
+  const nextgenPendingActionTypeIconNodes = new Set();
 
   function getNextgenActionTypeIconRouteId() {
     return location.pathname.match(/\/app\/actions\/([^/?#]+)/i)?.[1] || null;
@@ -47,8 +48,8 @@
       .forEach((icon) => icon.remove());
   }
 
-  function renderNextgenActionTypeIcons() {
-    const nodes = document.querySelectorAll(
+  function renderNextgenActionTypeIcons(nodes = null) {
+    nodes ||= document.querySelectorAll(
       ".react-flow__node-step[data-id], .react-flow__node-yieldsAll[data-id]",
     );
     nodes.forEach((node) => {
@@ -121,14 +122,34 @@
     }, new Map());
   }
 
-  function scheduleNextgenActionTypeIconRender() {
+  function scheduleNextgenActionTypeIconRender(mutations) {
+    const selector =
+      ".react-flow__node-step[data-id], .react-flow__node-yieldsAll[data-id]";
+    for (const mutation of mutations) {
+      const targetActionNode =
+        mutation.target instanceof Element
+          ? mutation.target.closest(selector)
+          : mutation.target.parentElement?.closest(selector);
+      if (targetActionNode && mutation.removedNodes.length) {
+        nextgenPendingActionTypeIconNodes.add(targetActionNode);
+      }
+      mutation.addedNodes.forEach((node) => {
+        if (!(node instanceof Element)) return;
+        if (node.matches(selector)) nextgenPendingActionTypeIconNodes.add(node);
+        node
+          .querySelectorAll(selector)
+          .forEach((actionNode) => nextgenPendingActionTypeIconNodes.add(actionNode));
+      });
+    }
+    if (nextgenPendingActionTypeIconNodes.size === 0) return;
     clearTimeout(nextgenActionTypeIconsTimer);
     nextgenActionTypeIconsTimer = setTimeout(() => {
-      renderNextgenActionTypeIcons();
-      const hasUnmappedStep = Array.from(
-        document.querySelectorAll(".react-flow__node-step[data-id]"),
-      ).some(
+      const nodes = Array.from(nextgenPendingActionTypeIconNodes);
+      nextgenPendingActionTypeIconNodes.clear();
+      renderNextgenActionTypeIcons(nodes);
+      const hasUnmappedStep = nodes.some(
         (node) =>
+          node.classList.contains("react-flow__node-step") &&
           !nextgenActionTypeIconsById.has(node.getAttribute("data-id")),
       );
       if (hasUnmappedStep) {
@@ -145,6 +166,7 @@
     nextgenActionTypeIconsById = new Map();
     nextgenActionTypeIconsRoute = "";
     nextgenActionTypeIconsRequest += 1;
+    nextgenPendingActionTypeIconNodes.clear();
     clearNextgenActionTypeIcons();
     document.getElementById(NEXTGEN_ACTION_TYPE_ICON_STYLE_ID)?.remove();
   }
