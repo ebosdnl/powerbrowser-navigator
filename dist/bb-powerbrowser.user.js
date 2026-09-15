@@ -2,7 +2,7 @@
 // @name         Power Browser Navigator V2
 // @description  Navigation, Quick switcher+, settings, diagnostics, and developer productivity tools for Betty Blocks.
 // @tag          Productivity
-// @version      3.6.4
+// @version      3.6.5
 // @updateURL    https://github.com/ebosdnl/powerbrowser-navigator/releases/latest/download/bb-powerbrowser.user.js
 // @downloadURL  https://github.com/ebosdnl/powerbrowser-navigator/releases/latest/download/bb-powerbrowser.user.js
 // @author       Enrique Bos, Menno Weijling (OG grondlegger), Sven Truschel, Hacker
@@ -6651,6 +6651,25 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       .forEach((icon) => icon.remove());
   }
 
+  function getNextgenActionTypeIconMount(node) {
+    const card = node.querySelector(':scope > [draggable="true"]');
+    const updatedCanvasRow = Array.from(card?.children || []).find(
+      (child) =>
+        child instanceof Element &&
+        child.querySelector('svg[aria-label$="BACKGROUND"]') &&
+        child.querySelector("p"),
+    );
+    return (
+      updatedCanvasRow ||
+      node.querySelector(
+        ".p-1.flex.items-center.relative.justify-between.w-full > .flex.items-center.pr-1",
+      ) ||
+      node.querySelector(
+        ".flex.items-center.flex-row.py-1.px-0\\.5.w-full.justify-between",
+      )
+    );
+  }
+
   function renderNextgenActionTypeIcons(nodes = null) {
     nodes ||= document.querySelectorAll(
       ".react-flow__node-step[data-id], .react-flow__node-yieldsAll[data-id]",
@@ -6675,12 +6694,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       const errorIcon = node.querySelector("svg[data-testid='icon_error_triangle']");
       const actionArea =
         errorIcon?.closest("div[data-state]")?.parentElement ||
-        node.querySelector(
-          ".p-1.flex.items-center.relative.justify-between.w-full > .flex.items-center.pr-1",
-        ) ||
-        node.querySelector(
-          ".flex.items-center.flex-row.py-1.px-0\\.5.w-full.justify-between",
-        );
+        getNextgenActionTypeIconMount(node);
       if (!actionArea) return;
       if (errorIcon) {
         actionArea.insertBefore(icon, errorIcon.closest("div[data-state]"));
@@ -7133,13 +7147,30 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
   let nextgenActionStepPasteShortcutInstalled = false;
   let nextgenActionStepPasteShortcutActive = false;
   let nextgenScopeMenuDocumentListenerInstalled = false;
+  let nextgenActionScopeHooksInstalled = false;
   let nextgenScopeMenuCheckSequence = 0;
+  let nextgenActionScopeRevision = 0;
+  const nextgenScopeActionCache = new Map();
   const nextgenScopeActionFetches = new Map();
   const nextgenPendingActionStepNodes = new Set();
   let nextgenActionStepEnhancementFrame = 0;
   let nextgenActionStepDrawerRefreshPending = false;
   let nextgenActionStepEdgeRefreshPending = false;
   let nextgenActionStepMenuCleanupPending = false;
+  let nextgenActionStepDeleteDialogState = null;
+  const nextgenActionScopeMutationHook = {
+    after: invalidateNextgenActionScopeData,
+  };
+  const nextgenActionScopeGraphqlResponseHook = ({ payload }) => {
+    const query = String(payload?.query || "");
+    if (
+      /\b(?:createActionStep|updateActionStep|deleteActionStep|moveActionSteps)\s*\(/.test(
+        query,
+      )
+    ) {
+      invalidateNextgenActionScopeData();
+    }
+  };
   GM_addValueChangeListener(
     NEXTGEN_ACTION_STEP_CLIPBOARD_KEY,
     (_key, _oldValue, newValue) => {
@@ -8034,13 +8065,22 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
   }
 
   async function fetchNextgenActionForScope(actionId) {
+    const revision = nextgenActionScopeRevision;
+    const cachedAction = nextgenScopeActionCache.get(actionId);
+    if (cachedAction?.revision === revision) return cachedAction.action;
     const existingFetch = nextgenScopeActionFetches.get(actionId);
     if (existingFetch) return existingFetch;
     const actionFetch = requestNextgenActionStepGraphql(
       "Action",
       NEXTGEN_ACTION_CANVAS_QUERY,
       { input: { id: actionId } },
-    ).then((data) => data.action || null);
+    ).then((data) => {
+      const action = data.action || null;
+      if (revision === nextgenActionScopeRevision) {
+        nextgenScopeActionCache.set(actionId, { revision, action });
+      }
+      return action;
+    });
     nextgenScopeActionFetches.set(actionId, actionFetch);
     try {
       return await actionFetch;
@@ -8049,6 +8089,12 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
         nextgenScopeActionFetches.delete(actionId);
       }
     }
+  }
+
+  function invalidateNextgenActionScopeData() {
+    nextgenActionScopeRevision += 1;
+    nextgenScopeActionCache.clear();
+    nextgenScopeActionFetches.clear();
   }
 
   function getNextgenScopeActionFunctions(snapshots) {
@@ -8907,9 +8953,114 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     }
   }
 
-  async function deleteNextgenActionStep(button, context) {
-    if (!window.confirm("Delete this action step?")) return;
-    button.disabled = true;
+  function closeNextgenActionStepDeleteDialog() {
+    const state = nextgenActionStepDeleteDialogState;
+    if (!state || state.busy) return;
+    state.overlay.setAttribute("aria-hidden", "true");
+    state.dialog.setAttribute("aria-hidden", "true");
+    state.context = null;
+    state.sourceButton = null;
+    closePowerBrowserModal(state.dialog);
+  }
+
+  function ensureNextgenActionStepDeleteDialog() {
+    if (nextgenActionStepDeleteDialogState?.dialog.isConnected) {
+      return nextgenActionStepDeleteDialogState;
+    }
+    const overlay = document.createElement("div");
+    overlay.className = "power-browser-quick-delete-overlay";
+    overlay.setAttribute("aria-hidden", "true");
+    const dialog = document.createElement("section");
+    dialog.className = "power-browser-quick-delete-dialog";
+    dialog.dataset.test = "power-browser-quick-delete-dialog";
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("aria-modal", "true");
+    dialog.setAttribute("aria-hidden", "true");
+    dialog.setAttribute("aria-labelledby", "power-browser-quick-delete-title");
+    dialog.setAttribute(
+      "aria-describedby",
+      "power-browser-quick-delete-description",
+    );
+    const heading = document.createElement("h2");
+    heading.id = "power-browser-quick-delete-title";
+    heading.textContent = "You are about to delete this step";
+    const description = document.createElement("p");
+    description.id = "power-browser-quick-delete-description";
+    description.textContent =
+      "Are you sure you want to delete this step? This can't be undone.";
+    const actions = document.createElement("div");
+    actions.className = "power-browser-quick-delete-actions";
+    const cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.className = "power-browser-quick-delete-cancel";
+    cancel.textContent = "Cancel";
+    const confirm = document.createElement("button");
+    confirm.type = "button";
+    confirm.className = "power-browser-quick-delete-confirm";
+    confirm.dataset.test = "power-browser-confirm-delete-step";
+    confirm.textContent = "Delete";
+    const close = document.createElement("button");
+    close.type = "button";
+    close.className = "power-browser-quick-delete-close";
+    close.setAttribute("aria-label", "Close dialog");
+    close.innerHTML =
+      '<svg aria-hidden="true" viewBox="0 0 14 14"><path d="M2.006 3.244a.875.875 0 0 1 1.238-1.238L7 5.763l3.756-3.757a.875.875 0 0 1 1.238 1.238L8.237 7l3.757 3.756a.875.875 0 0 1-1.238 1.238L7 8.237l-3.756 3.757a.875.875 0 0 1-1.238-1.238L5.763 7 2.006 3.244Z"></path></svg>';
+    actions.append(cancel, confirm);
+    dialog.append(heading, description, actions, close);
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+    nextgenActionStepDeleteDialogState = {
+      overlay,
+      dialog,
+      cancel,
+      confirm,
+      close,
+      context: null,
+      sourceButton: null,
+      busy: false,
+    };
+    cancel.addEventListener("click", closeNextgenActionStepDeleteDialog);
+    close.addEventListener("click", closeNextgenActionStepDeleteDialog);
+    overlay.addEventListener("pointerdown", (event) => {
+      if (event.target === overlay) closeNextgenActionStepDeleteDialog();
+    });
+    confirm.addEventListener("click", () =>
+      void confirmNextgenActionStepDeletion(),
+    );
+    dialog.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" || event.repeat || event.isComposing) return;
+      event.preventDefault();
+      event.stopPropagation();
+      void confirmNextgenActionStepDeletion();
+    });
+    return nextgenActionStepDeleteDialogState;
+  }
+
+  function openNextgenActionStepDeleteDialog(button, context) {
+    const state = ensureNextgenActionStepDeleteDialog();
+    state.context = { ...context };
+    state.sourceButton = button;
+    state.overlay.setAttribute("aria-hidden", "false");
+    state.dialog.setAttribute("aria-hidden", "false");
+    openPowerBrowserModal({
+      dialog: state.dialog,
+      overlay: state.overlay,
+      close: closeNextgenActionStepDeleteDialog,
+      initialFocus: () => state.confirm,
+      announcement: "Delete action step confirmation opened.",
+    });
+    state.confirm.focus();
+  }
+
+  async function confirmNextgenActionStepDeletion() {
+    const state = nextgenActionStepDeleteDialogState;
+    const context = state?.context;
+    if (!state || !context || state.busy) return;
+    state.busy = true;
+    state.cancel.disabled = true;
+    state.confirm.disabled = true;
+    state.close.disabled = true;
+    if (state.sourceButton?.isConnected) state.sourceButton.disabled = true;
     try {
       await requestNextgenActionStepGraphql(
         "DeleteActionStep",
@@ -8929,8 +9080,9 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
         "removed",
         false,
       );
+      state.busy = false;
+      closeNextgenActionStepDeleteDialog();
     } catch (error) {
-      button.disabled = false;
       console.error("[Power Browser] Unable to delete action step.", {
         ...context,
         error,
@@ -8938,7 +9090,17 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       window.alert(
         `Unable to delete this action step: ${error instanceof Error ? error.message : String(error)}`,
       );
+    } finally {
+      state.busy = false;
+      state.cancel.disabled = false;
+      state.confirm.disabled = false;
+      state.close.disabled = false;
+      if (state.sourceButton?.isConnected) state.sourceButton.disabled = false;
     }
+  }
+
+  function deleteNextgenActionStep(button, context) {
+    openNextgenActionStepDeleteDialog(button, context);
   }
 
   function ensureNextgenActionStepQuickActionStyles() {
@@ -8960,6 +9122,22 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       .${NEXTGEN_ACTION_STEP_QUICK_ACTIONS_CLASS} button.is-loading svg{fill:#9ca3af}
       .${NEXTGEN_ACTION_STEP_QUICK_ACTIONS_CLASS} svg{display:inline-block;flex:0 0 auto;width:.75rem;height:.75rem;fill:#374151}
       .${NEXTGEN_ACTION_STEP_QUICK_ACTIONS_CLASS} button[data-test="power-browser-quick-delete-step"]:hover svg{fill:#ef4444}
+      .power-browser-quick-delete-overlay{position:fixed;inset:0;z-index:2147483004;display:flex;align-items:flex-start;justify-content:center;padding:112px 24px 24px;background:rgba(17,24,39,.45);box-sizing:border-box}
+      .power-browser-quick-delete-overlay[aria-hidden="true"]{display:none}
+      .power-browser-quick-delete-dialog{position:relative;display:grid;width:min(600px,calc(100vw - 48px));min-height:190px;gap:16px;padding:32px;border-radius:4px;background:#fff;box-shadow:0 20px 50px rgba(15,23,42,.24);color:#111827;box-sizing:border-box}
+      .power-browser-quick-delete-dialog[aria-hidden="true"]{display:none}
+      .power-browser-quick-delete-dialog h2{width:calc(100% - 40px);margin:0;font-size:20px;font-weight:700;line-height:1.25}
+      .power-browser-quick-delete-dialog p{margin:0;color:#4b5563;font-size:14px;line-height:1.5}
+      .power-browser-quick-delete-actions{display:flex;align-items:center;justify-content:space-between;gap:8px}
+      .power-browser-quick-delete-actions button{display:inline-flex;align-items:center;justify-content:center;height:40px;padding:0 16px;border:1px solid;border-radius:4px;font-family:inherit;font-size:14px;font-weight:400;cursor:pointer}
+      .power-browser-quick-delete-cancel{border-color:#f3f4f6!important;background:#f9fafb;color:#111827}
+      .power-browser-quick-delete-cancel:hover{border-color:#e5e7eb!important;background:#f3f4f6}
+      .power-browser-quick-delete-confirm{border-color:#ef4444!important;background:#ef4444;color:#fff}
+      .power-browser-quick-delete-confirm:hover{border-color:#b91c1c!important;background:#b91c1c}
+      .power-browser-quick-delete-close{position:absolute;top:32px;right:32px;display:flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;border:0;border-radius:4px;background:transparent;cursor:pointer}
+      .power-browser-quick-delete-close:hover{background:#f9fafb}
+      .power-browser-quick-delete-close svg{width:12px;height:12px;fill:#374151}
+      .power-browser-quick-delete-dialog button:disabled{cursor:wait;opacity:.5}
       .${NEXTGEN_ACTION_STEP_QUICK_ACTIONS_CLASS} .power-browser-action-scope-trigger{margin-left:2px;border-left:1px solid #e5e7eb;border-radius:0 4px 4px 0}
       .power-browser-action-scope-menu{position:fixed;z-index:2147483646;display:flex;flex-direction:column;width:230px;padding:6px;border:1px solid #e5e7eb;border-radius:7px;background:#fff;box-shadow:0 8px 24px rgba(15,23,42,.18);color:#111827;font-family:inherit;box-sizing:border-box}
       .power-browser-action-scope-menu[hidden]{display:none!important}
@@ -9494,19 +9672,30 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
   }
 
   async function installNextgenActionScopeMenu(toolbar, context) {
+    const revision = String(nextgenActionScopeRevision);
+    if (
+      toolbar.dataset.scopeRevision === revision ||
+      toolbar.dataset.scopeCheckRevision === revision
+    ) {
+      return;
+    }
     const checkSequence = String(++nextgenScopeMenuCheckSequence);
     toolbar.dataset.scopeCheckSequence = checkSequence;
+    toolbar.dataset.scopeCheckRevision = revision;
     try {
       const action = await fetchNextgenActionForScope(context.actionId);
       if (
         !toolbar.isConnected ||
-        toolbar.dataset.scopeCheckSequence !== checkSequence
+        toolbar.dataset.scopeCheckSequence !== checkSequence ||
+        revision !== String(nextgenActionScopeRevision)
       ) {
         return;
       }
       const scopeInfo = getNextgenActionScopeInfo(action, context.stepId);
       if (!scopeInfo) {
         removeNextgenActionScopeMenuForToolbar(toolbar);
+        toolbar.dataset.scopeRevision = revision;
+        delete toolbar.dataset.scopeCheckRevision;
         return;
       }
       const scopeSignature = [
@@ -9525,12 +9714,19 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
         existingTrigger &&
         existingMenu
       ) {
+        toolbar.dataset.scopeRevision = revision;
+        delete toolbar.dataset.scopeCheckRevision;
         return;
       }
       removeNextgenActionScopeMenuForToolbar(toolbar);
       createNextgenActionScopeMenu(toolbar, context, scopeInfo);
       toolbar.dataset.scopeSignature = scopeSignature;
+      toolbar.dataset.scopeRevision = revision;
+      delete toolbar.dataset.scopeCheckRevision;
     } catch (error) {
+      if (toolbar.dataset.scopeCheckRevision === revision) {
+        delete toolbar.dataset.scopeCheckRevision;
+      }
       console.debug("[Power Browser] Scope quick action unavailable.", {
         ...context,
         error,
@@ -9798,12 +9994,36 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     document
       .querySelectorAll(".power-browser-action-scope-menu")
       .forEach((menu) => menu.remove());
+    if (nextgenActionStepDeleteDialogState) {
+      nextgenActionStepDeleteDialogState.busy = false;
+      closeNextgenActionStepDeleteDialog();
+      nextgenActionStepDeleteDialogState.overlay.remove();
+      nextgenActionStepDeleteDialogState = null;
+    }
     document.getElementById(NEXTGEN_ACTION_STEP_QUICK_ACTIONS_STYLE_ID)?.remove();
     cleanupNextgenActionStepPasteShortcut();
     cleanupNextgenActionStepEdgePasteButtons();
   }
 
   function applyNextgenDuplicateActionStepSetting() {
+    const bridge = getNextgenActionRuntimeBridge();
+    if (
+      bridge &&
+      getSettingValue("nextgenActionStepQuickActions") &&
+      !nextgenActionScopeHooksInstalled
+    ) {
+      if (!bridge.actionMutationHooks.includes(nextgenActionScopeMutationHook)) {
+        bridge.actionMutationHooks.push(nextgenActionScopeMutationHook);
+      }
+      if (
+        !bridge.graphqlResponseHooks.includes(
+          nextgenActionScopeGraphqlResponseHook,
+        )
+      ) {
+        bridge.graphqlResponseHooks.push(nextgenActionScopeGraphqlResponseHook);
+      }
+      nextgenActionScopeHooksInstalled = true;
+    }
     if (
       !getSettingValue("nextgenDuplicateActionStep") &&
       !getSettingValue("nextgenActionStepQuickActions") &&
@@ -9825,6 +10045,8 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
   }
   const NEXTGEN_ACTION_HISTORY_CONTROLS_CLASS =
     "power-browser-action-history-controls";
+  const NEXTGEN_ACTION_HISTORY_MINIMAP_CLASS =
+    "power-browser-action-history-minimap";
   const NEXTGEN_ACTION_HISTORY_STYLE_ID =
     "power-browser-action-history-style";
   const NEXTGEN_ACTION_VERSIONS_KEY =
@@ -10720,7 +10942,8 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     const style = document.createElement("style");
     style.id = NEXTGEN_ACTION_HISTORY_STYLE_ID;
     style.textContent = `
-      .${NEXTGEN_ACTION_HISTORY_CONTROLS_CLASS}{position:absolute;top:12px;right:12px;z-index:25;display:flex;gap:2px;padding:3px;border:1px solid #e5e7eb;border-radius:6px;background:#fff;box-shadow:0 2px 8px rgba(15,23,42,.14)}
+      .${NEXTGEN_ACTION_HISTORY_MINIMAP_CLASS}{overflow:visible!important}
+      .${NEXTGEN_ACTION_HISTORY_CONTROLS_CLASS}{position:absolute;top:calc(100% + 8px);right:0;z-index:25;display:flex;gap:2px;padding:3px;border:1px solid #e5e7eb;border-radius:6px;background:#fff;box-shadow:0 2px 8px rgba(15,23,42,.14)}
       .${NEXTGEN_ACTION_HISTORY_CONTROLS_CLASS} button{display:flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;border:0;border-radius:4px;background:transparent;cursor:pointer;opacity:.8}
       .${NEXTGEN_ACTION_HISTORY_CONTROLS_CLASS} button:hover:not(:disabled),.${NEXTGEN_ACTION_HISTORY_CONTROLS_CLASS} button:focus-visible:not(:disabled){background:#f3f4f6;opacity:1;outline:none}
       .${NEXTGEN_ACTION_HISTORY_CONTROLS_CLASS} button:disabled{cursor:not-allowed;opacity:.3}
@@ -11289,13 +11512,17 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     if (!getSettingValue("nextgenActionStepHistory")) return;
     const actionId = getNextgenActionHistoryRoute()?.actionId;
     const canvas = document.querySelector(".react-flow");
-    if (!actionId || !canvas) return;
+    const minimap = canvas?.querySelector('[data-testid="rf__minimap"]');
+    if (!actionId || !canvas || !minimap) return;
     ensureNextgenActionHistoryStyles();
-    if (
-      canvas.querySelector(
-        `:scope > .${NEXTGEN_ACTION_HISTORY_CONTROLS_CLASS}`,
-      )
-    ) {
+    minimap.classList.add(NEXTGEN_ACTION_HISTORY_MINIMAP_CLASS);
+    const existingControls = canvas.querySelector(
+      `.${NEXTGEN_ACTION_HISTORY_CONTROLS_CLASS}`,
+    );
+    if (existingControls) {
+      if (existingControls.parentElement !== minimap) {
+        minimap.appendChild(existingControls);
+      }
       updateNextgenActionHistoryControls();
       return;
     }
@@ -11336,23 +11563,25 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     history.addEventListener("click", openNextgenActionHistoryDialog);
     versions.addEventListener("click", openNextgenActionVersionDialog);
     controls.append(undo, redo, history, versions);
-    canvas.appendChild(controls);
+    minimap.appendChild(controls);
     updateNextgenActionHistoryControls();
   }
 
   function scheduleNextgenActionHistoryControls(mutations) {
-    const containsCanvas = (node) =>
+    const containsHistoryMount = (node) =>
       node instanceof Element &&
-      (node.matches(".react-flow") || Boolean(node.querySelector(".react-flow")));
+      (node.matches(
+        `.react-flow, [data-testid="rf__minimap"], .${NEXTGEN_ACTION_HISTORY_CONTROLS_CLASS}`,
+      ) ||
+        Boolean(
+          node.querySelector(
+            `.react-flow, [data-testid="rf__minimap"], .${NEXTGEN_ACTION_HISTORY_CONTROLS_CLASS}`,
+          ),
+        ));
     const canvasChanged = mutations.some(
       (mutation) =>
-        Array.from(mutation.addedNodes).some(containsCanvas) ||
-        Array.from(mutation.removedNodes).some(
-          (node) =>
-            containsCanvas(node) ||
-            (node instanceof Element &&
-              node.classList.contains(NEXTGEN_ACTION_HISTORY_CONTROLS_CLASS)),
-        ),
+        Array.from(mutation.addedNodes).some(containsHistoryMount) ||
+        Array.from(mutation.removedNodes).some(containsHistoryMount),
     );
     if (!canvasChanged || nextgenActionHistoryInstallFrame) return;
     nextgenActionHistoryInstallFrame = window.requestAnimationFrame(() => {
@@ -11408,6 +11637,11 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     document
       .querySelectorAll(`.${NEXTGEN_ACTION_HISTORY_CONTROLS_CLASS}`)
       .forEach((controls) => controls.remove());
+    document
+      .querySelectorAll(`.${NEXTGEN_ACTION_HISTORY_MINIMAP_CLASS}`)
+      .forEach((minimap) =>
+        minimap.classList.remove(NEXTGEN_ACTION_HISTORY_MINIMAP_CLASS),
+      );
     document.getElementById(NEXTGEN_ACTION_HISTORY_STYLE_ID)?.remove();
     if (nextgenActionHistoryDialogState) {
       closeNextgenActionHistoryDialog();
@@ -17954,28 +18188,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
         : "Updated";
       state.title.textContent = "What’s new";
       state.description.textContent = "";
-      [
-        [
-          "◫",
-          "Persistent navigation visibility",
-          "When you hide the navigation bar, it stays hidden after reloads and syncs across open tabs.",
-        ],
-        [
-          "↪",
-          "Automatic Sub Action names",
-          "Optionally name a Sub Action step after the action selected in its Action setting. Enable it under Next-gen → Actions.",
-        ],
-        [
-          "⚡",
-          "Faster action canvases",
-          "Power Browser now reduces repeated observer work and defers edge paste controls until needed, keeping large Next-gen actions more responsive.",
-        ],
-        [
-          "⌄",
-          "Auto-hide navigation",
-          "Choose Hidden / Auto-hide under Settings → Appearance to keep the navigation bar out of the way until you hover over its top-center handle.",
-        ],
-      ].forEach((feature) =>
+      [].forEach((feature) =>
         state.body.appendChild(
           createPowerBrowserEducationFeature(...feature),
         ),

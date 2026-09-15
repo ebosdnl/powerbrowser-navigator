@@ -48,6 +48,25 @@
       .forEach((icon) => icon.remove());
   }
 
+  function getNextgenActionTypeIconMount(node) {
+    const card = node.querySelector(':scope > [draggable="true"]');
+    const updatedCanvasRow = Array.from(card?.children || []).find(
+      (child) =>
+        child instanceof Element &&
+        child.querySelector('svg[aria-label$="BACKGROUND"]') &&
+        child.querySelector("p"),
+    );
+    return (
+      updatedCanvasRow ||
+      node.querySelector(
+        ".p-1.flex.items-center.relative.justify-between.w-full > .flex.items-center.pr-1",
+      ) ||
+      node.querySelector(
+        ".flex.items-center.flex-row.py-1.px-0\\.5.w-full.justify-between",
+      )
+    );
+  }
+
   function renderNextgenActionTypeIcons(nodes = null) {
     nodes ||= document.querySelectorAll(
       ".react-flow__node-step[data-id], .react-flow__node-yieldsAll[data-id]",
@@ -72,12 +91,7 @@
       const errorIcon = node.querySelector("svg[data-testid='icon_error_triangle']");
       const actionArea =
         errorIcon?.closest("div[data-state]")?.parentElement ||
-        node.querySelector(
-          ".p-1.flex.items-center.relative.justify-between.w-full > .flex.items-center.pr-1",
-        ) ||
-        node.querySelector(
-          ".flex.items-center.flex-row.py-1.px-0\\.5.w-full.justify-between",
-        );
+        getNextgenActionTypeIconMount(node);
       if (!actionArea) return;
       if (errorIcon) {
         actionArea.insertBefore(icon, errorIcon.closest("div[data-state]"));

@@ -1,5 +1,7 @@
   const NEXTGEN_ACTION_HISTORY_CONTROLS_CLASS =
     "power-browser-action-history-controls";
+  const NEXTGEN_ACTION_HISTORY_MINIMAP_CLASS =
+    "power-browser-action-history-minimap";
   const NEXTGEN_ACTION_HISTORY_STYLE_ID =
     "power-browser-action-history-style";
   const NEXTGEN_ACTION_VERSIONS_KEY =
@@ -895,7 +897,8 @@
     const style = document.createElement("style");
     style.id = NEXTGEN_ACTION_HISTORY_STYLE_ID;
     style.textContent = `
-      .${NEXTGEN_ACTION_HISTORY_CONTROLS_CLASS}{position:absolute;top:12px;right:12px;z-index:25;display:flex;gap:2px;padding:3px;border:1px solid #e5e7eb;border-radius:6px;background:#fff;box-shadow:0 2px 8px rgba(15,23,42,.14)}
+      .${NEXTGEN_ACTION_HISTORY_MINIMAP_CLASS}{overflow:visible!important}
+      .${NEXTGEN_ACTION_HISTORY_CONTROLS_CLASS}{position:absolute;top:calc(100% + 8px);right:0;z-index:25;display:flex;gap:2px;padding:3px;border:1px solid #e5e7eb;border-radius:6px;background:#fff;box-shadow:0 2px 8px rgba(15,23,42,.14)}
       .${NEXTGEN_ACTION_HISTORY_CONTROLS_CLASS} button{display:flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;border:0;border-radius:4px;background:transparent;cursor:pointer;opacity:.8}
       .${NEXTGEN_ACTION_HISTORY_CONTROLS_CLASS} button:hover:not(:disabled),.${NEXTGEN_ACTION_HISTORY_CONTROLS_CLASS} button:focus-visible:not(:disabled){background:#f3f4f6;opacity:1;outline:none}
       .${NEXTGEN_ACTION_HISTORY_CONTROLS_CLASS} button:disabled{cursor:not-allowed;opacity:.3}
@@ -1464,13 +1467,17 @@
     if (!getSettingValue("nextgenActionStepHistory")) return;
     const actionId = getNextgenActionHistoryRoute()?.actionId;
     const canvas = document.querySelector(".react-flow");
-    if (!actionId || !canvas) return;
+    const minimap = canvas?.querySelector('[data-testid="rf__minimap"]');
+    if (!actionId || !canvas || !minimap) return;
     ensureNextgenActionHistoryStyles();
-    if (
-      canvas.querySelector(
-        `:scope > .${NEXTGEN_ACTION_HISTORY_CONTROLS_CLASS}`,
-      )
-    ) {
+    minimap.classList.add(NEXTGEN_ACTION_HISTORY_MINIMAP_CLASS);
+    const existingControls = canvas.querySelector(
+      `.${NEXTGEN_ACTION_HISTORY_CONTROLS_CLASS}`,
+    );
+    if (existingControls) {
+      if (existingControls.parentElement !== minimap) {
+        minimap.appendChild(existingControls);
+      }
       updateNextgenActionHistoryControls();
       return;
     }
@@ -1511,23 +1518,25 @@
     history.addEventListener("click", openNextgenActionHistoryDialog);
     versions.addEventListener("click", openNextgenActionVersionDialog);
     controls.append(undo, redo, history, versions);
-    canvas.appendChild(controls);
+    minimap.appendChild(controls);
     updateNextgenActionHistoryControls();
   }
 
   function scheduleNextgenActionHistoryControls(mutations) {
-    const containsCanvas = (node) =>
+    const containsHistoryMount = (node) =>
       node instanceof Element &&
-      (node.matches(".react-flow") || Boolean(node.querySelector(".react-flow")));
+      (node.matches(
+        `.react-flow, [data-testid="rf__minimap"], .${NEXTGEN_ACTION_HISTORY_CONTROLS_CLASS}`,
+      ) ||
+        Boolean(
+          node.querySelector(
+            `.react-flow, [data-testid="rf__minimap"], .${NEXTGEN_ACTION_HISTORY_CONTROLS_CLASS}`,
+          ),
+        ));
     const canvasChanged = mutations.some(
       (mutation) =>
-        Array.from(mutation.addedNodes).some(containsCanvas) ||
-        Array.from(mutation.removedNodes).some(
-          (node) =>
-            containsCanvas(node) ||
-            (node instanceof Element &&
-              node.classList.contains(NEXTGEN_ACTION_HISTORY_CONTROLS_CLASS)),
-        ),
+        Array.from(mutation.addedNodes).some(containsHistoryMount) ||
+        Array.from(mutation.removedNodes).some(containsHistoryMount),
     );
     if (!canvasChanged || nextgenActionHistoryInstallFrame) return;
     nextgenActionHistoryInstallFrame = window.requestAnimationFrame(() => {
@@ -1583,6 +1592,11 @@
     document
       .querySelectorAll(`.${NEXTGEN_ACTION_HISTORY_CONTROLS_CLASS}`)
       .forEach((controls) => controls.remove());
+    document
+      .querySelectorAll(`.${NEXTGEN_ACTION_HISTORY_MINIMAP_CLASS}`)
+      .forEach((minimap) =>
+        minimap.classList.remove(NEXTGEN_ACTION_HISTORY_MINIMAP_CLASS),
+      );
     document.getElementById(NEXTGEN_ACTION_HISTORY_STYLE_ID)?.remove();
     if (nextgenActionHistoryDialogState) {
       closeNextgenActionHistoryDialog();

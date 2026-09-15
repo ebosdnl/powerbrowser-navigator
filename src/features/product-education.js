@@ -136,28 +136,7 @@
         : "Updated";
       state.title.textContent = "What’s new";
       state.description.textContent = "";
-      [
-        [
-          "◫",
-          "Persistent navigation visibility",
-          "When you hide the navigation bar, it stays hidden after reloads and syncs across open tabs.",
-        ],
-        [
-          "↪",
-          "Automatic Sub Action names",
-          "Optionally name a Sub Action step after the action selected in its Action setting. Enable it under Next-gen → Actions.",
-        ],
-        [
-          "⚡",
-          "Faster action canvases",
-          "Power Browser now reduces repeated observer work and defers edge paste controls until needed, keeping large Next-gen actions more responsive.",
-        ],
-        [
-          "⌄",
-          "Auto-hide navigation",
-          "Choose Hidden / Auto-hide under Settings → Appearance to keep the navigation bar out of the way until you hover over its top-center handle.",
-        ],
-      ].forEach((feature) =>
+      [].forEach((feature) =>
         state.body.appendChild(
           createPowerBrowserEducationFeature(...feature),
         ),
