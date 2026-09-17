@@ -136,7 +136,18 @@
         : "Updated";
       state.title.textContent = "What’s new";
       state.description.textContent = "";
-      [].forEach((feature) =>
+      [
+        [
+          "UP",
+          "Action-step updates (BETA)",
+          "Update outdated Next-gen action steps from the step drawer while preserving compatible options, variables and references.",
+        ],
+        [
+          "Aa",
+          "Always-visible function names",
+          "Enable the new Next-gen Actions setting to keep each step's underlying function name visible without hovering.",
+        ],
+      ].forEach((feature) =>
         state.body.appendChild(
           createPowerBrowserEducationFeature(...feature),
         ),
