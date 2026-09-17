@@ -1059,6 +1059,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     normalizeQuickSwitcherResultPreferences,
     normalizeUrlWithoutQuery,
     normalizeEndpoints: normalizePowerBrowserEndpoints,
+    redactDiagnosticValue,
     removeApplicationOverride,
     removeApplicationProfile,
     resolveEditableSetting,
@@ -12639,11 +12640,9 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
           ) || null,
         familySize: applicationFamily.length,
       },
-      dataSources: JSON.parse(
-        JSON.stringify(powerBrowserDiagnostics),
-      ),
-      healthIssues: powerBrowserHealthIssues.map((issue) => ({ ...issue })),
-      authentication: applicationAuthState.current,
+      dataSources: redactDiagnosticValue(powerBrowserDiagnostics),
+      healthIssues: redactDiagnosticValue(powerBrowserHealthIssues),
+      authentication: redactDiagnosticValue(applicationAuthState.current),
       timeline: diagnosticTimeline.entries(),
       csrfAvailable: Boolean(
         getCsrfToken() || getNextgenLogCsrfToken(),
@@ -13191,6 +13190,8 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
         ["light", "dark", "betty"].includes(value)) ||
       (definition.type === "size" &&
         SETTINGS_SIZE_VALUES.includes(value)) ||
+      (definition.type === "choice" &&
+        definition.options.some((option) => option.value === value)) ||
       (definition.type === "number" &&
         typeof value === "number" &&
         Number.isFinite(value) &&
@@ -13295,22 +13296,42 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       );
     }
 
-    validatedSettings.forEach(({ definition, value }) => {
-      setSettingValue(definition.key, value);
-      applySettingChange(
-        navigator,
-        definition,
-        getSettingValue(definition.key),
+    let validatedProfiles;
+    if (Object.hasOwn(payload, "applicationProfiles")) {
+      const profiles = payload.applicationProfiles;
+      if (!profiles || typeof profiles !== "object" || Array.isArray(profiles)) {
+        throw new Error("The application profiles must contain a JSON object.");
+      }
+      validatedProfiles = Object.fromEntries(
+        Object.entries(profiles).map(([identifier, settings]) => {
+          if (!identifier || !settings || typeof settings !== "object" || Array.isArray(settings)) {
+            throw new Error("This application profile is invalid.");
+          }
+          const entries = Object.entries(settings).filter(([key, value]) => {
+            const definition = getSettingDefinition(key);
+            if (!definition) {
+              ignored += 1;
+              return false;
+            }
+            if (!isValidImportedSettingValue(definition, value)) {
+              throw new Error(`Setting “${definition.label}” has an invalid value.`);
+            }
+            return true;
+          });
+          return [identifier, Object.fromEntries(entries)];
+        }),
       );
+    }
+
+    // A full backup contains global values, regardless of the editor's scope.
+    // Validate every profile before writing or applying any imported settings.
+    validatedSettings.forEach(({ definition, value }) => {
+      GM_setValue(definition.key, value);
     });
-    if (
-      payload.applicationProfiles &&
-      typeof payload.applicationProfiles === "object" &&
-      !Array.isArray(payload.applicationProfiles)
-    ) {
+    if (validatedProfiles !== undefined) {
       GM_setValue(
         "powerBrowserApplicationProfiles",
-        payload.applicationProfiles,
+        validatedProfiles,
       );
     }
     if (

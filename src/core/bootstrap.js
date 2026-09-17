@@ -46,6 +46,7 @@
     normalizeQuickSwitcherResultPreferences,
     normalizeUrlWithoutQuery,
     normalizeEndpoints: normalizePowerBrowserEndpoints,
+    redactDiagnosticValue,
     removeApplicationOverride,
     removeApplicationProfile,
     resolveEditableSetting,

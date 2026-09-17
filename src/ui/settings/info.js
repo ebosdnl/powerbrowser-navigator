@@ -243,11 +243,9 @@
           ) || null,
         familySize: applicationFamily.length,
       },
-      dataSources: JSON.parse(
-        JSON.stringify(powerBrowserDiagnostics),
-      ),
-      healthIssues: powerBrowserHealthIssues.map((issue) => ({ ...issue })),
-      authentication: applicationAuthState.current,
+      dataSources: redactDiagnosticValue(powerBrowserDiagnostics),
+      healthIssues: redactDiagnosticValue(powerBrowserHealthIssues),
+      authentication: redactDiagnosticValue(applicationAuthState.current),
       timeline: diagnosticTimeline.entries(),
       csrfAvailable: Boolean(
         getCsrfToken() || getNextgenLogCsrfToken(),
