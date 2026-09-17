@@ -110,6 +110,12 @@
     stop: cleanupNextgenActionTypeIcons,
   });
   featureRegistry.register({
+    name: "nextgen-always-show-action-name",
+    start: applyNextgenAlwaysShowActionNameSetting,
+    sync: applyNextgenAlwaysShowActionNameSetting,
+    stop: cleanupNextgenAlwaysShowActionName,
+  });
+  featureRegistry.register({
     name: "nextgen-sub-action-auto-name",
     start: applyNextgenSubActionAutoNameSetting,
     sync: applyNextgenSubActionAutoNameSetting,
@@ -177,6 +183,7 @@
   // finished, so its observer must start independently of main initialization.
   applyNextgenActionPlaygroundSetting();
   applyNextgenActionTypeIconsSetting();
+  applyNextgenAlwaysShowActionNameSetting();
   applyNextgenSubActionAutoNameSetting();
   applyNextgenDuplicateActionStepSetting();
 

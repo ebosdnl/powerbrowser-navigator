@@ -80,6 +80,10 @@
       applyNextgenActionTypeIconsSetting();
     }
 
+    if (definition.key === "nextgenAlwaysShowActionName") {
+      applyNextgenAlwaysShowActionNameSetting();
+    }
+
     if (definition.key === "nextgenSubActionAutoName") {
       applyNextgenSubActionAutoNameSetting();
     }

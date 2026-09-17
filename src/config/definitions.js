@@ -313,6 +313,16 @@
       defaultValue: true,
     },
     {
+      key: "nextgenAlwaysShowActionName",
+      tab: "nextgen",
+      section: "Actions",
+      label: "Always show action name",
+      description:
+        "Keep each action step's function name visible instead of only showing it on hover.",
+      type: "toggle",
+      defaultValue: false,
+    },
+    {
       key: "nextgenSubActionAutoName",
       tab: "nextgen",
       section: "Actions",

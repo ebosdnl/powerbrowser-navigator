@@ -1,6 +1,6 @@
 {
   "name": "powerbrowser-navigator",
-  "version": "3.6.5",
+  "version": "3.6.7",
   "private": true,
   "type": "module",
   "scripts": {
