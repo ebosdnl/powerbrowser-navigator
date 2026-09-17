@@ -7173,6 +7173,10 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
   }
   const NEXTGEN_DUPLICATE_STEP_BUTTON_TEST_ID =
     "power-browser-duplicate-step";
+  const NEXTGEN_UPDATE_STEP_BUTTON_TEST_ID = "power-browser-update-step";
+  const NEXTGEN_UPDATE_STEP_STYLE_ID = "power-browser-update-step-styles";
+  const NEXTGEN_ACTION_STEP_UPDATE_NOTICE =
+    "There is a new version available for this step";
   const NEXTGEN_ACTION_STEP_QUICK_ACTIONS_CLASS =
     "power-browser-action-step-quick-actions";
   const NEXTGEN_ACTION_STEP_QUICK_ACTIONS_STYLE_ID =
@@ -7207,6 +7211,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
   let nextgenActionStepEdgeRefreshPending = false;
   let nextgenActionStepMenuCleanupPending = false;
   let nextgenActionStepDeleteDialogState = null;
+  let nextgenActionStepUpdateDialogState = null;
   const nextgenActionScopeMutationHook = {
     after: invalidateNextgenActionScopeData,
   };
@@ -7234,7 +7239,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       folder { id name type authenticationProfileId }
       options { authenticationProfile isBackground isScheduled scheduleCron debugLogging switchedToWasm }
       canSwitchToJavascript public draft
-      actionStepPaths { __typename id label index actionStepId isElse }
+      actionStepPaths { __typename id label index actionStepId isElse options }
       actionSteps {
         __typename id parentId index isSyncedWithPagesComponent label actionStepPathId functionOptions draft
         nativeFunction { __typename id label description icon { name color } category yields name options paths version runtime }
@@ -8806,6 +8811,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     sourceOverride = null,
     placementStepId = null,
     placementPosition = "after",
+    returnDetails = false,
   ) {
     const context = requestedContext || getNextgenEditedActionStepContext();
     if (!context) throw new Error("No edited action step was found.");
@@ -8977,7 +8983,7 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
         "added",
         !requestedContext,
       );
-      return newStepId;
+      return returnDetails ? { stepId: newStepId, replacements } : newStepId;
     } catch (error) {
       if (!isQuickAction) {
         button.textContent = "Duplicate";
@@ -9910,6 +9916,13 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
           nextgenActionStepDrawerRefreshPending = true;
         }
         if (
+          String(node?.textContent || "").includes(
+            NEXTGEN_ACTION_STEP_UPDATE_NOTICE,
+          )
+        ) {
+          nextgenActionStepDrawerRefreshPending = true;
+        }
+        if (
           nextgenActionStepPasteShortcutActive &&
           nodeContainsNextgenActionElement(node, ".react-flow__edge")
         ) {
@@ -9999,10 +10012,531 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     }
   }
 
+  function compareNextgenActionFunctionVersions(left, right) {
+    return String(left || "").localeCompare(String(right || ""), undefined, {
+      numeric: true,
+      sensitivity: "base",
+    });
+  }
+
+  function ensureNextgenActionStepUpdateStyles() {
+    if (document.getElementById(NEXTGEN_UPDATE_STEP_STYLE_ID)) return;
+    const style = document.createElement("style");
+    style.id = NEXTGEN_UPDATE_STEP_STYLE_ID;
+    style.textContent = `
+      .power-browser-action-step-update-button{border-color:#2563eb!important;background:#eff6ff!important;color:#1d4ed8!important;font-weight:600!important}
+      .power-browser-action-step-update-button:hover:not(:disabled){border-color:#1d4ed8!important;background:#dbeafe!important;color:#1e40af!important}
+      .power-browser-action-step-update-overlay{position:fixed;inset:0;z-index:2147483004;display:flex;align-items:flex-start;justify-content:center;padding:112px 24px 24px;background:rgba(17,24,39,.45);box-sizing:border-box}
+      .power-browser-action-step-update-overlay[aria-hidden="true"]{display:none}
+      .power-browser-action-step-update-dialog{position:relative;display:grid;width:min(600px,calc(100vw - 48px));min-height:210px;gap:16px;padding:32px;border-radius:4px;background:#fff;box-shadow:0 20px 50px rgba(15,23,42,.24);color:#111827;box-sizing:border-box}
+      .power-browser-action-step-update-dialog[aria-hidden="true"]{display:none}
+      .power-browser-action-step-update-dialog h2{width:calc(100% - 40px);margin:0;font-size:20px;font-weight:700;line-height:1.25}
+      .power-browser-action-step-update-dialog p{margin:0;color:#4b5563;font-size:14px;line-height:1.5}
+      .power-browser-action-step-update-error{padding:10px 12px;border:1px solid #fecaca;border-radius:4px;background:#fef2f2;color:#b91c1c!important}
+      .power-browser-action-step-update-error[hidden]{display:none}
+      .power-browser-action-step-update-actions{display:flex;align-items:center;justify-content:space-between;gap:8px}
+      .power-browser-action-step-update-actions button{display:inline-flex;align-items:center;justify-content:center;height:40px;padding:0 16px;border:1px solid;border-radius:4px;font-family:inherit;font-size:14px;font-weight:400;cursor:pointer}
+      .power-browser-action-step-update-cancel{border-color:#f3f4f6!important;background:#f9fafb;color:#111827}
+      .power-browser-action-step-update-cancel:hover{border-color:#e5e7eb!important;background:#f3f4f6}
+      .power-browser-action-step-update-confirm{border-color:#2563eb!important;background:#2563eb;color:#fff}
+      .power-browser-action-step-update-confirm:hover:not(:disabled){border-color:#1d4ed8!important;background:#1d4ed8}
+      .power-browser-action-step-update-close{position:absolute;top:32px;right:32px;display:flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;border:0;border-radius:4px;background:transparent;cursor:pointer}
+      .power-browser-action-step-update-close:hover{background:#f9fafb}
+      .power-browser-action-step-update-close svg{width:12px;height:12px;fill:#374151}
+      .power-browser-action-step-update-dialog button:disabled{cursor:wait;opacity:.5}
+    `;
+    document.head.appendChild(style);
+  }
+
+  function closeNextgenActionStepUpdateDialog() {
+    const state = nextgenActionStepUpdateDialogState;
+    if (!state || state.busy) return;
+    state.overlay.setAttribute("aria-hidden", "true");
+    state.dialog.setAttribute("aria-hidden", "true");
+    state.sourceButton = null;
+    state.error.hidden = true;
+    state.error.textContent = "";
+    closePowerBrowserModal(state.dialog);
+  }
+
+  function showNextgenActionStepUpdateError(message) {
+    const state = nextgenActionStepUpdateDialogState;
+    if (!state) return;
+    state.error.textContent = message;
+    state.error.hidden = false;
+  }
+
+  async function confirmNextgenActionStepUpdate() {
+    const state = nextgenActionStepUpdateDialogState;
+    if (!state?.sourceButton || state.busy) return;
+    state.busy = true;
+    state.cancel.disabled = true;
+    state.confirm.disabled = true;
+    state.close.disabled = true;
+    state.error.hidden = true;
+    state.confirm.textContent = "Updating...";
+    const updated = await updateNextgenActionStepVersion(state.sourceButton);
+    state.busy = false;
+    state.cancel.disabled = false;
+    state.confirm.disabled = false;
+    state.close.disabled = false;
+    state.confirm.textContent = "Update";
+    if (updated) closeNextgenActionStepUpdateDialog();
+  }
+
+  function ensureNextgenActionStepUpdateDialog() {
+    if (nextgenActionStepUpdateDialogState?.dialog.isConnected) {
+      return nextgenActionStepUpdateDialogState;
+    }
+    ensureNextgenActionStepUpdateStyles();
+    const overlay = document.createElement("div");
+    overlay.className = "power-browser-action-step-update-overlay";
+    overlay.setAttribute("aria-hidden", "true");
+    const dialog = document.createElement("section");
+    dialog.className = "power-browser-action-step-update-dialog";
+    dialog.dataset.test = "power-browser-action-step-update-dialog";
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("aria-modal", "true");
+    dialog.setAttribute("aria-hidden", "true");
+    dialog.setAttribute("aria-labelledby", "power-browser-update-step-title");
+    dialog.setAttribute(
+      "aria-describedby",
+      "power-browser-update-step-description",
+    );
+    const heading = document.createElement("h2");
+    heading.id = "power-browser-update-step-title";
+    heading.textContent = "Update this action step (BETA)";
+    const description = document.createElement("p");
+    description.id = "power-browser-update-step-description";
+    description.textContent =
+      "Power Browser will replace this step with the newest version while preserving its label, compatible options, variables and references. Review the step afterward if the new version introduces additional options.";
+    const error = document.createElement("p");
+    error.className = "power-browser-action-step-update-error";
+    error.setAttribute("role", "alert");
+    error.hidden = true;
+    const actions = document.createElement("div");
+    actions.className = "power-browser-action-step-update-actions";
+    const cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.className = "power-browser-action-step-update-cancel";
+    cancel.textContent = "Cancel";
+    const confirm = document.createElement("button");
+    confirm.type = "button";
+    confirm.className = "power-browser-action-step-update-confirm";
+    confirm.dataset.test = "power-browser-confirm-update-step";
+    confirm.textContent = "Update";
+    const close = document.createElement("button");
+    close.type = "button";
+    close.className = "power-browser-action-step-update-close";
+    close.setAttribute("aria-label", "Close dialog");
+    close.innerHTML =
+      '<svg aria-hidden="true" viewBox="0 0 14 14"><path d="M2.006 3.244a.875.875 0 0 1 1.238-1.238L7 5.763l3.756-3.757a.875.875 0 0 1 1.238 1.238L8.237 7l3.757 3.756a.875.875 0 0 1-1.238 1.238L7 8.237l-3.756 3.757a.875.875 0 0 1-1.238-1.238L5.763 7 2.006 3.244Z"></path></svg>';
+    actions.append(cancel, confirm);
+    dialog.append(heading, description, error, actions, close);
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+    nextgenActionStepUpdateDialogState = {
+      overlay,
+      dialog,
+      error,
+      cancel,
+      confirm,
+      close,
+      sourceButton: null,
+      busy: false,
+    };
+    cancel.addEventListener("click", closeNextgenActionStepUpdateDialog);
+    close.addEventListener("click", closeNextgenActionStepUpdateDialog);
+    overlay.addEventListener("pointerdown", (event) => {
+      if (event.target === overlay) closeNextgenActionStepUpdateDialog();
+    });
+    confirm.addEventListener("click", () =>
+      void confirmNextgenActionStepUpdate(),
+    );
+    dialog.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" || event.repeat || event.isComposing) return;
+      event.preventDefault();
+      event.stopPropagation();
+      void confirmNextgenActionStepUpdate();
+    });
+    return nextgenActionStepUpdateDialogState;
+  }
+
+  function openNextgenActionStepUpdateDialog(button) {
+    const state = ensureNextgenActionStepUpdateDialog();
+    state.sourceButton = button;
+    state.error.hidden = true;
+    state.error.textContent = "";
+    state.overlay.setAttribute("aria-hidden", "false");
+    state.dialog.setAttribute("aria-hidden", "false");
+    openPowerBrowserModal({
+      dialog: state.dialog,
+      overlay: state.overlay,
+      close: closeNextgenActionStepUpdateDialog,
+      initialFocus: () => state.confirm,
+      announcement: "Update action step confirmation opened.",
+    });
+    state.confirm.focus();
+  }
+
+  async function resolveNextgenActionStepUpdate(actionStep) {
+    const current = getNextgenActionStepFunctionDescriptor(actionStep);
+    if (!current?.value?.name || !current.value.version) {
+      throw new Error("The current action function and version were not returned.");
+    }
+    const data = await requestNextgenActionStepGraphql(
+      "PowerBrowserResolveActionStepUpdate",
+      `query PowerBrowserResolveActionStepUpdate($filter: ListActionFunctionFilter) {
+        listActionFunctions(filter: $filter) {
+          results { id name type version }
+        }
+      }`,
+      {},
+    );
+    const latest = (data.listActionFunctions?.results || [])
+      .filter(
+        (candidate) =>
+          candidate.type === current.type &&
+          candidate.name === current.value.name &&
+          compareNextgenActionFunctionVersions(
+            candidate.version,
+            current.value.version,
+          ) > 0,
+      )
+      .sort((left, right) =>
+        compareNextgenActionFunctionVersions(right.version, left.version),
+      )[0];
+    if (!latest) {
+      throw new Error("A newer compatible action function was not found.");
+    }
+    return { current, latest };
+  }
+
+  function parseNextgenActionStepSerializedValue(value) {
+    if (typeof value !== "string") return structuredClone(value || {});
+    const trimmed = value.trim();
+    if (!trimmed || !/^[\[{]/.test(trimmed)) return value;
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      return value;
+    }
+  }
+
+  function serializeNextgenActionStepValue(value) {
+    return typeof value === "string" ? value : JSON.stringify(value || {});
+  }
+
+  function createNextgenActionStepReferenceMigrations(
+    action,
+    sourceStepId,
+    replacements,
+  ) {
+    const replacedVariableIds = new Set(replacements.keys());
+    const pathsByOwner = new Map();
+    for (const path of action.actionStepPaths || []) {
+      if (!pathsByOwner.has(path.actionStepId)) {
+        pathsByOwner.set(path.actionStepId, []);
+      }
+      pathsByOwner.get(path.actionStepId).push(path);
+    }
+    const migrations = [];
+    for (const step of action.actionSteps || []) {
+      if (step.id === sourceStepId) continue;
+      const originalFunctionOptions = parseNextgenActionStepSerializedValue(
+        step.functionOptions,
+      );
+      const nextFunctionOptions = replaceNextgenActionStepValueIds(
+        structuredClone(originalFunctionOptions),
+        replacements,
+      );
+      const functionOptionsChanged =
+        JSON.stringify(nextFunctionOptions) !==
+        JSON.stringify(originalFunctionOptions);
+      const originalPaths = pathsByOwner.get(step.id) || [];
+      const nextPaths = originalPaths.map((path) => ({
+        id: path.id,
+        index: path.index,
+        isElse: Boolean(path.isElse),
+        label: path.label,
+        options: serializeNextgenActionStepValue(
+          replaceNextgenActionStepValueIds(
+            parseNextgenActionStepSerializedValue(path.options),
+            replacements,
+          ),
+        ),
+      }));
+      const pathsChanged = originalPaths.some((path) =>
+        hasNextgenActionStepValueId(
+          parseNextgenActionStepSerializedValue(path.options),
+          replacedVariableIds,
+        ),
+      );
+      if (!functionOptionsChanged && !pathsChanged) continue;
+      const forward = { id: step.id };
+      const rollback = { id: step.id };
+      if (functionOptionsChanged) {
+        forward.functionOptions = JSON.stringify(nextFunctionOptions || {});
+        rollback.functionOptions = serializeNextgenActionStepValue(
+          originalFunctionOptions,
+        );
+      }
+      if (pathsChanged) {
+        forward.actionStepPaths = nextPaths;
+        rollback.actionStepPaths = originalPaths.map((path) => ({
+          id: path.id,
+          index: path.index,
+          isElse: Boolean(path.isElse),
+          label: path.label,
+          options: serializeNextgenActionStepValue(path.options),
+        }));
+      }
+      migrations.push({ forward, rollback });
+    }
+    return migrations;
+  }
+
+  async function applyNextgenActionStepReferenceInput(input) {
+    await requestNextgenActionStepGraphql(
+      "PowerBrowserMigrateUpdatedActionStepReferences",
+      `mutation PowerBrowserMigrateUpdatedActionStepReferences($input: UpdateActionStepInput!) {
+        updateActionStep(input: $input) { id }
+      }`,
+      { input },
+    );
+  }
+
+  async function updateNextgenActionStepVersion(button) {
+    const context = getNextgenEditedActionStepContext();
+    if (!context || button.disabled) return false;
+    const originalText = button.textContent;
+    const appliedMigrations = [];
+    let replacementStepId = null;
+    let sourceDeleted = false;
+    button.disabled = true;
+    button.textContent = "Updating...";
+    try {
+      const source = await fetchNextgenActionStepForDuplication(
+        context.actionId,
+        context.stepId,
+      );
+      if (!source.actionStep || !source.action) {
+        throw new Error("The current action step was not returned.");
+      }
+      const actionData = await requestNextgenActionStepGraphql(
+        "Action",
+        NEXTGEN_ACTION_CANVAS_QUERY,
+        { input: { id: context.actionId } },
+      );
+      const action = actionData.action;
+      if (!action) throw new Error("The current action was not returned.");
+      if (
+        source.actionStep.actionStepPaths?.length ||
+        action.actionSteps.some((step) => step.parentId === context.stepId) ||
+        action.actionStepPaths.some(
+          (path) => path.actionStepId === context.stepId,
+        )
+      ) {
+        throw new Error(
+          "Scoped action steps cannot be updated automatically yet.",
+        );
+      }
+      const { current, latest } = await resolveNextgenActionStepUpdate(
+        source.actionStep,
+      );
+      const replacementSource = structuredClone(source);
+      const replacementFunction = getNextgenActionStepFunctionDescriptor(
+        replacementSource.actionStep,
+      );
+      replacementFunction.value.id = latest.id;
+      replacementFunction.value.version = latest.version;
+      const sourceVariables = await getNextgenSourceActionStepVariables(source);
+      const workerButton = document.createElement("button");
+      const replacement = await duplicateNextgenActionStep(
+        workerButton,
+        context,
+        replacementSource,
+        context.stepId,
+        "after",
+        true,
+      );
+      if (!replacement?.stepId) {
+        throw new Error("The updated replacement step was not created.");
+      }
+      replacementStepId = replacement.stepId;
+      const migrations = createNextgenActionStepReferenceMigrations(
+        action,
+        context.stepId,
+        replacement.replacements,
+      );
+      for (const migration of migrations) {
+        await applyNextgenActionStepReferenceInput(migration.forward);
+        appliedMigrations.push(migration);
+      }
+      await requestNextgenActionStepGraphql(
+        "PowerBrowserReplaceOutdatedActionStep",
+        `mutation PowerBrowserReplaceOutdatedActionStep($deleteInput: DeleteActionStepInput) {
+          deleteActionStep(input: $deleteInput)
+        }`,
+        {
+          deleteInput: { id: context.stepId },
+        },
+      );
+      sourceDeleted = true;
+      const sourcePosition = action.actionSteps.find(
+        (step) => step.id === context.stepId,
+      );
+      const siblingMoveInput = action.actionSteps
+        .filter(
+          (step) =>
+            (step.parentId || null) === (sourcePosition?.parentId || null) &&
+            (step.actionStepPathId || null) ===
+              (sourcePosition?.actionStepPathId || null),
+        )
+        .sort((left, right) => Number(left.index) - Number(right.index))
+        .map((step, index) => ({
+          id: step.id === context.stepId ? replacementStepId : step.id,
+          index: index + 1,
+          parentId: step.parentId || null,
+          actionStepPathId: step.actionStepPathId || null,
+        }));
+      try {
+        await requestNextgenActionStepGraphql(
+          "PowerBrowserReorderUpdatedActionStep",
+          `mutation PowerBrowserReorderUpdatedActionStep($input: [MoveActionStepsInput]) {
+            moveActionSteps(input: $input)
+          }`,
+          { input: siblingMoveInput },
+        );
+      } catch (reorderError) {
+        console.warn(
+          "[Power Browser] The updated step was created, but its sibling indexes could not be normalized.",
+          reorderError,
+        );
+      }
+      const renamedVariables = sourceVariables
+        .map((variable) => {
+          const replacementId = replacement.replacements.get(variable.id);
+          return replacementId
+            ? {
+                actionId: context.actionId,
+                actionStepId: replacementStepId,
+                name: variable.name,
+                delete: false,
+                id: replacementId,
+                kind: variable.kind,
+                scope: variable.scope,
+                options: serializeNextgenActionStepValue(variable.options),
+              }
+            : null;
+        })
+        .filter(Boolean);
+      if (renamedVariables.length) {
+        await requestNextgenActionStepGraphql(
+          "PowerBrowserRestoreUpdatedActionStepVariableNames",
+          `mutation PowerBrowserRestoreUpdatedActionStepVariableNames($input: UpdateActionStepInput!) {
+            updateActionStep(input: $input) { id }
+          }`,
+          {
+            input: {
+              id: replacementStepId,
+              variables: renamedVariables,
+            },
+          },
+        );
+      }
+      await refreshNextgenActionCanvas(
+        context.actionId,
+        context.stepId,
+        "removed",
+        true,
+      );
+      announcePowerBrowser(
+        `${current.value.name} updated from ${current.value.version} to ${latest.version}.`,
+      );
+      return true;
+    } catch (error) {
+      if (!sourceDeleted && replacementStepId) {
+        try {
+          const currentAction = await requestNextgenActionStepGraphql(
+            "Action",
+            NEXTGEN_ACTION_CANVAS_QUERY,
+            { input: { id: context.actionId } },
+          );
+          sourceDeleted = !currentAction.action?.actionSteps?.some(
+            (step) => step.id === context.stepId,
+          );
+        } catch (verificationError) {
+          console.error(
+            "[Power Browser] Unable to verify the original step before rollback.",
+            verificationError,
+          );
+        }
+      }
+      if (!sourceDeleted) {
+        for (const migration of appliedMigrations.reverse()) {
+          try {
+            await applyNextgenActionStepReferenceInput(migration.rollback);
+          } catch (rollbackError) {
+            console.error(
+              "[Power Browser] Unable to roll back an updated step reference.",
+              rollbackError,
+            );
+          }
+        }
+        if (replacementStepId) {
+          try {
+            await requestNextgenActionStepGraphql(
+              "PowerBrowserRollbackActionStepUpdate",
+              `mutation PowerBrowserRollbackActionStepUpdate($input: DeleteActionStepInput) {
+                deleteActionStep(input: $input)
+              }`,
+              { input: { id: replacementStepId } },
+            );
+            await refreshNextgenActionCanvas(
+              context.actionId,
+              replacementStepId,
+              "removed",
+              false,
+            );
+          } catch (rollbackError) {
+            console.error(
+              "[Power Browser] Unable to remove a failed replacement step.",
+              rollbackError,
+            );
+          }
+        }
+      }
+      console.error("[Power Browser] Unable to update action step.", {
+        ...context,
+        error,
+      });
+      showNextgenActionStepUpdateError(
+        sourceDeleted
+          ? "The step was updated, but the canvas could not refresh. Reload the page to see the result."
+          : `Unable to update this action step: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return false;
+    } finally {
+      if (button.isConnected) {
+        button.disabled = false;
+        button.textContent = originalText;
+      }
+    }
+  }
+
+  function hasNextgenActionStepUpdateNotice(dialog) {
+    return String(dialog?.textContent || "").includes(
+      NEXTGEN_ACTION_STEP_UPDATE_NOTICE,
+    );
+  }
+
   function installNextgenDuplicateActionStepButton() {
     if (!getNextgenEditedActionStepContext()) {
       document
-        .querySelectorAll(`[data-test="${NEXTGEN_DUPLICATE_STEP_BUTTON_TEST_ID}"]`)
+        .querySelectorAll(
+          `[data-test="${NEXTGEN_DUPLICATE_STEP_BUTTON_TEST_ID}"], [data-test="${NEXTGEN_UPDATE_STEP_BUTTON_TEST_ID}"]`,
+        )
         .forEach((button) => button.remove());
       return;
     }
@@ -10012,12 +10546,39 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     const save = document.querySelector(
       '[role="dialog"] button[data-test="save-step"]',
     );
-    if (!cancel || !save || document.querySelector(`[data-test="${NEXTGEN_DUPLICATE_STEP_BUTTON_TEST_ID}"]`)) return;
-    const button = cancel.cloneNode(true);
-    button.dataset.test = NEXTGEN_DUPLICATE_STEP_BUTTON_TEST_ID;
-    button.textContent = "Duplicate";
-    button.addEventListener("click", () => void duplicateNextgenActionStep(button));
-    cancel.parentElement.insertBefore(button, cancel);
+    if (!cancel || !save) return;
+    if (
+      !document.querySelector(
+        `[data-test="${NEXTGEN_DUPLICATE_STEP_BUTTON_TEST_ID}"]`,
+      )
+    ) {
+      const button = cancel.cloneNode(true);
+      button.dataset.test = NEXTGEN_DUPLICATE_STEP_BUTTON_TEST_ID;
+      button.textContent = "Duplicate";
+      button.addEventListener("click", () =>
+        void duplicateNextgenActionStep(button),
+      );
+      cancel.parentElement.insertBefore(button, cancel);
+    }
+    const dialog = save.closest('[role="dialog"]');
+    const existingUpdate = document.querySelector(
+      `[data-test="${NEXTGEN_UPDATE_STEP_BUTTON_TEST_ID}"]`,
+    );
+    if (!hasNextgenActionStepUpdateNotice(dialog)) {
+      existingUpdate?.remove();
+      return;
+    }
+    if (!existingUpdate) {
+      ensureNextgenActionStepUpdateStyles();
+      const update = cancel.cloneNode(true);
+      update.dataset.test = NEXTGEN_UPDATE_STEP_BUTTON_TEST_ID;
+      update.classList.add("power-browser-action-step-update-button");
+      update.textContent = "Update";
+      update.addEventListener("click", () =>
+        openNextgenActionStepUpdateDialog(update),
+      );
+      save.parentElement.insertBefore(update, save.nextSibling);
+    }
   }
 
   function cleanupNextgenDuplicateActionStep() {
@@ -10032,7 +10593,9 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
     nextgenActionStepEdgeRefreshPending = false;
     nextgenActionStepMenuCleanupPending = false;
     document
-      .querySelectorAll(`[data-test="${NEXTGEN_DUPLICATE_STEP_BUTTON_TEST_ID}"]`)
+      .querySelectorAll(
+        `[data-test="${NEXTGEN_DUPLICATE_STEP_BUTTON_TEST_ID}"], [data-test="${NEXTGEN_UPDATE_STEP_BUTTON_TEST_ID}"]`,
+      )
       .forEach((button) => button.remove());
     document
       .querySelectorAll(`.${NEXTGEN_ACTION_STEP_QUICK_ACTIONS_CLASS}`)
@@ -10049,7 +10612,14 @@ GM_addStyle("\n    .power-browser-action-playground-dialog-v2 {\n      top: 72px
       nextgenActionStepDeleteDialogState.overlay.remove();
       nextgenActionStepDeleteDialogState = null;
     }
+    if (nextgenActionStepUpdateDialogState) {
+      nextgenActionStepUpdateDialogState.busy = false;
+      closeNextgenActionStepUpdateDialog();
+      nextgenActionStepUpdateDialogState.overlay.remove();
+      nextgenActionStepUpdateDialogState = null;
+    }
     document.getElementById(NEXTGEN_ACTION_STEP_QUICK_ACTIONS_STYLE_ID)?.remove();
+    document.getElementById(NEXTGEN_UPDATE_STEP_STYLE_ID)?.remove();
     cleanupNextgenActionStepPasteShortcut();
     cleanupNextgenActionStepEdgePasteButtons();
   }
